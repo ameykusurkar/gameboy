@@ -31,9 +31,51 @@ impl Cpu {
     pub fn step(&mut self) {
         let opcode = self.memory[self.pc as usize];
 
+        let old_pc = self.pc;
+
         match opcode {
+            0x0C => {
+                // INC C
+                let old = self.regs.c;
+                self.regs.c += 1;
+                self.set_flag(ZERO_FLAG, self.regs.c == 0);
+                self.set_flag(SUBTRACT_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
+                self.pc += 1;
+
+                println!("INC C");
+            },
+            0x0E => {
+                // LD C,n
+                let n = self.memory[self.pc as usize + 1];
+                self.regs.c = n;
+                self.pc += 2;
+
+                println!("LD C, {:02x}", n);
+            },
+            // TODO: Refactor LD XX, nn opcodes
+            0x11 => {
+                // LD DE,nn
+                let nn = self.read_u16(self.pc + 1);
+                self.regs.write_de(nn);
+                self.pc += 3;
+
+                println!("LD DE, {:04x}", nn);
+            },
+            0x20 => {
+                // JR NZ,n
+                // The offset is signed
+                let offset = self.memory[self.pc as usize + 1] as i8;
+                self.pc += 2;
+
+                if !read_bit(self.regs.f, ZERO_FLAG) {
+                    self.pc = ((self.pc as i32) + (offset as i32)) as u16;
+                }
+
+                println!("JR NZ, {}", offset);
+            },
             0x21 => {
-                // LD SP,nn
+                // LD HL,nn
                 let nn = self.read_u16(self.pc + 1);
                 self.regs.write_hl(nn);
                 self.pc += 3;
@@ -57,6 +99,22 @@ impl Cpu {
 
                 println!("LD (HL-), A");
             },
+            0x3E => {
+                // LD A,n
+                let n = self.memory[self.pc as usize + 1];
+                self.regs.a = n;
+                self.pc += 2;
+
+                println!("LD A, {:02x}", n);
+            },
+            0x77 => {
+                // LD (HL),A
+                let addr = self.regs.read_hl();
+                self.memory[addr as usize] = self.regs.a;
+                self.pc += 1;
+
+                println!("LD (HL), A");
+            },
             0xAF => {
                 // XOR A
                 self.regs.a ^= self.regs.a;
@@ -69,7 +127,28 @@ impl Cpu {
             0xCB => {
                 self.execute_prefixed_instruction();
             },
+            0xE0 => {
+                // LDH (n),A
+                let offset = self.memory[self.pc as usize + 1];
+                let addr = 0xFF + (offset as u16);
+                self.memory[addr as usize] = self.regs.a;
+                self.pc += 2;
+
+                println!("LDH ({:02x}), A", offset);
+            },
+            0xE2 => {
+                // LDH (C),A
+                let addr = 0xFF + (self.regs.c as u16);
+                self.memory[addr as usize] = self.regs.a;
+                self.pc += 1;
+
+                println!("LDH (C), A");
+            },
             _ => panic!("Unimplemented opcode {:02x}", opcode),
+        }
+
+        if old_pc == self.pc {
+            panic!("PC is still {:04x}, should have changed!", old_pc);
         }
     }
 
@@ -93,7 +172,7 @@ impl Cpu {
 
                 println!("BIT 7, H");
             }
-            _ => panic!("Unimplemented prefixed opcode {:02x}", opcode),
+            _ => panic!("Unimplemented prefixed (CB) opcode {:02x}", opcode),
         }
     }
 
@@ -113,6 +192,11 @@ impl Cpu {
 }
 
 impl Registers {
+    fn write_de(&mut self, val: u16) {
+        self.d = ((val & 0xFF00) >> 8) as u8;
+        self.e = (val & 0x00FF) as u8;
+    }
+
     fn write_hl(&mut self, val: u16) {
         self.h = ((val & 0xFF00) >> 8) as u8;
         self.l = (val & 0x00FF) as u8;
