@@ -2,12 +2,14 @@ use RegisterIndex::*;
 
 #[derive(Default, Debug)]
 pub struct Registers {
+    // TODO: Make this an array for faster lookup and cleaner code
     a: u8, f: u8,
     b: u8, c: u8,
     d: u8, e: u8,
     h: u8, l: u8,
 }
 
+#[derive(Copy, Clone)]
 pub enum RegisterIndex {
     A, F,
     B, C,

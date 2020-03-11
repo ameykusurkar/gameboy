@@ -1,4 +1,5 @@
 use crate::registers::Registers;
+use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
 
 pub struct Cpu {
@@ -30,26 +31,15 @@ impl Cpu {
         print!("{:#06x}: ", self.pc);
 
         match opcode {
-            // TODO: Refactor INC X opcodes
             0x04 => {
                 // INC B
-                let old = self.regs[B];
-                self.regs[B] += 1;
-                self.set_flag(ZERO_FLAG, self.regs[B] == 0);
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
-                self.pc += 1;
+                self.inc_reg(B);
 
                 println!("INC B");
             },
             0x0C => {
                 // INC C
-                let old = self.regs[C];
-                self.regs[C] += 1;
-                self.set_flag(ZERO_FLAG, self.regs[C] == 0);
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
-                self.pc += 1;
+                self.inc_reg(C);
 
                 println!("INC C");
             },
@@ -64,20 +54,15 @@ impl Cpu {
 
                 println!("DEC B");
             },
-            // TODO: Refactor LD X, n opcodes
             0x06 => {
                 // LD B,n
-                let n = self.memory[self.pc as usize + 1];
-                self.regs[B] = n;
-                self.pc += 2;
+                let n = self.load_reg_byte(B);
 
                 println!("LD B, {:02x}", n);
             },
             0x0E => {
                 // LD C,n
-                let n = self.memory[self.pc as usize + 1];
-                self.regs[C] = n;
-                self.pc += 2;
+                let n = self.load_reg_byte(C);
 
                 println!("LD C, {:02x}", n);
             },
@@ -239,7 +224,7 @@ impl Cpu {
         bootrom_area.copy_from_slice(buffer);
     }
 
-    pub fn execute_prefixed_instruction(&mut self) {
+    fn execute_prefixed_instruction(&mut self) {
         self.pc += 1;
         let opcode = self.memory[self.pc as usize];
 
@@ -269,6 +254,25 @@ impl Cpu {
             }
             _ => panic!("Unimplemented prefixed (CB) opcode {:02x}", opcode),
         }
+    }
+
+    fn inc_reg(&mut self, index: RegisterIndex) {
+        // INC r
+        let old = self.regs[index];
+        self.regs[index] += 1;
+        self.set_flag(ZERO_FLAG, self.regs[index] == 0);
+        self.set_flag(SUBTRACT_FLAG, false);
+        self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
+        self.pc += 1;
+    }
+
+    fn load_reg_byte(&mut self, index: RegisterIndex) -> u8 {
+        // INC r, n
+        let n = self.memory[self.pc as usize + 1];
+        self.regs[index] = n;
+        self.pc += 2;
+
+        n
     }
 
     fn read_u16(&self, addr: u16) -> u16 {
