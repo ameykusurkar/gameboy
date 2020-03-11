@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 
 mod cpu;
+mod registers;
 use cpu::Cpu;
 
 fn main() -> std::io::Result<()> {
