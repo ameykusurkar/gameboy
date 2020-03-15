@@ -236,6 +236,12 @@ impl Cpu {
 
                 println!("INC L");
             },
+            0x2D => {
+                // DEC L
+                self.dec_reg(L);
+
+                println!("DEC L");
+            },
             0x2E => {
                 // LD L,n
                 let n = self.load_reg_byte(L);
@@ -273,17 +279,35 @@ impl Cpu {
 
                 println!("LD A, {:02x}", n);
             },
+            0x46 => {
+                // LD B,(HL)
+                self.load_reg_hl(B);
+
+                println!("LD B, (HL)");
+            },
             0x47 => {
                 // LD B,A
                 self.load_reg_reg(B, A);
 
                 println!("LD B, A");
             },
+            0x4E => {
+                // LD C,(HL)
+                self.load_reg_hl(C);
+
+                println!("LD C, (HL)");
+            },
             0x4F => {
                 // LD C,A
                 self.load_reg_reg(C, A);
 
                 println!("LD C, A");
+            },
+            0x56 => {
+                // LD D,(HL)
+                self.load_reg_hl(D);
+
+                println!("LD D, (HL)");
             },
             0x57 => {
                 // LD D,A
@@ -638,6 +662,12 @@ impl Cpu {
         self.pc += 2;
 
         n
+    }
+
+    fn load_reg_hl(&mut self, index: RegisterIndex) {
+        let addr = self.regs.read(HL);
+        self.regs[index] = self.memory[addr];
+        self.pc += 1;
     }
 
     fn load_rr_nn(&mut self, index: TwoRegisterIndex) -> u16 {
