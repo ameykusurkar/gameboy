@@ -53,6 +53,12 @@ impl Cpu {
 
                 println!("NOP");
             },
+            0x01 => {
+                // LD BC,nn
+                let nn = self.load_rr_nn(BC);
+
+                println!("LD BC, {:04x}", nn);
+            },
             0x04 => {
                 // INC B
                 self.inc_reg(B);
@@ -89,12 +95,9 @@ impl Cpu {
 
                 println!("LD C, {:02x}", n);
             },
-            // TODO: Refactor LD XX, nn opcodes
             0x11 => {
                 // LD DE,nn
-                let nn = self.read_u16(self.pc + 1);
-                self.regs.write(DE, nn);
-                self.pc += 3;
+                let nn = self.load_rr_nn(DE);
 
                 println!("LD DE, {:04x}", nn);
             },
@@ -186,9 +189,7 @@ impl Cpu {
             },
             0x21 => {
                 // LD HL,nn
-                let nn = self.read_u16(self.pc + 1);
-                self.regs.write(HL, nn);
-                self.pc += 3;
+                let nn = self.load_rr_nn(HL);
 
                 println!("LD HL, {:04x}", nn);
             },
@@ -440,12 +441,24 @@ impl Cpu {
 
                 println!("LDH A, ({:02x})", offset);
             },
+            0xF1 => {
+                // POP AF
+                self.pop(AF);
+
+                println!("POP AF");
+            },
             0xF3 => {
                 // DI
                 self.ime = false;
                 self.pc += 1;
 
                 println!("DI");
+            },
+            0xF5 => {
+                // PUSH AF
+                self.push(AF);
+
+                println!("PUSH AF");
             },
             0xFE => {
                 // CP n
@@ -528,6 +541,7 @@ impl Cpu {
         self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
         self.pc += 1;
     }
+
     fn load_reg_byte(&mut self, index: RegisterIndex) -> u8 {
         // LD r, n
         let n = self.memory[self.pc + 1];
@@ -535,6 +549,14 @@ impl Cpu {
         self.pc += 2;
 
         n
+    }
+
+    fn load_rr_nn(&mut self, index: TwoRegisterIndex) -> u16 {
+        let nn = self.read_u16(self.pc + 1);
+        self.regs.write(index, nn);
+        self.pc += 3;
+
+        nn
     }
 
     fn load_reg_reg(&mut self, dest: RegisterIndex, source: RegisterIndex) {
