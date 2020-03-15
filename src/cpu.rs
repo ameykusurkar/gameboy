@@ -358,12 +358,15 @@ impl Cpu {
             },
             0xB1 => {
                 // OR C
-                self.regs[A] |= self.regs[C];
-                self.reset_flags();
-                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
-                self.pc += 1;
+                self.or_reg(C);
 
                 println!("OR C");
+            },
+            0xB7 => {
+                // OR A
+                self.or_reg(A);
+
+                println!("OR A");
             },
             0xBE => {
                 // CP (HL)
@@ -410,6 +413,19 @@ impl Cpu {
 
                 println!("PUSH BC");
             },
+            0xC6 => {
+                // ADD n
+                let old = self.regs[A];
+                let n = self.memory[self.pc + 1];
+                self.regs[A] += n;
+                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+                self.set_flag(SUBTRACT_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, (old & 0x0F) + (n & 0x0F) > 0x0F);
+                self.set_flag(CARRY_FLAG, (old as u32) + (n as u32) > 0xFF);
+                self.pc += 2;
+
+                println!("ADD {:02x}", n);
+            },
             0xC9 => {
                 // RET
                 self.pc = self.read_u16(self.sp);
@@ -428,6 +444,26 @@ impl Cpu {
                 self.pc = nn;
 
                 println!("CALL {:04x}", nn);
+            },
+            0xD5 => {
+                // PUSH DE
+                self.push(DE);
+
+                println!("PUSH DE");
+            },
+            // TODO: Refactor subtract operations
+            0xD6 => {
+                // SUB n
+                let old = self.regs[A];
+                let n = self.memory[self.pc + 1];
+                self.regs[A] -= n;
+                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+                self.set_flag(SUBTRACT_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) < (n & 0xF));
+                self.set_flag(CARRY_FLAG, old < n);
+                self.pc += 2;
+
+                println!("SUB {:02x}", n);
             },
             0xE0 => {
                 // LDH (n),A
@@ -587,6 +623,13 @@ impl Cpu {
 
     fn xor_reg(&mut self, index: RegisterIndex) {
         self.regs[A] ^= self.regs[index];
+        self.reset_flags();
+        self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+        self.pc += 1;
+    }
+
+    fn or_reg(&mut self, index: RegisterIndex) {
+        self.regs[A] |= self.regs[index];
         self.reset_flags();
         self.set_flag(ZERO_FLAG, self.regs[A] == 0);
         self.pc += 1;
