@@ -39,7 +39,7 @@ impl Cpu {
     pub fn step(&mut self) {
         // TODO: Remove this
         // Temp hack to let CPU think that screen is done rendering
-        self.memory[0xFF44] = 0x90;
+        // self.memory[0xFF44] = 0x90;
 
         let opcode = self.memory[self.pc];
 
@@ -58,6 +58,12 @@ impl Cpu {
                 let nn = self.load_rr_nn(BC);
 
                 println!("LD BC, {:04x}", nn);
+            },
+            0x03 => {
+                // INC BC
+                self.inc_rr(BC);
+
+                println!("INC BC");
             },
             0x04 => {
                 // INC B
@@ -127,11 +133,9 @@ impl Cpu {
 
                 println!("DEC E");
             },
-            // TODO: Refactor INC XX opcodes
             0x13 => {
                 // INC DE
-                self.regs.write(DE, self.regs.read(DE) + 1);
-                self.pc += 1;
+                self.inc_rr(DE);
 
                 println!("INC DE");
             },
@@ -204,8 +208,7 @@ impl Cpu {
             },
             0x23 => {
                 // INC HL
-                self.regs.write(HL, self.regs.read(HL) + 1);
-                self.pc += 1;
+                self.inc_rr(HL);
 
                 println!("INC HL");
             },
@@ -529,6 +532,11 @@ impl Cpu {
         self.set_flag(ZERO_FLAG, self.regs[index] == 0);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
+        self.pc += 1;
+    }
+
+    fn inc_rr(&mut self, index: TwoRegisterIndex) {
+        self.regs.write(index, self.regs.read(index) + 1);
         self.pc += 1;
     }
 
