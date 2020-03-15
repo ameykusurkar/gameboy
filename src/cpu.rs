@@ -22,7 +22,7 @@ impl Cpu {
             regs: Registers::default(),
             sp: 0,
             pc: 0,
-            ime: true,
+            ime: false,
             memory: Memory::new(),
         }
     }
