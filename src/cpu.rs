@@ -25,6 +25,10 @@ impl Cpu {
     }
 
     pub fn step(&mut self) {
+        // TODO: Remove this
+        // Temp hack to let CPU think that screen is done rendering
+        self.memory[0xFF44] = 0x90;
+
         let opcode = self.memory[self.pc as usize];
 
         let old_pc = self.pc;
@@ -76,6 +80,12 @@ impl Cpu {
 
                 println!("LD DE, {:04x}", nn);
             },
+            0x1D => {
+                // DEC E
+                self.dec_reg(E);
+
+                println!("DEC E");
+            },
             // TODO: Refactor INC XX opcodes
             0x13 => {
                 // INC DE
@@ -112,6 +122,12 @@ impl Cpu {
 
                 println!("LD A, (DE)");
             },
+            0x1E => {
+                // LD E,n
+                let n = self.load_reg_byte(E);
+
+                println!("LD E, {:02x}", n);
+            },
             0x20 => {
                 // JR NZ,n
                 let offset = self.jump_rel_condition(!read_bit(self.regs[F], ZERO_FLAG));
@@ -141,6 +157,12 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("INC HL");
+            },
+            0x24 => {
+                // INC H
+                self.inc_reg(H);
+
+                println!("INC H");
             },
             0x28 => {
                 // JR Z,n
@@ -191,6 +213,18 @@ impl Cpu {
 
                 println!("LD C, A");
             },
+            0x57 => {
+                // LD D,A
+                self.load_reg_reg(D, A);
+
+                println!("LD D, A");
+            },
+            0x67 => {
+                // LD H,A
+                self.load_reg_reg(H, A);
+
+                println!("LD H, A");
+            },
             0x77 => {
                 // LD (HL),A
                 let addr = self.regs.read_hl();
@@ -204,6 +238,12 @@ impl Cpu {
                 self.load_reg_reg(A, E);
 
                 println!("LD A, E");
+            },
+            0x7C => {
+                // LD A,H
+                self.load_reg_reg(A, H);
+
+                println!("LD A, H");
             },
             0xAF => {
                 // XOR A
@@ -252,7 +292,7 @@ impl Cpu {
             0xE0 => {
                 // LDH (n),A
                 let offset = self.memory[self.pc as usize + 1];
-                let addr = 0xFF + (offset as u16);
+                let addr = 0xFF00 + (offset as u16);
                 self.memory[addr as usize] = self.regs[A];
                 self.pc += 2;
 
@@ -260,7 +300,7 @@ impl Cpu {
             },
             0xE2 => {
                 // LDH (C),A
-                let addr = 0xFF + (self.regs[C] as u16);
+                let addr = 0xFF00 + (self.regs[C] as u16);
                 self.memory[addr as usize] = self.regs[A];
                 self.pc += 1;
 
@@ -273,6 +313,15 @@ impl Cpu {
                 self.pc += 3;
 
                 println!("LD ({:04x}), A", nn);
+            },
+            0xF0 => {
+                // LDH A,(n)
+                let offset = self.memory[self.pc as usize + 1];
+                let addr = 0xFF00 + (offset as u16);
+                self.regs[A] = self.memory[addr as usize];
+                self.pc += 2;
+
+                println!("LDH A, ({:02x})", offset);
             },
             0xFE => {
                 // CP n
