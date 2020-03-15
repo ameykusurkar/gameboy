@@ -21,12 +21,9 @@ fn main() -> std::io::Result<()> {
     f.read_to_end(&mut buffer)?;
     cpu.load_rom(&buffer);
 
-    // TODO: Implement proper bootrom loading
-    cpu.test_setup();
+    cpu.skip_bootrom();
 
     loop {
         cpu.step();
     }
-
-    // Ok(())
 }

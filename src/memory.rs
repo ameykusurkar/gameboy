@@ -19,13 +19,21 @@ impl Memory {
         let rom_segment = &mut self.memory[0..buffer.len()];
         rom_segment.copy_from_slice(buffer);
     }
+
+    fn is_bootrom_active(&self) -> bool {
+        (self.memory[0xFF50] & 0x01) == 0
+    }
 }
 
 impl std::ops::Index<u16> for Memory {
     type Output = u8;
 
     fn index(&self, addr: u16) -> &Self::Output {
-        &self.memory[addr as usize]
+        if addr < 0x100 && self.is_bootrom_active() {
+            &self.bootrom[addr as usize]
+        } else {
+            &self.memory[addr as usize]
+        }
     }
 }
 

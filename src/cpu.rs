@@ -28,9 +28,10 @@ impl Cpu {
         }
     }
 
-    pub fn test_setup(&mut self) {
+    pub fn skip_bootrom(&mut self) {
         self.pc = 0x100;
         self.sp = 0xFFFE;
+        self.memory[0xFF50] = 1;
     }
 
     pub fn step(&mut self) {
