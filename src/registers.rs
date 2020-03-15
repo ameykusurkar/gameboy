@@ -1,5 +1,10 @@
 use RegisterIndex::*;
 
+pub const ZERO_FLAG: u8       = 7;
+pub const SUBTRACT_FLAG: u8   = 6;
+pub const HALF_CARRY_FLAG: u8 = 5;
+pub const CARRY_FLAG: u8      = 4;
+
 #[derive(Default, Debug)]
 pub struct Registers {
     // TODO: Make this an array for faster lookup and cleaner code
@@ -25,6 +30,14 @@ pub enum TwoRegisterIndex {
     HL,
 }
 
+#[derive(Copy, Clone)]
+pub struct Flags {
+    pub zero: bool,
+    pub subtract: bool,
+    pub half_carry: bool,
+    pub carry: bool,
+}
+
 impl TwoRegisterIndex {
     fn split_index(&self) -> (RegisterIndex, RegisterIndex) {
         match self {
@@ -46,6 +59,10 @@ impl Registers {
     pub fn read(&self, index: TwoRegisterIndex) -> u16 {
         let (high, low) = index.split_index();
         ((self[high] as u16) << 8) | self[low] as u16
+    }
+
+    pub fn write_flags(&mut self, flags: Flags) {
+        self[F] = u8::from(flags);
     }
 }
 
@@ -84,5 +101,14 @@ impl std::ops::IndexMut<RegisterIndex> for Registers {
             RegisterIndex::H => &mut self.h,
             RegisterIndex::L => &mut self.l,
         }
+    }
+}
+
+impl std::convert::From<Flags> for u8 {
+    fn from(flags: Flags) -> Self {
+        (flags.zero as u8) << ZERO_FLAG
+            | (flags.subtract as u8) << SUBTRACT_FLAG
+            | (flags.half_carry as u8) << HALF_CARRY_FLAG
+            | (flags.carry as u8) << CARRY_FLAG
     }
 }

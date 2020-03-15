@@ -3,6 +3,8 @@ use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
+use crate::registers::Flags;
+use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
 use crate::memory::Memory;
 
@@ -13,11 +15,6 @@ pub struct Cpu {
     ime: bool,
     memory: Memory,
 }
-
-const ZERO_FLAG: u8       = 7;
-const SUBTRACT_FLAG: u8   = 6;
-const HALF_CARRY_FLAG: u8 = 5;
-const CARRY_FLAG: u8      = 4;
 
 impl Cpu {
     pub fn new() -> Cpu {
@@ -334,12 +331,9 @@ impl Cpu {
             },
             0x90 => {
                 // SUB B
-                let old = self.regs[A];
-                self.regs[A] -= self.regs[B];
-                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) < (self.regs[B] & 0xF));
-                self.set_flag(CARRY_FLAG, old < self.regs[B]);
+                let (result, flags) = subtract_u8(self.regs[A], self.regs[B]);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
                 self.pc += 1;
 
                 println!("SUB B");
@@ -372,11 +366,8 @@ impl Cpu {
                 // CP (HL)
                 let addr = self.regs.read(HL);
                 let n = self.memory[addr];
-                let r = self.regs[A];
-                self.set_flag(ZERO_FLAG, r == n);
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, (r & 0x0F) < (n & 0x0F));
-                self.set_flag(CARRY_FLAG, r < n);
+                let (_, flags) = subtract_u8(self.regs[A], n);
+                self.regs.write_flags(flags);
                 self.pc += 1;
 
                 println!("CP (HL)");
@@ -451,16 +442,12 @@ impl Cpu {
 
                 println!("PUSH DE");
             },
-            // TODO: Refactor subtract operations
             0xD6 => {
                 // SUB n
-                let old = self.regs[A];
                 let n = self.memory[self.pc + 1];
-                self.regs[A] -= n;
-                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) < (n & 0xF));
-                self.set_flag(CARRY_FLAG, old < n);
+                let (result, flags) = subtract_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
                 self.pc += 2;
 
                 println!("SUB {:02x}", n);
@@ -552,11 +539,8 @@ impl Cpu {
             0xFE => {
                 // CP n
                 let n = self.memory[self.pc + 1];
-                let r = self.regs[A];
-                self.set_flag(ZERO_FLAG, r == n);
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, (r & 0x0F) < (n & 0x0F));
-                self.set_flag(CARRY_FLAG, r < n);
+                let (_, flags) = subtract_u8(self.regs[A], n);
+                self.regs.write_flags(flags);
                 self.pc += 2;
 
                 println!("CP {:02x}", n);
@@ -738,4 +722,17 @@ fn rotate_left_through_carry(val: u8, carry: bool) -> (u8, bool) {
     let new_carry = read_bit(val, 7);
     let new_val = set_bit(val << 1, 0, carry);
     (new_val, new_carry)
+}
+
+fn subtract_u8(x: u8, y: u8) -> (u8, Flags) {
+    let result = x - y;
+
+    let flags = Flags {
+        zero: result == 0,
+        subtract: true,
+        half_carry: (x & 0xF) < (y & 0xF),
+        carry: x < y,
+    };
+
+    (result, flags)
 }
