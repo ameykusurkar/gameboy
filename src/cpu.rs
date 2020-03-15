@@ -406,13 +406,10 @@ impl Cpu {
             },
             0xC6 => {
                 // ADD n
-                let old = self.regs[A];
                 let n = self.memory[self.pc + 1];
-                self.regs[A] += n;
-                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, (old & 0x0F) + (n & 0x0F) > 0x0F);
-                self.set_flag(CARRY_FLAG, (old as u32) + (n as u32) > 0xFF);
+                let (result, flags) = add_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
                 self.pc += 2;
 
                 println!("ADD {:02x}", n);
@@ -732,6 +729,19 @@ fn subtract_u8(x: u8, y: u8) -> (u8, Flags) {
         subtract: true,
         half_carry: (x & 0xF) < (y & 0xF),
         carry: x < y,
+    };
+
+    (result, flags)
+}
+
+fn add_u8(x: u8, y: u8) -> (u8, Flags) {
+    let result = x + y;
+
+    let flags = Flags {
+        zero: result == 0,
+        subtract: false,
+        half_carry: (x & 0xF) + (y & 0xF) > 0xF,
+        carry: (x as u32) + (y as u32) > 0xFF,
     };
 
     (result, flags)
