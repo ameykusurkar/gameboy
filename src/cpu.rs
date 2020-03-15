@@ -1,6 +1,7 @@
 use crate::registers::Registers;
 use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
+use crate::registers::TwoRegisterIndex::*;
 
 use crate::memory::Memory;
 
@@ -91,14 +92,14 @@ impl Cpu {
             0x11 => {
                 // LD DE,nn
                 let nn = self.read_u16(self.pc + 1);
-                self.regs.write_de(nn);
+                self.regs.write(DE, nn);
                 self.pc += 3;
 
                 println!("LD DE, {:04x}", nn);
             },
             0x12 => {
                 // LD (DE), A
-                let addr = self.regs.read_de();
+                let addr = self.regs.read(DE);
                 self.memory[addr] = self.regs[A];
                 self.pc += 1;
 
@@ -125,7 +126,7 @@ impl Cpu {
             // TODO: Refactor INC XX opcodes
             0x13 => {
                 // INC DE
-                self.regs.write_de(self.regs.read_de() + 1);
+                self.regs.write(DE, self.regs.read(DE) + 1);
                 self.pc += 1;
 
                 println!("INC DE");
@@ -164,7 +165,7 @@ impl Cpu {
             },
             0x1A => {
                 // LD A,(DE)
-                let addr = self.regs.read_de();
+                let addr = self.regs.read(DE);
                 self.regs[A] = self.memory[addr];
                 self.pc += 1;
 
@@ -185,23 +186,23 @@ impl Cpu {
             0x21 => {
                 // LD HL,nn
                 let nn = self.read_u16(self.pc + 1);
-                self.regs.write_hl(nn);
+                self.regs.write(HL, nn);
                 self.pc += 3;
 
                 println!("LD HL, {:04x}", nn);
             },
             0x22 => {
                 // LD (HL+),A
-                let addr = self.regs.read_hl();
+                let addr = self.regs.read(HL);
                 self.memory[addr] = self.regs[A];
-                self.regs.write_hl(addr + 1);
+                self.regs.write(HL, addr + 1);
                 self.pc += 1;
 
                 println!("LD (HL+), A");
             },
             0x23 => {
                 // INC HL
-                self.regs.write_hl(self.regs.read_hl() + 1);
+                self.regs.write(HL, self.regs.read(HL) + 1);
                 self.pc += 1;
 
                 println!("INC HL");
@@ -220,9 +221,9 @@ impl Cpu {
             },
             0x2A => {
                 // LD A, (HL+)
-                let addr = self.regs.read_hl();
+                let addr = self.regs.read(HL);
                 self.regs[A] = self.memory[addr];
-                self.regs.write_hl(addr + 1);
+                self.regs.write(HL, addr + 1);
                 self.pc += 1;
 
                 println!("LD A, (HL+)");
@@ -243,9 +244,9 @@ impl Cpu {
             },
             0x32 => {
                 // LD (HL-), A
-                let addr = self.regs.read_hl();
+                let addr = self.regs.read(HL);
                 self.memory[addr] = self.regs[A];
-                self.regs.write_hl(addr - 1);
+                self.regs.write(HL, addr - 1);
                 self.pc += 1;
 
                 println!("LD (HL-), A");
@@ -290,7 +291,7 @@ impl Cpu {
             },
             0x77 => {
                 // LD (HL),A
-                let addr = self.regs.read_hl();
+                let addr = self.regs.read(HL);
                 self.memory[addr] = self.regs[A];
                 self.pc += 1;
 
@@ -343,7 +344,7 @@ impl Cpu {
             },
             0xBE => {
                 // CP (HL)
-                let addr = self.regs.read_hl();
+                let addr = self.regs.read(HL);
                 let n = self.memory[addr];
                 let r = self.regs[A];
                 self.set_flag(ZERO_FLAG, r == n);
@@ -356,7 +357,7 @@ impl Cpu {
             },
             0xC1 => {
                 // POP BC
-                self.regs.write_bc(self.read_u16(self.sp));
+                self.regs.write(BC, self.read_u16(self.sp));
                 self.sp += 2;
                 self.pc += 1;
 
@@ -372,7 +373,7 @@ impl Cpu {
             0xC5 => {
                 // PUSH BC
                 self.sp -= 2;
-                self.write_u16(self.sp, self.regs.read_bc());
+                self.write_u16(self.sp, self.regs.read(BC));
                 self.pc += 1;
 
                 println!("PUSH BC");
@@ -407,7 +408,7 @@ impl Cpu {
             },
             0xE1 => {
                 // POP HL
-                self.regs.write_hl(self.read_u16(self.sp));
+                self.regs.write(HL, self.read_u16(self.sp));
                 self.sp += 2;
                 self.pc += 1;
 
@@ -432,7 +433,7 @@ impl Cpu {
             0xE5 => {
                 // PUSH HL
                 self.sp -= 2;
-                self.write_u16(self.sp, self.regs.read_hl());
+                self.write_u16(self.sp, self.regs.read(HL));
                 self.pc += 1;
 
                 println!("PUSH HL");
