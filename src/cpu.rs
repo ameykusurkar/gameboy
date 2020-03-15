@@ -233,6 +233,12 @@ impl Cpu {
 
                 println!("LD A, (HL+)");
             },
+            0x2C => {
+                // INC L
+                self.inc_reg(L);
+
+                println!("INC L");
+            },
             0x2E => {
                 // LD L,n
                 let n = self.load_reg_byte(L);
@@ -338,14 +344,26 @@ impl Cpu {
 
                 println!("SUB B");
             },
+            0xA9 => {
+                // XOR C
+                self.xor_reg(C);
+
+                println!("XOR C");
+            },
             0xAF => {
                 // XOR A
-                self.regs[A] ^= self.regs[A];
+                self.xor_reg(A);
+
+                println!("XOR A");
+            },
+            0xB1 => {
+                // OR C
+                self.regs[A] |= self.regs[C];
                 self.reset_flags();
                 self.set_flag(ZERO_FLAG, self.regs[A] == 0);
                 self.pc += 1;
 
-                println!("XOR A");
+                println!("OR C");
             },
             0xBE => {
                 // CP (HL)
@@ -372,6 +390,19 @@ impl Cpu {
                 self.pc = addr;
 
                 println!("JP {:04x}", addr);
+            },
+            0xC4 => {
+                // CALL NZ,nn
+                let nn = self.read_u16(self.pc + 1);
+                self.pc += 3;
+
+                if !read_bit(self.regs[F], ZERO_FLAG) {
+                    self.sp -= 2;
+                    self.write_u16(self.sp, self.pc);
+                    self.pc = nn;
+                }
+
+                println!("CALL NZ, {:04x}", nn);
             },
             0xC5 => {
                 // PUSH BC
@@ -435,6 +466,17 @@ impl Cpu {
 
                 println!("PUSH HL");
             },
+            0xE6 => {
+                // AND n
+                let n = self.memory[self.pc + 1];
+                self.regs[A] &= n;
+                self.reset_flags();
+                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+                self.set_flag(HALF_CARRY_FLAG, true);
+                self.pc += 2;
+
+                println!("AND {:02x}", n);
+            },
             0xF0 => {
                 // LDH A,(n)
                 let offset = self.memory[self.pc + 1];
@@ -462,6 +504,14 @@ impl Cpu {
                 self.push(AF);
 
                 println!("PUSH AF");
+            },
+            0xFA => {
+                // LD A,(nn)
+                let nn = self.read_u16(self.pc + 1);
+                self.regs[A] = self.memory[nn];
+                self.pc += 3;
+
+                println!("LD A, ({:04x})", nn);
             },
             0xFE => {
                 // CP n
@@ -532,6 +582,13 @@ impl Cpu {
         self.set_flag(ZERO_FLAG, self.regs[index] == 0);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
+        self.pc += 1;
+    }
+
+    fn xor_reg(&mut self, index: RegisterIndex) {
+        self.regs[A] ^= self.regs[index];
+        self.reset_flags();
+        self.set_flag(ZERO_FLAG, self.regs[A] == 0);
         self.pc += 1;
     }
 
