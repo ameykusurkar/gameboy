@@ -45,12 +45,7 @@ impl Cpu {
             },
             0x05 => {
                 // DEC B
-                let old = self.regs[B];
-                self.regs[B] -= 1;
-                self.set_flag(ZERO_FLAG, self.regs[B] == 0);
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
-                self.pc += 1;
+                self.dec_reg(B);
 
                 println!("DEC B");
             },
@@ -59,6 +54,12 @@ impl Cpu {
                 let n = self.load_reg_byte(B);
 
                 println!("LD B, {:02x}", n);
+            },
+            0x0D => {
+                // DEC C
+                self.dec_reg(C);
+
+                println!("DEC C");
             },
             0x0E => {
                 // LD C,n
@@ -75,6 +76,14 @@ impl Cpu {
 
                 println!("LD DE, {:04x}", nn);
             },
+            // TODO: Refactor INC XX opcodes
+            0x13 => {
+                // INC DE
+                self.regs.write_de(self.regs.read_de() + 1);
+                self.pc += 1;
+
+                println!("INC DE");
+            },
             0x17 => {
                 // RLA
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
@@ -89,6 +98,12 @@ impl Cpu {
 
                 println!("RLA");
             },
+            0x18 => {
+                // JR n
+                let offset = self.jump_rel();
+
+                println!("JR {}", offset);
+            },
             0x1A => {
                 // LD A,(DE)
                 let addr = self.regs.read_de();
@@ -99,13 +114,7 @@ impl Cpu {
             },
             0x20 => {
                 // JR NZ,n
-                // The offset is signed
-                let offset = self.memory[self.pc as usize + 1] as i8;
-                self.pc += 2;
-
-                if !read_bit(self.regs[F], ZERO_FLAG) {
-                    self.pc = ((self.pc as i32) + (offset as i32)) as u16;
-                }
+                let offset = self.jump_rel_condition(!read_bit(self.regs[F], ZERO_FLAG));
 
                 println!("JR NZ, {}", offset);
             },
@@ -116,6 +125,34 @@ impl Cpu {
                 self.pc += 3;
 
                 println!("LD HL, {:04x}", nn);
+            },
+            0x22 => {
+                // LD (HL+),A
+                let addr = self.regs.read_hl();
+                self.memory[addr as usize] = self.regs[A];
+                self.regs.write_hl(addr + 1);
+                self.pc += 1;
+
+                println!("LD (HL+), A");
+            },
+            0x23 => {
+                // INC HL
+                self.regs.write_hl(self.regs.read_hl() + 1);
+                self.pc += 1;
+
+                println!("INC HL");
+            },
+            0x28 => {
+                // JR Z,n
+                let offset = self.jump_rel_condition(read_bit(self.regs[F], ZERO_FLAG));
+
+                println!("JR Z, {}", offset);
+            },
+            0x2E => {
+                // LD L,n
+                let n = self.load_reg_byte(L);
+
+                println!("LD L, {:02x}", n);
             },
             0x31 => {
                 // LD SP,nn
@@ -134,6 +171,12 @@ impl Cpu {
 
                 println!("LD (HL-), A");
             },
+            0x3D => {
+                // DEC A
+                self.dec_reg(A);
+
+                println!("DEC A");
+            },
             0x3E => {
                 // LD A,n
                 let n = self.memory[self.pc as usize + 1];
@@ -144,8 +187,7 @@ impl Cpu {
             },
             0x4F => {
                 // LD C,A
-                self.regs[C] = self.regs[A];
-                self.pc += 1;
+                self.load_reg_reg(C, A);
 
                 println!("LD C, A");
             },
@@ -156,6 +198,12 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("LD (HL), A");
+            },
+            0x7B => {
+                // LD A,E
+                self.load_reg_reg(A, E);
+
+                println!("LD A, E");
             },
             0xAF => {
                 // XOR A
@@ -182,6 +230,13 @@ impl Cpu {
 
                 println!("PUSH BC");
             },
+            0xC9 => {
+                // RET
+                self.pc = self.read_u16(self.sp);
+                self.sp += 2;
+
+                println!("RET");
+            },
             0xCB => {
                 self.execute_prefixed_instruction();
             },
@@ -189,7 +244,7 @@ impl Cpu {
                 // CALL nn
                 let nn = self.read_u16(self.pc + 1);
                 self.sp -= 2;
-                self.write_u16(self.sp, nn);
+                self.write_u16(self.sp, self.pc + 3);
                 self.pc = nn;
 
                 println!("CALL {:04x}", nn);
@@ -211,8 +266,30 @@ impl Cpu {
 
                 println!("LDH (C), A");
             },
+            0xEA => {
+                // LD (nn),A
+                let nn = self.read_u16(self.pc + 1);
+                self.memory[nn as usize] = self.regs[A];
+                self.pc += 3;
+
+                println!("LD ({:04x}), A", nn);
+            },
+            0xFE => {
+                // CP n
+                let n = self.memory[self.pc as usize + 1];
+                let r = self.regs[A];
+                self.set_flag(ZERO_FLAG, r == n);
+                self.set_flag(SUBTRACT_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, (r & 0x0F) < (n & 0x0F));
+                self.set_flag(CARRY_FLAG, r < n);
+                self.pc += 2;
+
+                println!("CP {:02x}", n);
+            },
             _ => panic!("Unimplemented opcode {:02x}", opcode),
         }
+
+        println!("{:02x?}, PC: {:#06x}", self.regs, self.pc);
 
         if old_pc == self.pc {
             panic!("PC is still {:04x}, should have changed!", old_pc);
@@ -266,13 +343,45 @@ impl Cpu {
         self.pc += 1;
     }
 
+    fn dec_reg(&mut self, index: RegisterIndex) {
+        // DEC r
+        let old = self.regs[index];
+        self.regs[index] -= 1;
+        self.set_flag(ZERO_FLAG, self.regs[index] == 0);
+        self.set_flag(SUBTRACT_FLAG, true);
+        self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
+        self.pc += 1;
+    }
     fn load_reg_byte(&mut self, index: RegisterIndex) -> u8 {
-        // INC r, n
+        // LD r, n
         let n = self.memory[self.pc as usize + 1];
         self.regs[index] = n;
         self.pc += 2;
 
         n
+    }
+
+    fn load_reg_reg(&mut self, dest: RegisterIndex, source: RegisterIndex) {
+        self.regs[dest] = self.regs[source];
+        self.pc += 1;
+    }
+
+    fn jump_rel(&mut self) -> i8 {
+        // JR n
+        self.jump_rel_condition(true)
+    }
+
+    fn jump_rel_condition(&mut self, condition: bool) -> i8 {
+        // JR cc, n
+        // Offset is signed
+        let offset = self.memory[self.pc as usize + 1] as i8;
+        self.pc += 2;
+
+        if condition {
+            self.pc = ((self.pc as i32) + (offset as i32)) as u16;
+        }
+
+        offset
     }
 
     fn read_u16(&self, addr: u16) -> u16 {
