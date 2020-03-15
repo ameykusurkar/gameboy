@@ -2,12 +2,14 @@ use crate::registers::Registers;
 use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
 
+use crate::memory::Memory;
+
 pub struct Cpu {
     regs: Registers,
     sp: u16,
     pc: u16,
     ime: bool,
-    memory: [u8; 1 << 16],
+    memory: Memory,
 }
 
 const ZERO_FLAG: u8       = 7;
@@ -22,7 +24,7 @@ impl Cpu {
             sp: 0,
             pc: 0,
             ime: true,
-            memory: [0; 1 << 16],
+            memory: Memory::new(),
         }
     }
 
@@ -36,7 +38,7 @@ impl Cpu {
         // Temp hack to let CPU think that screen is done rendering
         self.memory[0xFF44] = 0x90;
 
-        let opcode = self.memory[self.pc as usize];
+        let opcode = self.memory[self.pc];
 
         let old_pc = self.pc;
         print!("{:#06x}: ", self.pc);
@@ -96,7 +98,7 @@ impl Cpu {
             0x12 => {
                 // LD (DE), A
                 let addr = self.regs.read_de();
-                self.memory[addr as usize] = self.regs[A];
+                self.memory[addr] = self.regs[A];
                 self.pc += 1;
 
                 println!("LD (DE), A");
@@ -162,7 +164,7 @@ impl Cpu {
             0x1A => {
                 // LD A,(DE)
                 let addr = self.regs.read_de();
-                self.regs[A] = self.memory[addr as usize];
+                self.regs[A] = self.memory[addr];
                 self.pc += 1;
 
                 println!("LD A, (DE)");
@@ -190,7 +192,7 @@ impl Cpu {
             0x22 => {
                 // LD (HL+),A
                 let addr = self.regs.read_hl();
-                self.memory[addr as usize] = self.regs[A];
+                self.memory[addr] = self.regs[A];
                 self.regs.write_hl(addr + 1);
                 self.pc += 1;
 
@@ -218,7 +220,7 @@ impl Cpu {
             0x2A => {
                 // LD A, (HL+)
                 let addr = self.regs.read_hl();
-                self.regs[A] = self.memory[addr as usize];
+                self.regs[A] = self.memory[addr];
                 self.regs.write_hl(addr + 1);
                 self.pc += 1;
 
@@ -241,7 +243,7 @@ impl Cpu {
             0x32 => {
                 // LD (HL-), A
                 let addr = self.regs.read_hl();
-                self.memory[addr as usize] = self.regs[A];
+                self.memory[addr] = self.regs[A];
                 self.regs.write_hl(addr - 1);
                 self.pc += 1;
 
@@ -255,7 +257,7 @@ impl Cpu {
             },
             0x3E => {
                 // LD A,n
-                let n = self.memory[self.pc as usize + 1];
+                let n = self.memory[self.pc + 1];
                 self.regs[A] = n;
                 self.pc += 2;
 
@@ -288,7 +290,7 @@ impl Cpu {
             0x77 => {
                 // LD (HL),A
                 let addr = self.regs.read_hl();
-                self.memory[addr as usize] = self.regs[A];
+                self.memory[addr] = self.regs[A];
                 self.pc += 1;
 
                 println!("LD (HL), A");
@@ -341,7 +343,7 @@ impl Cpu {
             0xBE => {
                 // CP (HL)
                 let addr = self.regs.read_hl();
-                let n = self.memory[addr as usize];
+                let n = self.memory[addr];
                 let r = self.regs[A];
                 self.set_flag(ZERO_FLAG, r == n);
                 self.set_flag(SUBTRACT_FLAG, true);
@@ -395,9 +397,9 @@ impl Cpu {
             },
             0xE0 => {
                 // LDH (n),A
-                let offset = self.memory[self.pc as usize + 1];
+                let offset = self.memory[self.pc + 1];
                 let addr = 0xFF00 + (offset as u16);
-                self.memory[addr as usize] = self.regs[A];
+                self.memory[addr] = self.regs[A];
                 self.pc += 2;
 
                 println!("LDH ({:02x}), A", offset);
@@ -413,7 +415,7 @@ impl Cpu {
             0xE2 => {
                 // LDH (C),A
                 let addr = 0xFF00 + (self.regs[C] as u16);
-                self.memory[addr as usize] = self.regs[A];
+                self.memory[addr] = self.regs[A];
                 self.pc += 1;
 
                 println!("LDH (C), A");
@@ -421,7 +423,7 @@ impl Cpu {
             0xEA => {
                 // LD (nn),A
                 let nn = self.read_u16(self.pc + 1);
-                self.memory[nn as usize] = self.regs[A];
+                self.memory[nn] = self.regs[A];
                 self.pc += 3;
 
                 println!("LD ({:04x}), A", nn);
@@ -436,9 +438,9 @@ impl Cpu {
             },
             0xF0 => {
                 // LDH A,(n)
-                let offset = self.memory[self.pc as usize + 1];
+                let offset = self.memory[self.pc + 1];
                 let addr = 0xFF00 + (offset as u16);
-                self.regs[A] = self.memory[addr as usize];
+                self.regs[A] = self.memory[addr];
                 self.pc += 2;
 
                 println!("LDH A, ({:02x})", offset);
@@ -452,7 +454,7 @@ impl Cpu {
             },
             0xFE => {
                 // CP n
-                let n = self.memory[self.pc as usize + 1];
+                let n = self.memory[self.pc + 1];
                 let r = self.regs[A];
                 self.set_flag(ZERO_FLAG, r == n);
                 self.set_flag(SUBTRACT_FLAG, true);
@@ -473,14 +475,16 @@ impl Cpu {
     }
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
-        // let bootrom_area = &mut self.memory[0..0x100];
-        let bootrom_area = &mut self.memory[0..buffer.len()];
-        bootrom_area.copy_from_slice(buffer);
+        self.memory.load_bootrom(buffer);
+    }
+
+    pub fn load_rom(&mut self, buffer: &[u8]) {
+        self.memory.load_rom(buffer);
     }
 
     fn execute_prefixed_instruction(&mut self) {
         self.pc += 1;
-        let opcode = self.memory[self.pc as usize];
+        let opcode = self.memory[self.pc];
 
         match opcode {
             0x11 => {
@@ -531,7 +535,7 @@ impl Cpu {
     }
     fn load_reg_byte(&mut self, index: RegisterIndex) -> u8 {
         // LD r, n
-        let n = self.memory[self.pc as usize + 1];
+        let n = self.memory[self.pc + 1];
         self.regs[index] = n;
         self.pc += 2;
 
@@ -551,7 +555,7 @@ impl Cpu {
     fn jump_rel_condition(&mut self, condition: bool) -> i8 {
         // JR cc, n
         // Offset is signed
-        let offset = self.memory[self.pc as usize + 1] as i8;
+        let offset = self.memory[self.pc + 1] as i8;
         self.pc += 2;
 
         if condition {
@@ -562,7 +566,6 @@ impl Cpu {
     }
 
     fn read_u16(&self, addr: u16) -> u16 {
-        let addr = addr as usize;
         let lsb = self.memory[addr] as u16;
         let msb = self.memory[addr + 1] as u16;
         (msb << 8) | lsb
@@ -571,7 +574,6 @@ impl Cpu {
     fn write_u16(&mut self, addr: u16, val: u16) {
         let lsb = (val & 0x00FF) as u8;
         let msb = ((val & 0xFF00) >> 8) as u8;
-        let addr = addr as usize;
         self.memory[addr] = lsb;
         self.memory[addr + 1] = msb;
     }
