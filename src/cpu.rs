@@ -1,6 +1,7 @@
 use crate::registers::Registers;
 use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
+use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
 
 use crate::memory::Memory;
@@ -357,9 +358,7 @@ impl Cpu {
             },
             0xC1 => {
                 // POP BC
-                self.regs.write(BC, self.read_u16(self.sp));
-                self.sp += 2;
-                self.pc += 1;
+                self.pop(BC);
 
                 println!("POP BC");
             },
@@ -372,9 +371,7 @@ impl Cpu {
             },
             0xC5 => {
                 // PUSH BC
-                self.sp -= 2;
-                self.write_u16(self.sp, self.regs.read(BC));
-                self.pc += 1;
+                self.push(BC);
 
                 println!("PUSH BC");
             },
@@ -408,9 +405,7 @@ impl Cpu {
             },
             0xE1 => {
                 // POP HL
-                self.regs.write(HL, self.read_u16(self.sp));
-                self.sp += 2;
-                self.pc += 1;
+                self.pop(HL);
 
                 println!("POP HL");
             },
@@ -432,9 +427,7 @@ impl Cpu {
             },
             0xE5 => {
                 // PUSH HL
-                self.sp -= 2;
-                self.write_u16(self.sp, self.regs.read(HL));
-                self.pc += 1;
+                self.push(HL);
 
                 println!("PUSH HL");
             },
@@ -565,6 +558,18 @@ impl Cpu {
         }
 
         offset
+    }
+
+    fn push(&mut self, index: TwoRegisterIndex) {
+        self.sp -= 2;
+        self.write_u16(self.sp, self.regs.read(index));
+        self.pc += 1;
+    }
+
+    fn pop(&mut self, index: TwoRegisterIndex) {
+        self.regs.write(index, self.read_u16(self.sp));
+        self.sp += 2;
+        self.pc += 1;
     }
 
     fn read_u16(&self, addr: u16) -> u16 {
