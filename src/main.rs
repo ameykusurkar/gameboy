@@ -6,18 +6,19 @@ mod registers;
 use cpu::Cpu;
 
 fn main() -> std::io::Result<()> {
-    let path = "bootrom.bin";
+    let path = "cpu_instrs/individual/01-special.gb";
     let mut f = File::open(&path)?;
 
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
 
-    // for byte in &buffer {
-    //     println!("{:0x}", byte);
-    // }
-
     let mut cpu = Cpu::new();
+
+    // TODO: Rename this method
     cpu.load_bootrom(&buffer);
+
+    // TODO: Implement proper bootrom loading
+    cpu.test_setup();
 
     loop {
         cpu.step();

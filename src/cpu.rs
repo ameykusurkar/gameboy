@@ -6,6 +6,7 @@ pub struct Cpu {
     regs: Registers,
     sp: u16,
     pc: u16,
+    ime: bool,
     memory: [u8; 1 << 16],
 }
 
@@ -20,8 +21,14 @@ impl Cpu {
             regs: Registers::default(),
             sp: 0,
             pc: 0,
+            ime: true,
             memory: [0; 1 << 16],
         }
+    }
+
+    pub fn test_setup(&mut self) {
+        self.pc = 0x100;
+        self.sp = 0xFFFE;
     }
 
     pub fn step(&mut self) {
@@ -35,6 +42,12 @@ impl Cpu {
         print!("{:#06x}: ", self.pc);
 
         match opcode {
+            0x00 => {
+                // NOP
+                self.pc += 1;
+
+                println!("NOP");
+            },
             0x04 => {
                 // INC B
                 self.inc_reg(B);
@@ -79,6 +92,26 @@ impl Cpu {
                 self.pc += 3;
 
                 println!("LD DE, {:04x}", nn);
+            },
+            0x12 => {
+                // LD (DE), A
+                let addr = self.regs.read_de();
+                self.memory[addr as usize] = self.regs[A];
+                self.pc += 1;
+
+                println!("LD (DE), A");
+            },
+            0x14 => {
+                // INC D
+                self.inc_reg(D);
+
+                println!("INC D");
+            },
+            0x1C => {
+                // INC E
+                self.inc_reg(E);
+
+                println!("INC E");
             },
             0x1D => {
                 // DEC E
@@ -182,6 +215,15 @@ impl Cpu {
 
                 println!("JR Z, {}", offset);
             },
+            0x2A => {
+                // LD A, (HL+)
+                let addr = self.regs.read_hl();
+                self.regs[A] = self.memory[addr as usize];
+                self.regs.write_hl(addr + 1);
+                self.pc += 1;
+
+                println!("LD A, (HL+)");
+            },
             0x2E => {
                 // LD L,n
                 let n = self.load_reg_byte(L);
@@ -219,6 +261,12 @@ impl Cpu {
 
                 println!("LD A, {:02x}", n);
             },
+            0x47 => {
+                // LD B,A
+                self.load_reg_reg(B, A);
+
+                println!("LD B, A");
+            },
             0x4F => {
                 // LD C,A
                 self.load_reg_reg(C, A);
@@ -245,6 +293,12 @@ impl Cpu {
 
                 println!("LD (HL), A");
             },
+            0x78 => {
+                // LD A,B
+                self.load_reg_reg(A, B);
+
+                println!("LD A, B");
+            },
             0x7B => {
                 // LD A,E
                 self.load_reg_reg(A, E);
@@ -256,6 +310,12 @@ impl Cpu {
                 self.load_reg_reg(A, H);
 
                 println!("LD A, H");
+            },
+            0x7D => {
+                // LD A,L
+                self.load_reg_reg(A, L);
+
+                println!("LD A, L");
             },
             0x90 => {
                 // SUB B
@@ -299,6 +359,13 @@ impl Cpu {
 
                 println!("POP BC");
             },
+            0xC3 => {
+                // JP nn
+                let addr = self.read_u16(self.pc + 1);
+                self.pc = addr;
+
+                println!("JP {:04x}", addr);
+            },
             0xC5 => {
                 // PUSH BC
                 self.sp -= 2;
@@ -335,6 +402,14 @@ impl Cpu {
 
                 println!("LDH ({:02x}), A", offset);
             },
+            0xE1 => {
+                // POP HL
+                self.regs.write_hl(self.read_u16(self.sp));
+                self.sp += 2;
+                self.pc += 1;
+
+                println!("POP HL");
+            },
             0xE2 => {
                 // LDH (C),A
                 let addr = 0xFF00 + (self.regs[C] as u16);
@@ -351,6 +426,14 @@ impl Cpu {
 
                 println!("LD ({:04x}), A", nn);
             },
+            0xE5 => {
+                // PUSH HL
+                self.sp -= 2;
+                self.write_u16(self.sp, self.regs.read_hl());
+                self.pc += 1;
+
+                println!("PUSH HL");
+            },
             0xF0 => {
                 // LDH A,(n)
                 let offset = self.memory[self.pc as usize + 1];
@@ -359,6 +442,13 @@ impl Cpu {
                 self.pc += 2;
 
                 println!("LDH A, ({:02x})", offset);
+            },
+            0xF3 => {
+                // DI
+                self.ime = false;
+                self.pc += 1;
+
+                println!("DI");
             },
             0xFE => {
                 // CP n
@@ -383,7 +473,8 @@ impl Cpu {
     }
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
-        let bootrom_area = &mut self.memory[0..0x100];
+        // let bootrom_area = &mut self.memory[0..0x100];
+        let bootrom_area = &mut self.memory[0..buffer.len()];
         bootrom_area.copy_from_slice(buffer);
     }
 
