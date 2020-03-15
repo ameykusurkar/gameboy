@@ -94,6 +94,18 @@ impl Cpu {
 
                 println!("INC DE");
             },
+            0x15 => {
+                // DEC D
+                self.dec_reg(D);
+
+                println!("DEC D");
+            },
+            0x16 => {
+                // LD D,n
+                let n = self.load_reg_byte(D);
+
+                println!("LD D, {:02x}", n);
+            },
             0x17 => {
                 // RLA
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
@@ -245,6 +257,18 @@ impl Cpu {
 
                 println!("LD A, H");
             },
+            0x90 => {
+                // SUB B
+                let old = self.regs[A];
+                self.regs[A] -= self.regs[B];
+                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+                self.set_flag(SUBTRACT_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) < (self.regs[B] & 0xF));
+                self.set_flag(CARRY_FLAG, old < self.regs[B]);
+                self.pc += 1;
+
+                println!("SUB B");
+            },
             0xAF => {
                 // XOR A
                 self.regs[A] ^= self.regs[A];
@@ -253,6 +277,19 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("XOR A");
+            },
+            0xBE => {
+                // CP (HL)
+                let addr = self.regs.read_hl();
+                let n = self.memory[addr as usize];
+                let r = self.regs[A];
+                self.set_flag(ZERO_FLAG, r == n);
+                self.set_flag(SUBTRACT_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, (r & 0x0F) < (n & 0x0F));
+                self.set_flag(CARRY_FLAG, r < n);
+                self.pc += 1;
+
+                println!("CP (HL)");
             },
             0xC1 => {
                 // POP BC
