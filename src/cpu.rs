@@ -229,6 +229,12 @@ impl Cpu {
 
                 println!("INC H");
             },
+            0x25 => {
+                // DEC H
+                self.dec_reg(H);
+
+                println!("DEC H");
+            },
             0x26 => {
                 // LD H,n
                 let n = self.load_reg_byte(H);
@@ -267,6 +273,12 @@ impl Cpu {
                 let n = self.load_reg_byte(L);
 
                 println!("LD L, {:02x}", n);
+            },
+            0x30 => {
+                // JR NC,n
+                let offset = self.jump_rel_condition(!read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("JR NC, {}", offset);
             },
             0x31 => {
                 // LD SP,nn
@@ -335,17 +347,39 @@ impl Cpu {
 
                 println!("LD D, A");
             },
+            0x5F => {
+                // LD E,A
+                self.load_reg_reg(E, A);
+
+                println!("LD E, A");
+            },
             0x67 => {
                 // LD H,A
                 self.load_reg_reg(H, A);
 
                 println!("LD H, A");
             },
+            0x70 => {
+                // LD (HL),B
+                self.load_hl_reg(B);
+
+                println!("LD (HL), B");
+            },
+            0x71 => {
+                // LD (HL),C
+                self.load_hl_reg(C);
+
+                println!("LD (HL), C");
+            },
+            0x72 => {
+                // LD (HL),D
+                self.load_hl_reg(D);
+
+                println!("LD (HL), D");
+            },
             0x77 => {
                 // LD (HL),A
-                let addr = self.regs.read(HL);
-                self.memory[addr] = self.regs[A];
-                self.pc += 1;
+                self.load_hl_reg(A);
 
                 println!("LD (HL), A");
             },
@@ -354,6 +388,18 @@ impl Cpu {
                 self.load_reg_reg(A, B);
 
                 println!("LD A, B");
+            },
+            0x79 => {
+                // LD A,C
+                self.load_reg_reg(A, C);
+
+                println!("LD A, C");
+            },
+            0x7A => {
+                // LD A,D
+                self.load_reg_reg(A, D);
+
+                println!("LD A, D");
             },
             0x7B => {
                 // LD A,E
@@ -488,6 +534,12 @@ impl Cpu {
 
                 println!("CALL {:04x}", nn);
             },
+            0xD1 => {
+                // POP DE
+                self.pop(DE);
+
+                println!("POP DE");
+            },
             0xD5 => {
                 // PUSH DE
                 self.push(DE);
@@ -551,6 +603,16 @@ impl Cpu {
                 self.pc += 2;
 
                 println!("AND {:02x}", n);
+            },
+            0xEE => {
+                // XOR n
+                let n = self.memory[self.pc + 1];
+                let (result, flags) = xor_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 2;
+
+                println!("XOR {:02x}", n);
             },
             0xF0 => {
                 // LDH A,(n)
@@ -740,6 +802,12 @@ impl Cpu {
     fn load_reg_hl(&mut self, index: RegisterIndex) {
         let addr = self.regs.read(HL);
         self.regs[index] = self.memory[addr];
+        self.pc += 1;
+    }
+
+    fn load_hl_reg(&mut self, index: RegisterIndex) {
+        let addr = self.regs.read(HL);
+        self.memory[addr] = self.regs[index];
         self.pc += 1;
     }
 
