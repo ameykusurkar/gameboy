@@ -33,10 +33,14 @@ impl Cpu {
         self.memory[0xFF50] = 1;
     }
 
+    pub fn get_tileset(&self) -> &[u8] {
+        &self.memory.get_vram()[0..0x1800]
+    }
+
     pub fn step(&mut self) {
         // TODO: Remove this
         // Temp hack to let CPU think that screen is done rendering
-        // self.memory[0xFF44] = 0x90;
+        self.memory[0xFF44] = 0x90;
 
         let opcode = self.memory[self.pc];
 

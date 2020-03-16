@@ -4,7 +4,9 @@ use std::io::Read;
 mod cpu;
 mod registers;
 mod memory;
+mod window;
 use cpu::Cpu;
+use window::Window;
 
 fn main() -> std::io::Result<()> {
     let mut cpu = Cpu::new();
@@ -21,9 +23,18 @@ fn main() -> std::io::Result<()> {
     f.read_to_end(&mut buffer)?;
     cpu.load_rom(&buffer);
 
-    cpu.skip_bootrom();
+    // cpu.skip_bootrom();
 
-    loop {
-        cpu.step();
+    let mut window = Window::new(16 * 8, 24 * 8);
+
+    while window.is_open() {
+        for _ in 0..20_0 {
+            cpu.step();
+        }
+        let tileset = cpu.get_tileset();
+        window.update(tileset);
+        // std::thread::sleep(std::time::Duration::from_millis(1));
     }
+
+    Ok(())
 }
