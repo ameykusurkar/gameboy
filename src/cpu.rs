@@ -215,6 +215,12 @@ impl Cpu {
 
                 println!("INC H");
             },
+            0x26 => {
+                // LD H,n
+                let n = self.load_reg_byte(H);
+
+                println!("LD H, {:02x}", n);
+            },
             0x28 => {
                 // JR Z,n
                 let offset = self.jump_rel_condition(read_bit(self.regs[F], ZERO_FLAG));
@@ -605,13 +611,55 @@ impl Cpu {
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, carry) = rotate_left_through_carry(self.regs[C], carry);
                 self.regs[C] = result;
-
-                self.reset_flags();
-                self.set_flag(ZERO_FLAG, result == 0);
-                self.set_flag(CARRY_FLAG, carry);
+                self.regs.write_flags(Flags {
+                    zero: result == 0,
+                    carry,
+                    ..Flags::default()
+                });
                 self.pc += 1;
 
                 println!("RL C");
+            },
+            0x19 => {
+                // RR C
+                let carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, carry) = rotate_right_through_carry(self.regs[C], carry);
+                self.regs[C] = result;
+                self.regs.write_flags(Flags {
+                    zero: result == 0,
+                    carry,
+                    ..Flags::default()
+                });
+                self.pc += 1;
+
+                println!("RR C");
+            },
+            0x1A => {
+                // RR D
+                let carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, carry) = rotate_right_through_carry(self.regs[D], carry);
+                self.regs[D] = result;
+                self.regs.write_flags(Flags {
+                    zero: result == 0,
+                    carry,
+                    ..Flags::default()
+                });
+                self.pc += 1;
+
+                println!("RR D");
+            },
+            0x38 => {
+                // SRL B
+                let (result, carry) = shift_right_logical(self.regs[B]);
+                self.regs[B] = result;
+                self.regs.write_flags(Flags {
+                    zero: result == 0,
+                    carry,
+                    ..Flags::default()
+                });
+                self.pc += 1;
+
+                println!("SRL B");
             },
             0x7c => {
                 // BIT 7,H
@@ -760,6 +808,18 @@ fn rotate_left_through_carry(val: u8, carry: bool) -> (u8, bool) {
     let new_carry = read_bit(val, 7);
     let new_val = set_bit(val << 1, 0, carry);
     (new_val, new_carry)
+}
+
+fn rotate_right_through_carry(val: u8, carry: bool) -> (u8, bool) {
+    let new_carry = read_bit(val, 0);
+    let new_val = set_bit(val >> 1, 7, carry);
+    (new_val, new_carry)
+}
+
+fn shift_right_logical(val: u8) -> (u8, bool) {
+    let carry = read_bit(val, 0);
+    let new_val = val >> 1;
+    (new_val, carry)
 }
 
 fn subtract_u8(x: u8, y: u8) -> (u8, Flags) {
