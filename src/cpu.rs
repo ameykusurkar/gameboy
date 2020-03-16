@@ -368,6 +368,17 @@ impl Cpu {
 
                 println!("XOR C");
             },
+            0xAE => {
+                // XOR (HL)
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = xor_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("XOR (HL)");
+            },
             0xAF => {
                 // XOR A
                 self.xor_reg(A);
@@ -627,9 +638,9 @@ impl Cpu {
     }
 
     fn xor_reg(&mut self, index: RegisterIndex) {
-        self.regs[A] ^= self.regs[index];
-        self.reset_flags();
-        self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+        let (result, flags) = xor_u8(self.regs[A], self.regs[index]);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
         self.pc += 1;
     }
 
@@ -772,6 +783,17 @@ fn add_u8(x: u8, y: u8) -> (u8, Flags) {
         subtract: false,
         half_carry: (x & 0xF) + (y & 0xF) > 0xF,
         carry: (x as u32) + (y as u32) > 0xFF,
+    };
+
+    (result, flags)
+}
+
+fn xor_u8(x: u8, y: u8) -> (u8, Flags) {
+    let result = x ^ y;
+
+    let flags = Flags {
+        zero: result == 0,
+        ..Flags::default()
     };
 
     (result, flags)

@@ -30,7 +30,7 @@ pub enum TwoRegisterIndex {
     HL,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct Flags {
     pub zero: bool,
     pub subtract: bool,
