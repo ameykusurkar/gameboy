@@ -141,11 +141,11 @@ impl Cpu {
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, carry) = rotate_left_through_carry(self.regs[A], carry);
                 self.regs[A] = result;
-
-                self.reset_flags();
-                // Unlike RL X, ZERO_FLAG is RESET
-                self.set_flag(ZERO_FLAG, false);
-                self.set_flag(CARRY_FLAG, carry);
+                // Unlike RL X, zero flag is RESET
+                self.regs.write_flags(Flags {
+                    carry,
+                    ..Flags::default()
+                });
                 self.pc += 1;
 
                 println!("RLA");
@@ -181,6 +181,20 @@ impl Cpu {
                 let n = self.load_reg_byte(E);
 
                 println!("LD E, {:02x}", n);
+            },
+            0x1F => {
+                // RRA
+                let carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, carry) = rotate_right_through_carry(self.regs[A], carry);
+                self.regs[A] = result;
+                // Unlike RL X, zero flag is RESET
+                self.regs.write_flags(Flags {
+                    carry,
+                    ..Flags::default()
+                });
+                self.pc += 1;
+
+                println!("RRA");
             },
             0x20 => {
                 // JR NZ,n
