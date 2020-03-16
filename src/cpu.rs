@@ -112,29 +112,17 @@ impl Cpu {
 
                 println!("LD (DE), A");
             },
-            0x14 => {
-                // INC D
-                self.inc_reg(D);
-
-                println!("INC D");
-            },
-            0x1C => {
-                // INC E
-                self.inc_reg(E);
-
-                println!("INC E");
-            },
-            0x1D => {
-                // DEC E
-                self.dec_reg(E);
-
-                println!("DEC E");
-            },
             0x13 => {
                 // INC DE
                 self.inc_rr(DE);
 
                 println!("INC DE");
+            },
+            0x14 => {
+                // INC D
+                self.inc_reg(D);
+
+                println!("INC D");
             },
             0x15 => {
                 // DEC D
@@ -175,6 +163,18 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("LD A, (DE)");
+            },
+            0x1C => {
+                // INC E
+                self.inc_reg(E);
+
+                println!("INC E");
+            },
+            0x1D => {
+                // DEC E
+                self.dec_reg(E);
+
+                println!("DEC E");
             },
             0x1E => {
                 // LD E,n
