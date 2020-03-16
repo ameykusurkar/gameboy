@@ -419,6 +419,17 @@ impl Cpu {
 
                 println!("LD A, L");
             },
+            0x86 => {
+                // ADD (HL)
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = add_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("ADD (HL)");
+            },
             0x90 => {
                 // SUB B
                 let (result, flags) = subtract_u8(self.regs[A], self.regs[B]);
