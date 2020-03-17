@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::Read;
 
 mod cpu;
+mod ppu;
 mod registers;
 mod memory;
 mod window;
@@ -31,8 +32,9 @@ fn main() -> std::io::Result<()> {
         for _ in 0..20_0 {
             cpu.step();
         }
-        let tileset = cpu.get_tileset();
-        window.update(tileset);
+        let memory = cpu.get_memory();
+        let pixel_buffer = ppu::get_pixel_buffer(memory, 16 * 8, 24 * 8);
+        window.update(&pixel_buffer);
         // std::thread::sleep(std::time::Duration::from_millis(1));
     }
 

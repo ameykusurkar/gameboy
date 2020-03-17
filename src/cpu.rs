@@ -33,8 +33,8 @@ impl Cpu {
         self.memory[0xFF50] = 1;
     }
 
-    pub fn get_tileset(&self) -> &[u8] {
-        &self.memory.get_vram()[0..0x1800]
+    pub fn get_memory(&self) -> &[u8] {
+        &self.memory.get_memory()
     }
 
     pub fn step(&mut self) {

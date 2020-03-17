@@ -20,8 +20,8 @@ impl Memory {
         rom_segment.copy_from_slice(buffer);
     }
 
-    pub fn get_vram(&self) -> &[u8] {
-        &self.memory[0x8000..0xA000]
+    pub fn get_memory(&self) -> &[u8] {
+        &self.memory
     }
 
     fn is_bootrom_active(&self) -> bool {
