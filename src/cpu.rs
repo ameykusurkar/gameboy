@@ -473,6 +473,17 @@ impl Cpu {
 
                 println!("OR C");
             },
+            0xB6 => {
+                // OR (HL)
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = or_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("OR (HL)");
+            },
             0xB7 => {
                 // OR A
                 self.or_reg(A);
@@ -531,10 +542,15 @@ impl Cpu {
 
                 println!("ADD {:02x}", n);
             },
+            0xC8 => {
+                // RET Z
+                self.ret_condition(read_bit(self.regs[F], ZERO_FLAG));
+
+                println!("RET NC");
+            },
             0xC9 => {
                 // RET
-                self.pc = self.read_u16(self.sp);
-                self.sp += 2;
+                self.ret();
 
                 println!("RET");
             },
@@ -549,6 +565,26 @@ impl Cpu {
                 self.pc = nn;
 
                 println!("CALL {:04x}", nn);
+            },
+            0xCE => {
+                // ADC n
+                let n = self.memory[self.pc + 1];
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, old_flags) = add_u8(self.regs[A], n);
+                let (result, mut flags) = add_u8(result, old_carry as u8);
+                flags.half_carry |= old_flags.half_carry;
+                flags.carry |= old_flags.carry;
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 2;
+
+                println!("ADC {:02x}", n);
+            },
+            0xD0 => {
+                // RET NC
+                self.ret_condition(!read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("RET NC");
             },
             0xD1 => {
                 // POP DE
@@ -785,9 +821,9 @@ impl Cpu {
     }
 
     fn or_reg(&mut self, index: RegisterIndex) {
-        self.regs[A] |= self.regs[index];
-        self.reset_flags();
-        self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+        let (result, flags) = or_u8(self.regs[A], self.regs[index]);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
         self.pc += 1;
     }
 
@@ -856,6 +892,20 @@ impl Cpu {
         }
 
         offset
+    }
+
+    fn ret(&mut self) {
+        self.ret_condition(true);
+    }
+
+    fn ret_condition(&mut self, condition: bool) {
+        // RET cc
+        if condition {
+            self.pc = self.read_u16(self.sp);
+            self.sp += 2;
+        } else {
+            self.pc += 1;
+        }
     }
 
     fn push(&mut self, index: TwoRegisterIndex) {
@@ -941,6 +991,17 @@ fn add_u8(x: u8, y: u8) -> (u8, Flags) {
         subtract: false,
         half_carry: (x & 0xF) + (y & 0xF) > 0xF,
         carry: (x as u32) + (y as u32) > 0xFF,
+    };
+
+    (result, flags)
+}
+
+fn or_u8(x: u8, y: u8) -> (u8, Flags) {
+    let result = x | y;
+
+    let flags = Flags {
+        zero: result == 0,
+        ..Flags::default()
     };
 
     (result, flags)
