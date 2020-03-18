@@ -6,8 +6,10 @@ mod ppu;
 mod registers;
 mod memory;
 mod window;
+
 use cpu::Cpu;
 use window::Window;
+use ppu::NUM_PIXELS_IN_LINE;
 
 fn main() -> std::io::Result<()> {
     let mut cpu = Cpu::new();
@@ -26,14 +28,18 @@ fn main() -> std::io::Result<()> {
 
     // cpu.skip_bootrom();
 
-    let mut window = Window::new(16 * 8, 24 * 8);
+    let width = 32 * NUM_PIXELS_IN_LINE;
+    let height = 32 * NUM_PIXELS_IN_LINE;
+
+    let mut window = Window::new(width, height);
+    window.set_title("Gameboy");
 
     while window.is_open() {
         for _ in 0..20_0 {
             cpu.step();
         }
         let memory = cpu.get_memory();
-        let pixel_buffer = ppu::get_pixel_buffer(memory, 16 * 8, 24 * 8);
+        let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
         window.update(&pixel_buffer);
         // std::thread::sleep(std::time::Duration::from_millis(1));
     }

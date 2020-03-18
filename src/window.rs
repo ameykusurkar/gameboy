@@ -21,9 +21,9 @@ impl Window {
         Window { window, width, height }
     }
 
-    // pub fn set_title(&mut self, title: &str) {
-    //     self.window.set_title(title);
-    // }
+    pub fn set_title(&mut self, title: &str) {
+        self.window.set_title(title);
+    }
 
     pub fn update(&mut self, pixels: &[u8]) {
         let buffer: Vec<u32> = pixels.iter().map(|p| Self::color(*p)).collect();
