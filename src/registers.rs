@@ -22,7 +22,7 @@ pub enum RegisterIndex {
     H, L,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum TwoRegisterIndex {
     AF,
     BC,

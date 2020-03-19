@@ -61,11 +61,8 @@ impl Cpu {
 
                 println!("LD BC, {:04x}", nn);
             },
-            0x03 => {
-                // INC BC
-                self.inc_rr(BC);
-
-                println!("INC BC");
+            0x03 | 0x13 | 0x23 => {
+                self.execute_inc_rr(opcode);
             },
             0x04 => {
                 // INC B
@@ -91,6 +88,9 @@ impl Cpu {
 
                 println!("LD B, {:02x}", n);
             },
+            0x0B | 0x1B | 0x2B => {
+                self.execute_dec_rr(opcode);
+            },
             0x0D => {
                 // DEC C
                 self.dec_reg(C);
@@ -102,6 +102,9 @@ impl Cpu {
                 let n = self.load_reg_byte(C);
 
                 println!("LD C, {:02x}", n);
+            },
+            0x09 | 0x19 | 0x29 => {
+                self.execute_add_rr(opcode);
             },
             0x11 => {
                 // LD DE,nn
@@ -116,12 +119,6 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("LD (DE), A");
-            },
-            0x13 => {
-                // INC DE
-                self.inc_rr(DE);
-
-                println!("INC DE");
             },
             0x14 => {
                 // INC D
@@ -222,12 +219,6 @@ impl Cpu {
 
                 println!("LD (HL+), A");
             },
-            0x23 => {
-                // INC HL
-                self.inc_rr(HL);
-
-                println!("INC HL");
-            },
             0x24 => {
                 // INC H
                 self.inc_reg(H);
@@ -251,16 +242,6 @@ impl Cpu {
                 let offset = self.jump_rel_condition(read_bit(self.regs[F], ZERO_FLAG));
 
                 println!("JR Z, {}", offset);
-            },
-            0x29 => {
-                // ADD HL,HL
-                let old_zero = read_bit(self.regs[F], ZERO_FLAG);
-                let (result, flags) = add_u16(self.regs.read(HL), self.regs.read(HL));
-                self.regs.write(HL, result);
-                self.regs.write_flags(Flags { zero: old_zero, ..flags });
-                self.pc += 1;
-
-                println!("ADD HL,HL");
             },
             0x2A => {
                 // LD A, (HL+)
@@ -359,7 +340,7 @@ impl Cpu {
                 println!("LD A, {:02x}", n);
             },
             0x40..=0x7F => {
-                self.execute_load_rr(opcode);
+                self.execute_load_r_r(opcode);
             },
             0x86 => {
                 // ADD (HL)
@@ -802,7 +783,40 @@ impl Cpu {
         }
     }
 
-    fn execute_load_rr(&mut self, opcode: u8) {
+    fn execute_dec_rr(&mut self, opcode: u8) {
+        let order = [BC, DE, HL];
+        let reg = order[(opcode / 0x10) as usize];
+
+        self.regs.write(reg, self.regs.read(reg) - 1);
+        self.pc += 1;
+
+        println!("DEC {:?}", reg);
+    }
+
+    fn execute_inc_rr(&mut self, opcode: u8) {
+        let order = [BC, DE, HL];
+        let reg = order[(opcode / 0x10) as usize];
+
+        self.regs.write(reg, self.regs.read(reg) + 1);
+        self.pc += 1;
+
+        println!("INC {:?}", reg);
+    }
+
+    fn execute_add_rr(&mut self, opcode: u8) {
+        let order = [BC, DE, HL];
+        let reg = order[(opcode / 0x10) as usize];
+
+        let old_zero = read_bit(self.regs[F], ZERO_FLAG);
+        let (result, flags) = add_u16(self.regs.read(HL), self.regs.read(reg));
+        self.regs.write(HL, result);
+        self.regs.write_flags(Flags { zero: old_zero, ..flags });
+        self.pc += 1;
+
+        println!("INC HL, {:?}", reg);
+    }
+
+    fn execute_load_r_r(&mut self, opcode: u8) {
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
         ];
@@ -851,11 +865,6 @@ impl Cpu {
         let (result, flags) = or_u8(self.regs[A], self.regs[index]);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-        self.pc += 1;
-    }
-
-    fn inc_rr(&mut self, index: TwoRegisterIndex) {
-        self.regs.write(index, self.regs.read(index) + 1);
         self.pc += 1;
     }
 
