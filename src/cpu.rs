@@ -252,6 +252,16 @@ impl Cpu {
 
                 println!("JR Z, {}", offset);
             },
+            0x29 => {
+                // ADD HL,HL
+                let old_zero = read_bit(self.regs[F], ZERO_FLAG);
+                let (result, flags) = add_u16(self.regs.read(HL), self.regs.read(HL));
+                self.regs.write(HL, result);
+                self.regs.write_flags(Flags { zero: old_zero, ..flags });
+                self.pc += 1;
+
+                println!("ADD HL,HL");
+            },
             0x2A => {
                 // LD A, (HL+)
                 let addr = self.regs.read(HL);
@@ -302,6 +312,30 @@ impl Cpu {
 
                 println!("LD (HL-), A");
             },
+            0x35 => {
+                // DEC (HL)
+                let addr = self.regs.read(HL);
+                let old = self.memory[addr];
+                self.memory[addr] -= 1;
+                self.set_flag(ZERO_FLAG, self.memory[addr] == 0);
+                self.set_flag(SUBTRACT_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
+                self.pc += 1;
+
+                println!("DEC (HL)");
+            },
+            0x38 => {
+                // JR C,n
+                let offset = self.jump_rel_condition(read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("JR C, {}", offset);
+            },
+            0x3C => {
+                // INC A
+                self.inc_reg(A);
+
+                println!("INC A");
+            },
             0x3D => {
                 // DEC A
                 self.dec_reg(A);
@@ -316,6 +350,42 @@ impl Cpu {
 
                 println!("LD A, {:02x}", n);
             },
+            0x40 => {
+                // LD B,B
+                self.load_reg_reg(B, B);
+
+                println!("LD B, B");
+            },
+            0x41 => {
+                // LD B,C
+                self.load_reg_reg(B, C);
+
+                println!("LD B, C");
+            },
+            0x42 => {
+                // LD B,D
+                self.load_reg_reg(B, D);
+
+                println!("LD B, D");
+            },
+            0x43 => {
+                // LD B,E
+                self.load_reg_reg(B, E);
+
+                println!("LD B, E");
+            },
+            0x44 => {
+                // LD B,H
+                self.load_reg_reg(B, H);
+
+                println!("LD B, H");
+            },
+            0x45 => {
+                // LD B,L
+                self.load_reg_reg(B, L);
+
+                println!("LD B, L");
+            },
             0x46 => {
                 // LD B,(HL)
                 self.load_reg_hl(B);
@@ -327,6 +397,42 @@ impl Cpu {
                 self.load_reg_reg(B, A);
 
                 println!("LD B, A");
+            },
+            0x48 => {
+                // LD C,B
+                self.load_reg_reg(C, B);
+
+                println!("LD C, B");
+            },
+            0x49 => {
+                // LD C,C
+                self.load_reg_reg(C, C);
+
+                println!("LD C, C");
+            },
+            0x4A => {
+                // LD C,D
+                self.load_reg_reg(C, D);
+
+                println!("LD C, D");
+            },
+            0x4B => {
+                // LD C,E
+                self.load_reg_reg(C, E);
+
+                println!("LD C, E");
+            },
+            0x4C => {
+                // LD C,H
+                self.load_reg_reg(C, H);
+
+                println!("LD C, H");
+            },
+            0x4D => {
+                // LD C,L
+                self.load_reg_reg(C, L);
+
+                println!("LD C, L");
             },
             0x4E => {
                 // LD C,(HL)
@@ -352,6 +458,12 @@ impl Cpu {
 
                 println!("LD D, A");
             },
+            0x5D => {
+                // LD E,L
+                self.load_reg_reg(E, L);
+
+                println!("LD E, L");
+            },
             0x5F => {
                 // LD E,A
                 self.load_reg_reg(E, A);
@@ -363,6 +475,18 @@ impl Cpu {
                 self.load_reg_reg(H, A);
 
                 println!("LD H, A");
+            },
+            0x6E => {
+                // LD L,(HL)
+                self.load_reg_hl(L);
+
+                println!("LD L, (HL)");
+            },
+            0x6F => {
+                // LD L,A
+                self.load_reg_reg(L, A);
+
+                println!("LD L, A");
             },
             0x70 => {
                 // LD (HL),B
@@ -381,6 +505,12 @@ impl Cpu {
                 self.load_hl_reg(D);
 
                 println!("LD (HL), D");
+            },
+            0x73 => {
+                // LD (HL),E
+                self.load_hl_reg(E);
+
+                println!("LD (HL), E");
             },
             0x77 => {
                 // LD (HL),A
@@ -424,6 +554,12 @@ impl Cpu {
 
                 println!("LD A, L");
             },
+            0x7E => {
+                // LD A,(HL)
+                self.load_reg_hl(A);
+
+                println!("LD A, (HL)");
+            },
             0x86 => {
                 // ADD (HL)
                 let addr = self.regs.read(HL);
@@ -450,6 +586,12 @@ impl Cpu {
 
                 println!("XOR C");
             },
+            0xAD => {
+                // XOR L
+                self.xor_reg(L);
+
+                println!("XOR L");
+            },
             0xAE => {
                 // XOR (HL)
                 let addr = self.regs.read(HL);
@@ -466,6 +608,12 @@ impl Cpu {
                 self.xor_reg(A);
 
                 println!("XOR A");
+            },
+            0xB0 => {
+                // OR B
+                self.or_reg(B);
+
+                println!("OR B");
             },
             0xB1 => {
                 // OR C
@@ -490,6 +638,14 @@ impl Cpu {
 
                 println!("OR A");
             },
+            0xBB => {
+                // CP E
+                let (_, flags) = subtract_u8(self.regs[A], self.regs[E]);
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("CP E");
+            },
             0xBE => {
                 // CP (HL)
                 let addr = self.regs.read(HL);
@@ -505,6 +661,18 @@ impl Cpu {
                 self.pop(BC);
 
                 println!("POP BC");
+            },
+            0xC2 => {
+                // JP NZ,nn
+                let addr = self.read_u16(self.pc + 1);
+
+                if !read_bit(self.regs[F], ZERO_FLAG) {
+                    self.pc = addr;
+                } else {
+                    self.pc += 3;
+                }
+
+                println!("JP NZ, {:04x}", addr);
             },
             0xC3 => {
                 // JP nn
@@ -546,7 +714,7 @@ impl Cpu {
                 // RET Z
                 self.ret_condition(read_bit(self.regs[F], ZERO_FLAG));
 
-                println!("RET NC");
+                println!("RET Z");
             },
             0xC9 => {
                 // RET
@@ -608,6 +776,12 @@ impl Cpu {
 
                 println!("SUB {:02x}", n);
             },
+            0xD8 => {
+                // RET C
+                self.ret_condition(read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("RET C");
+            },
             0xE0 => {
                 // LDH (n),A
                 let offset = self.memory[self.pc + 1];
@@ -630,6 +804,13 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("LDH (C), A");
+            },
+            0xE9 => {
+                // JP (HL)
+                let addr = self.regs.read(HL);
+                self.pc = addr;
+
+                println!("JP (HL)");
             },
             0xEA => {
                 // LD (nn),A
@@ -750,31 +931,21 @@ impl Cpu {
             },
             0x19 => {
                 // RR C
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, carry) = rotate_right_through_carry(self.regs[C], carry);
-                self.regs[C] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
+                self.rr_reg(C);
 
                 println!("RR C");
             },
             0x1A => {
                 // RR D
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, carry) = rotate_right_through_carry(self.regs[D], carry);
-                self.regs[D] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
+                self.rr_reg(D);
 
                 println!("RR D");
+            },
+            0x1B => {
+                // RR E
+                self.rr_reg(E);
+
+                println!("RR E");
             },
             0x38 => {
                 // SRL B
@@ -873,6 +1044,19 @@ impl Cpu {
 
     fn load_reg_reg(&mut self, dest: RegisterIndex, source: RegisterIndex) {
         self.regs[dest] = self.regs[source];
+        self.pc += 1;
+    }
+
+    fn rr_reg(&mut self, index: RegisterIndex) {
+        // RR r
+        let carry = read_bit(self.regs[F], CARRY_FLAG);
+        let (result, carry) = rotate_right_through_carry(self.regs[index], carry);
+        self.regs[index] = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
         self.pc += 1;
     }
 
@@ -991,6 +1175,19 @@ fn add_u8(x: u8, y: u8) -> (u8, Flags) {
         subtract: false,
         half_carry: (x & 0xF) + (y & 0xF) > 0xF,
         carry: (x as u32) + (y as u32) > 0xFF,
+    };
+
+    (result, flags)
+}
+
+fn add_u16(x: u16, y: u16) -> (u16, Flags) {
+    let result = x + y;
+
+    let flags = Flags {
+        zero: result == 0,
+        subtract: false,
+        half_carry: (x & 0x0FFF) + (y & 0x0FFF) > 0x0FFF,
+        carry: (x as u32) + (y as u32) > 0xFFFF,
     };
 
     (result, flags)
