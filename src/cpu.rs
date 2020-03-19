@@ -263,6 +263,15 @@ impl Cpu {
 
                 println!("LD L, {:02x}", n);
             },
+            0x2F => {
+                // CPL
+                self.regs[A] ^= 0xFF;
+                self.set_flag(SUBTRACT_FLAG, true);
+                self.set_flag(HALF_CARRY_FLAG, true);
+                self.pc += 1;
+
+                println!("CPL");
+            },
             0x30 => {
                 // JR NC,n
                 let offset = self.jump_rel_condition(!read_bit(self.regs[F], CARRY_FLAG));
@@ -306,6 +315,15 @@ impl Cpu {
 
                 println!("LD (HL), {:02x}", n);
             },
+            0x37 => {
+                // SCF
+                self.set_flag(SUBTRACT_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, true);
+                self.pc += 1;
+
+                println!("SCF");
+            },
             0x38 => {
                 // JR C,n
                 let offset = self.jump_rel_condition(read_bit(self.regs[F], CARRY_FLAG));
@@ -331,6 +349,16 @@ impl Cpu {
                 self.pc += 2;
 
                 println!("LD A, {:02x}", n);
+            },
+            0x3F => {
+                // CCF
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                self.set_flag(SUBTRACT_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, old_carry ^ true);
+                self.pc += 1;
+
+                println!("CCF");
             },
             0x40..=0x7F => {
                 self.execute_load_r_r(opcode);
@@ -384,34 +412,8 @@ impl Cpu {
 
                 println!("XOR A");
             },
-            0xB0 => {
-                // OR B
-                self.or_reg(B);
-
-                println!("OR B");
-            },
-            0xB1 => {
-                // OR C
-                self.or_reg(C);
-
-                println!("OR C");
-            },
-            0xB6 => {
-                // OR (HL)
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = or_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("OR (HL)");
-            },
-            0xB7 => {
-                // OR A
-                self.or_reg(A);
-
-                println!("OR A");
+            0xB0..=0xB7 => {
+                self.execute_or_reg(opcode);
             },
             0xBB => {
                 // CP E
@@ -860,6 +862,29 @@ impl Cpu {
             (None, None) => {
                 panic!("Cannot handle {:04x} here!", opcode);
             },
+        }
+    }
+
+    fn execute_or_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x10) as usize] {
+            Some(reg) => {
+                self.or_reg(reg);
+                println!("OR {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = or_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("OR (HL)");
+            }
         }
     }
 
