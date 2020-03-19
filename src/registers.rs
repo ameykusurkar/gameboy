@@ -53,7 +53,11 @@ impl Registers {
     pub fn write(&mut self, index: TwoRegisterIndex, val: u16) {
         let (high, low) = index.split_index();
         self[high] = ((val & 0xFF00) >> 8) as u8;
-        self[low] = (val & 0x00FF) as u8;
+        match low {
+            // Bits 0-3 of the flags register are unused and always stay zeroed
+            F => self[low] = (val & 0x00F0) as u8,
+            _ => self[low] = (val & 0x00FF) as u8,
+        };
     }
 
     pub fn read(&self, index: TwoRegisterIndex) -> u16 {
