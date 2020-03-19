@@ -350,215 +350,8 @@ impl Cpu {
 
                 println!("LD A, {:02x}", n);
             },
-            0x40 => {
-                // LD B,B
-                self.load_reg_reg(B, B);
-
-                println!("LD B, B");
-            },
-            0x41 => {
-                // LD B,C
-                self.load_reg_reg(B, C);
-
-                println!("LD B, C");
-            },
-            0x42 => {
-                // LD B,D
-                self.load_reg_reg(B, D);
-
-                println!("LD B, D");
-            },
-            0x43 => {
-                // LD B,E
-                self.load_reg_reg(B, E);
-
-                println!("LD B, E");
-            },
-            0x44 => {
-                // LD B,H
-                self.load_reg_reg(B, H);
-
-                println!("LD B, H");
-            },
-            0x45 => {
-                // LD B,L
-                self.load_reg_reg(B, L);
-
-                println!("LD B, L");
-            },
-            0x46 => {
-                // LD B,(HL)
-                self.load_reg_hl(B);
-
-                println!("LD B, (HL)");
-            },
-            0x47 => {
-                // LD B,A
-                self.load_reg_reg(B, A);
-
-                println!("LD B, A");
-            },
-            0x48 => {
-                // LD C,B
-                self.load_reg_reg(C, B);
-
-                println!("LD C, B");
-            },
-            0x49 => {
-                // LD C,C
-                self.load_reg_reg(C, C);
-
-                println!("LD C, C");
-            },
-            0x4A => {
-                // LD C,D
-                self.load_reg_reg(C, D);
-
-                println!("LD C, D");
-            },
-            0x4B => {
-                // LD C,E
-                self.load_reg_reg(C, E);
-
-                println!("LD C, E");
-            },
-            0x4C => {
-                // LD C,H
-                self.load_reg_reg(C, H);
-
-                println!("LD C, H");
-            },
-            0x4D => {
-                // LD C,L
-                self.load_reg_reg(C, L);
-
-                println!("LD C, L");
-            },
-            0x4E => {
-                // LD C,(HL)
-                self.load_reg_hl(C);
-
-                println!("LD C, (HL)");
-            },
-            0x4F => {
-                // LD C,A
-                self.load_reg_reg(C, A);
-
-                println!("LD C, A");
-            },
-            0x56 => {
-                // LD D,(HL)
-                self.load_reg_hl(D);
-
-                println!("LD D, (HL)");
-            },
-            0x57 => {
-                // LD D,A
-                self.load_reg_reg(D, A);
-
-                println!("LD D, A");
-            },
-            0x5D => {
-                // LD E,L
-                self.load_reg_reg(E, L);
-
-                println!("LD E, L");
-            },
-            0x5F => {
-                // LD E,A
-                self.load_reg_reg(E, A);
-
-                println!("LD E, A");
-            },
-            0x67 => {
-                // LD H,A
-                self.load_reg_reg(H, A);
-
-                println!("LD H, A");
-            },
-            0x6E => {
-                // LD L,(HL)
-                self.load_reg_hl(L);
-
-                println!("LD L, (HL)");
-            },
-            0x6F => {
-                // LD L,A
-                self.load_reg_reg(L, A);
-
-                println!("LD L, A");
-            },
-            0x70 => {
-                // LD (HL),B
-                self.load_hl_reg(B);
-
-                println!("LD (HL), B");
-            },
-            0x71 => {
-                // LD (HL),C
-                self.load_hl_reg(C);
-
-                println!("LD (HL), C");
-            },
-            0x72 => {
-                // LD (HL),D
-                self.load_hl_reg(D);
-
-                println!("LD (HL), D");
-            },
-            0x73 => {
-                // LD (HL),E
-                self.load_hl_reg(E);
-
-                println!("LD (HL), E");
-            },
-            0x77 => {
-                // LD (HL),A
-                self.load_hl_reg(A);
-
-                println!("LD (HL), A");
-            },
-            0x78 => {
-                // LD A,B
-                self.load_reg_reg(A, B);
-
-                println!("LD A, B");
-            },
-            0x79 => {
-                // LD A,C
-                self.load_reg_reg(A, C);
-
-                println!("LD A, C");
-            },
-            0x7A => {
-                // LD A,D
-                self.load_reg_reg(A, D);
-
-                println!("LD A, D");
-            },
-            0x7B => {
-                // LD A,E
-                self.load_reg_reg(A, E);
-
-                println!("LD A, E");
-            },
-            0x7C => {
-                // LD A,H
-                self.load_reg_reg(A, H);
-
-                println!("LD A, H");
-            },
-            0x7D => {
-                // LD A,L
-                self.load_reg_reg(A, L);
-
-                println!("LD A, L");
-            },
-            0x7E => {
-                // LD A,(HL)
-                self.load_reg_hl(A);
-
-                println!("LD A, (HL)");
+            0x40..=0x7F => {
+                self.execute_load_rr(opcode);
             },
             0x86 => {
                 // ADD (HL)
@@ -947,6 +740,15 @@ impl Cpu {
 
                 println!("RR E");
             },
+            0x37 => {
+                // SWAP A
+                let (result, flags) = swap_u8(self.regs[A]);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("SWAP A");
+            },
             0x38 => {
                 // SRL B
                 let (result, carry) = shift_right_logical(self.regs[B]);
@@ -971,6 +773,34 @@ impl Cpu {
                 println!("BIT 7, H");
             }
             _ => panic!("Unimplemented prefixed (CB) opcode {:02x}", opcode),
+        }
+    }
+
+    fn execute_load_rr(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        let opcode_index = opcode - 0x40;
+        let dst_index = order[(opcode_index / 0x08) as usize];
+        let src_index = order[(opcode_index % 0x08) as usize];
+
+        match (dst_index, src_index) {
+            (Some(reg), Some(reg1)) => {
+                self.load_reg_reg(reg, reg1);
+                println!("LD {:?}, {:?}", reg, reg1);
+            },
+            (None, Some(reg)) => {
+                self.load_hl_reg(reg);
+                println!("LD (HL), {:?}", reg);
+            },
+            (Some(reg), None) => {
+                self.load_reg_hl(reg);
+                println!("LD {:?}, (HL)", reg);
+            },
+            (None, None) => {
+                panic!("Cannot handle {:04x} here!", opcode);
+            },
         }
     }
 
@@ -1206,6 +1036,17 @@ fn or_u8(x: u8, y: u8) -> (u8, Flags) {
 
 fn xor_u8(x: u8, y: u8) -> (u8, Flags) {
     let result = x ^ y;
+
+    let flags = Flags {
+        zero: result == 0,
+        ..Flags::default()
+    };
+
+    (result, flags)
+}
+
+fn swap_u8(x: u8) -> (u8, Flags) {
+    let result = (x & 0x0F) << 4 | (x & 0xF0) >> 4;
 
     let flags = Flags {
         zero: result == 0,

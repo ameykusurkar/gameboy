@@ -35,7 +35,7 @@ fn main() -> std::io::Result<()> {
     window.set_title("Gameboy");
 
     while window.is_open() {
-        for _ in 0..20_0 {
+        for _ in 0..20000 {
             cpu.step();
         }
         let memory = cpu.get_memory();
