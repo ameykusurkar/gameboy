@@ -324,6 +324,14 @@ impl Cpu {
 
                 println!("DEC (HL)");
             },
+            0x36 => {
+                // LD (HL),n
+                let n = self.memory[self.pc + 1];
+                self.memory[self.regs.read(HL)] = n;
+                self.pc += 2;
+
+                println!("LD (HL), {:02x}", n);
+            },
             0x38 => {
                 // JR C,n
                 let offset = self.jump_rel_condition(read_bit(self.regs[F], CARRY_FLAG));
@@ -366,7 +374,7 @@ impl Cpu {
             },
             0x90 => {
                 // SUB B
-                let (result, flags) = subtract_u8(self.regs[A], self.regs[B]);
+                let (result, flags) = sub_u8(self.regs[A], self.regs[B]);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
                 self.pc += 1;
@@ -433,7 +441,7 @@ impl Cpu {
             },
             0xBB => {
                 // CP E
-                let (_, flags) = subtract_u8(self.regs[A], self.regs[E]);
+                let (_, flags) = sub_u8(self.regs[A], self.regs[E]);
                 self.regs.write_flags(flags);
                 self.pc += 1;
 
@@ -443,7 +451,7 @@ impl Cpu {
                 // CP (HL)
                 let addr = self.regs.read(HL);
                 let n = self.memory[addr];
-                let (_, flags) = subtract_u8(self.regs[A], n);
+                let (_, flags) = sub_u8(self.regs[A], n);
                 self.regs.write_flags(flags);
                 self.pc += 1;
 
@@ -531,10 +539,7 @@ impl Cpu {
                 // ADC n
                 let n = self.memory[self.pc + 1];
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, old_flags) = add_u8(self.regs[A], n);
-                let (result, mut flags) = add_u8(result, old_carry as u8);
-                flags.half_carry |= old_flags.half_carry;
-                flags.carry |= old_flags.carry;
+                let (result, flags) = adc_u8(self.regs[A], n, old_carry);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
                 self.pc += 2;
@@ -562,7 +567,7 @@ impl Cpu {
             0xD6 => {
                 // SUB n
                 let n = self.memory[self.pc + 1];
-                let (result, flags) = subtract_u8(self.regs[A], n);
+                let (result, flags) = sub_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
                 self.pc += 2;
@@ -574,6 +579,17 @@ impl Cpu {
                 self.ret_condition(read_bit(self.regs[F], CARRY_FLAG));
 
                 println!("RET C");
+            },
+            0xDE => {
+                // SBC n
+                let n = self.memory[self.pc + 1];
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 2;
+
+                println!("SBC {:02x}", n);
             },
             0xE0 => {
                 // LDH (n),A
@@ -668,6 +684,16 @@ impl Cpu {
 
                 println!("PUSH AF");
             },
+            0xF6 => {
+                // OR n
+                let n = self.memory[self.pc + 1];
+                let (result, flags) = or_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 2;
+
+                println!("OR {:02x}", n);
+            },
             0xFA => {
                 // LD A,(nn)
                 let nn = self.read_u16(self.pc + 1);
@@ -679,7 +705,7 @@ impl Cpu {
             0xFE => {
                 // CP n
                 let n = self.memory[self.pc + 1];
-                let (_, flags) = subtract_u8(self.regs[A], n);
+                let (_, flags) = sub_u8(self.regs[A], n);
                 self.regs.write_flags(flags);
                 self.pc += 2;
 
@@ -690,9 +716,9 @@ impl Cpu {
 
         println!("{:02x?}, PC: {:#06x}", self.regs, self.pc);
 
-        if old_pc == self.pc {
-            panic!("PC is still {:04x}, should have changed!", old_pc);
-        }
+        // if old_pc == self.pc {
+        //     panic!("PC is still {:04x}, should have changed!", old_pc);
+        // }
     }
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
@@ -984,7 +1010,7 @@ fn shift_right_logical(val: u8) -> (u8, bool) {
     (new_val, carry)
 }
 
-fn subtract_u8(x: u8, y: u8) -> (u8, Flags) {
+fn sub_u8(x: u8, y: u8) -> (u8, Flags) {
     let result = x - y;
 
     let flags = Flags {
@@ -993,6 +1019,15 @@ fn subtract_u8(x: u8, y: u8) -> (u8, Flags) {
         half_carry: (x & 0xF) < (y & 0xF),
         carry: x < y,
     };
+
+    (result, flags)
+}
+
+fn sbc_u8(x: u8, y: u8, carry: bool) -> (u8, Flags) {
+    let (result, old_flags) = sub_u8(x, y);
+    let (result, mut flags) = sub_u8(result, carry as u8);
+    flags.half_carry |= old_flags.half_carry;
+    flags.carry |= old_flags.carry;
 
     (result, flags)
 }
@@ -1006,6 +1041,15 @@ fn add_u8(x: u8, y: u8) -> (u8, Flags) {
         half_carry: (x & 0xF) + (y & 0xF) > 0xF,
         carry: (x as u32) + (y as u32) > 0xFF,
     };
+
+    (result, flags)
+}
+
+fn adc_u8(x: u8, y: u8, carry: bool) -> (u8, Flags) {
+    let (result, old_flags) = add_u8(x, y);
+    let (result, mut flags) = add_u8(result, carry as u8);
+    flags.half_carry |= old_flags.half_carry;
+    flags.carry |= old_flags.carry;
 
     (result, flags)
 }
