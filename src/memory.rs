@@ -20,6 +20,10 @@ impl Memory {
         rom_segment.copy_from_slice(buffer);
     }
 
+    pub fn get_memory(&self) -> &[u8] {
+        &self.memory
+    }
+
     fn is_bootrom_active(&self) -> bool {
         (self.memory[0xFF50] & 0x01) == 0
     }
