@@ -55,11 +55,8 @@ impl Cpu {
 
                 println!("NOP");
             },
-            0x01 => {
-                // LD BC,nn
-                let nn = self.load_rr_nn(BC);
-
-                println!("LD BC, {:04x}", nn);
+            0x01 | 0x11 | 0x21=> {
+                self.execute_load_rr_nn(opcode);
             },
             0x03 | 0x13 | 0x23 => {
                 self.execute_inc_rr(opcode);
@@ -69,6 +66,14 @@ impl Cpu {
                 self.inc_reg(B);
 
                 println!("INC B");
+            },
+            0x08 => {
+                // LD (nn),SP
+                let nn = self.read_u16(self.pc + 1);
+                self.write_u16(nn, self.sp);
+                self.pc += 3;
+
+                println!("LD ({:04x}), SP", nn);
             },
             0x0C => {
                 // INC C
@@ -105,12 +110,6 @@ impl Cpu {
             },
             0x09 | 0x19 | 0x29 => {
                 self.execute_add_rr(opcode);
-            },
-            0x11 => {
-                // LD DE,nn
-                let nn = self.load_rr_nn(DE);
-
-                println!("LD DE, {:04x}", nn);
             },
             0x12 => {
                 // LD (DE), A
@@ -203,12 +202,6 @@ impl Cpu {
                 let offset = self.jump_rel_condition(!read_bit(self.regs[F], ZERO_FLAG));
 
                 println!("JR NZ, {}", offset);
-            },
-            0x21 => {
-                // LD HL,nn
-                let nn = self.load_rr_nn(HL);
-
-                println!("LD HL, {:04x}", nn);
             },
             0x22 => {
                 // LD (HL+),A
@@ -652,6 +645,14 @@ impl Cpu {
 
                 println!("POP AF");
             },
+            0xF2 => {
+                // LDH A,(C)
+                let addr = 0xFF00 + (self.regs[C] as u16);
+                self.regs[A] = self.memory[addr];
+                self.pc += 1;
+
+                println!("LDH A, (C)");
+            },
             0xF3 => {
                 // DI
                 self.ime = false;
@@ -674,6 +675,13 @@ impl Cpu {
                 self.pc += 2;
 
                 println!("OR {:02x}", n);
+            },
+            0xF9 => {
+                // LD SP,HL
+                self.sp = self.regs.read(HL);
+                self.pc += 1;
+
+                println!("LD SP,HL");
             },
             0xFA => {
                 // LD A,(nn)
@@ -803,6 +811,17 @@ impl Cpu {
         println!("INC {:?}", reg);
     }
 
+    fn execute_load_rr_nn(&mut self, opcode: u8) {
+        let order = [BC, DE, HL];
+        let reg = order[(opcode / 0x10) as usize];
+
+        let nn = self.read_u16(self.pc + 1);
+        self.regs.write(reg, nn);
+        self.pc += 3;
+
+        println!("LD {:?}, {:04x}", reg, nn);
+    }
+
     fn execute_add_rr(&mut self, opcode: u8) {
         let order = [BC, DE, HL];
         let reg = order[(opcode / 0x10) as usize];
@@ -897,14 +916,6 @@ impl Cpu {
         let addr = self.regs.read(HL);
         self.memory[addr] = self.regs[index];
         self.pc += 1;
-    }
-
-    fn load_rr_nn(&mut self, index: TwoRegisterIndex) -> u16 {
-        let nn = self.read_u16(self.pc + 1);
-        self.regs.write(index, nn);
-        self.pc += 3;
-
-        nn
     }
 
     fn load_reg_reg(&mut self, dest: RegisterIndex, source: RegisterIndex) {
