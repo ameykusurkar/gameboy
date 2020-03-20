@@ -43,6 +43,10 @@ impl std::ops::Index<u16> for Memory {
 
 impl std::ops::IndexMut<u16> for Memory {
     fn index_mut(&mut self, addr: u16) -> &mut Self::Output {
+        if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
+            println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
+        }
+
         &mut self.memory[addr as usize]
     }
 }

@@ -20,7 +20,7 @@ fn main() -> std::io::Result<()> {
     f.read_to_end(&mut buffer)?;
     cpu.load_bootrom(&buffer);
 
-    let path = "cpu_instrs/individual/06-ld r,r.gb";
+    let path = "cpu_instrs/individual/09-op r,r.gb";
     let mut f = File::open(&path)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;

@@ -363,75 +363,29 @@ impl Cpu {
             0x40..=0x7F => {
                 self.execute_load_r_r(opcode);
             },
-            0x86 => {
-                // ADD (HL)
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = add_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("ADD (HL)");
+            0x80..=0x87 => {
+                self.execute_add_reg(opcode);
+            }
+            0x88..=0x8F => {
+                self.execute_adc_reg(opcode);
             },
-            0x90 => {
-                // SUB B
-                let (result, flags) = sub_u8(self.regs[A], self.regs[B]);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SUB B");
+            0x90..=0x97 => {
+                self.execute_sub_reg(opcode);
             },
-            0xA9 => {
-                // XOR C
-                self.xor_reg(C);
-
-                println!("XOR C");
+            0x98..=0x9F => {
+                self.execute_sbc_reg(opcode);
             },
-            0xAD => {
-                // XOR L
-                self.xor_reg(L);
-
-                println!("XOR L");
+            0xA0..=0xA7 => {
+                self.execute_and_reg(opcode);
             },
-            0xAE => {
-                // XOR (HL)
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = xor_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("XOR (HL)");
-            },
-            0xAF => {
-                // XOR A
-                self.xor_reg(A);
-
-                println!("XOR A");
+            0xA8..=0xAF => {
+                self.execute_xor_reg(opcode);
             },
             0xB0..=0xB7 => {
                 self.execute_or_reg(opcode);
             },
-            0xBB => {
-                // CP E
-                let (_, flags) = sub_u8(self.regs[A], self.regs[E]);
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("CP E");
-            },
-            0xBE => {
-                // CP (HL)
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (_, flags) = sub_u8(self.regs[A], n);
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("CP (HL)");
+            0xB8..=0xBF => {
+                self.execute_cp_reg(opcode);
             },
             0xC1 => {
                 // POP BC
@@ -614,10 +568,9 @@ impl Cpu {
             0xE6 => {
                 // AND n
                 let n = self.memory[self.pc + 1];
-                self.regs[A] &= n;
-                self.reset_flags();
-                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
-                self.set_flag(HALF_CARRY_FLAG, true);
+                let (result, flags) = and_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
                 self.pc += 2;
 
                 println!("AND {:02x}", n);
@@ -870,7 +823,7 @@ impl Cpu {
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
         ];
 
-        match order[(opcode % 0x10) as usize] {
+        match order[(opcode % 0x08) as usize] {
             Some(reg) => {
                 self.or_reg(reg);
                 println!("OR {:?}", reg);
@@ -884,6 +837,193 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("OR (HL)");
+            }
+        }
+    }
+
+    fn execute_cp_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                let (_, flags) = sub_u8(self.regs[A], self.regs[reg]);
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("CP {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (_, flags) = sub_u8(self.regs[A], n);
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("CP (HL)");
+            }
+        }
+    }
+
+    fn execute_add_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                let (result, flags) = add_u8(self.regs[A], self.regs[reg]);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("ADD {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = add_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("ADD (HL)");
+            }
+        }
+    }
+
+    fn execute_adc_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, flags) = adc_u8(self.regs[A], self.regs[reg], old_carry);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("ADC {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, flags) = adc_u8(self.regs[A], n, old_carry);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("ADC (HL)");
+            }
+        }
+    }
+
+    fn execute_sub_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                let (result, flags) = sub_u8(self.regs[A], self.regs[reg]);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("SUB {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = sub_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("SUB (HL)");
+            }
+        }
+    }
+
+    fn execute_sbc_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, flags) = sbc_u8(self.regs[A], self.regs[reg], old_carry);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("SBC {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+                let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("SBC (HL)");
+            }
+        }
+    }
+
+    fn execute_and_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                let (result, flags) = and_u8(self.regs[A], self.regs[reg]);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("AND {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = and_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("AND (HL)");
+            }
+        }
+    }
+
+    fn execute_xor_reg(&mut self, opcode: u8) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                self.xor_reg(reg);
+                println!("XOR {:?}", reg);
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                let n = self.memory[addr];
+                let (result, flags) = xor_u8(self.regs[A], n);
+                self.regs[A] = result;
+                self.regs.write_flags(flags);
+                self.pc += 1;
+
+                println!("XOR (HL)");
             }
         }
     }
@@ -1018,10 +1158,6 @@ impl Cpu {
         self.memory[addr + 1] = msb;
     }
 
-    fn reset_flags(&mut self) {
-        self.regs[F] = 0x00;
-    }
-
     fn set_flag(&mut self, flag_bit: u8, val: bool) {
         self.regs[F] = set_bit(self.regs[F], flag_bit, val);
     }
@@ -1117,6 +1253,18 @@ fn or_u8(x: u8, y: u8) -> (u8, Flags) {
 
     let flags = Flags {
         zero: result == 0,
+        ..Flags::default()
+    };
+
+    (result, flags)
+}
+
+fn and_u8(x: u8, y: u8) -> (u8, Flags) {
+    let result = x & y;
+
+    let flags = Flags {
+        zero: result == 0,
+        half_carry: true,
         ..Flags::default()
     };
 
