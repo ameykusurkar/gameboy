@@ -58,6 +58,14 @@ impl Cpu {
             0x01 | 0x11 | 0x21=> {
                 self.execute_load_rr_nn(opcode);
             },
+            0x02 => {
+                // LD (BC), A
+                let addr = self.regs.read(BC);
+                self.memory[addr] = self.regs[A];
+                self.pc += 1;
+
+                println!("LD (BC), A");
+            },
             0x03 | 0x13 | 0x23 => {
                 self.execute_inc_rr(opcode);
             },
@@ -102,6 +110,14 @@ impl Cpu {
             },
             0x09 | 0x19 | 0x29 => {
                 self.execute_add_rr(opcode);
+            },
+            0x0A => {
+                // LD A,(BC)
+                let addr = self.regs.read(BC);
+                self.regs[A] = self.memory[addr];
+                self.pc += 1;
+
+                println!("LD A, (BC)");
             },
             0x0B | 0x1B | 0x2B => {
                 self.execute_dec_rr(opcode);
@@ -321,6 +337,18 @@ impl Cpu {
 
                 println!("LD (HL-), A");
             },
+            0x34 => {
+                // INC (HL)
+                let addr = self.regs.read(HL);
+                let old = self.memory[addr];
+                self.memory[addr] += 1;
+                self.set_flag(ZERO_FLAG, self.memory[addr] == 0);
+                self.set_flag(SUBTRACT_FLAG, false);
+                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0xF);
+                self.pc += 1;
+
+                println!("INC (HL)");
+            },
             0x35 => {
                 // DEC (HL)
                 let addr = self.regs.read(HL);
@@ -355,6 +383,15 @@ impl Cpu {
                 let offset = self.jump_rel_condition(read_bit(self.regs[F], CARRY_FLAG));
 
                 println!("JR C, {}", offset);
+            },
+            0x3A => {
+                // LD A, (HL-)
+                let addr = self.regs.read(HL);
+                self.regs[A] = self.memory[addr];
+                self.regs.write(HL, addr - 1);
+                self.pc += 1;
+
+                println!("LD A, (HL-)");
             },
             0x3C => {
                 // INC A
