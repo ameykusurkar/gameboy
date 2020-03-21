@@ -67,20 +67,6 @@ impl Cpu {
 
                 println!("INC B");
             },
-            0x08 => {
-                // LD (nn),SP
-                let nn = self.read_u16(self.pc + 1);
-                self.write_u16(nn, self.sp);
-                self.pc += 3;
-
-                println!("LD ({:04x}), SP", nn);
-            },
-            0x0C => {
-                // INC C
-                self.inc_reg(C);
-
-                println!("INC C");
-            },
             0x05 => {
                 // DEC B
                 self.dec_reg(B);
@@ -93,8 +79,38 @@ impl Cpu {
 
                 println!("LD B, {:02x}", n);
             },
+            0x07 => {
+                // RLCA
+                let (result, carry) = rotate_left(self.regs[A]);
+                self.regs[A] = result;
+                // Unlike RLC X, zero flag is RESET
+                self.regs.write_flags(Flags {
+                    carry,
+                    ..Flags::default()
+                });
+                self.pc += 1;
+
+                println!("RLCA");
+            },
+            0x08 => {
+                // LD (nn),SP
+                let nn = self.read_u16(self.pc + 1);
+                self.write_u16(nn, self.sp);
+                self.pc += 3;
+
+                println!("LD ({:04x}), SP", nn);
+            },
+            0x09 | 0x19 | 0x29 => {
+                self.execute_add_rr(opcode);
+            },
             0x0B | 0x1B | 0x2B => {
                 self.execute_dec_rr(opcode);
+            },
+            0x0C => {
+                // INC C
+                self.inc_reg(C);
+
+                println!("INC C");
             },
             0x0D => {
                 // DEC C
@@ -108,8 +124,18 @@ impl Cpu {
 
                 println!("LD C, {:02x}", n);
             },
-            0x09 | 0x19 | 0x29 => {
-                self.execute_add_rr(opcode);
+            0x0F => {
+                // RRCA
+                let (result, carry) = rotate_right(self.regs[A]);
+                self.regs[A] = result;
+                // Unlike RRC X, zero flag is RESET
+                self.regs.write_flags(Flags {
+                    carry,
+                    ..Flags::default()
+                });
+                self.pc += 1;
+
+                println!("RRCA");
             },
             0x12 => {
                 // LD (DE), A
@@ -188,7 +214,7 @@ impl Cpu {
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, carry) = rotate_right_through_carry(self.regs[A], carry);
                 self.regs[A] = result;
-                // Unlike RL X, zero flag is RESET
+                // Unlike RR X, zero flag is RESET
                 self.regs.write_flags(Flags {
                     carry,
                     ..Flags::default()
@@ -1171,6 +1197,18 @@ fn set_bit(byte: u8, n: u8, x: bool) -> u8 {
 // Reads the nth bit in `byte`
 fn read_bit(byte: u8, n: u8) -> bool {
     (byte & (1 << n)) > 0
+}
+
+fn rotate_left(val: u8) -> (u8, bool) {
+    let carry = read_bit(val, 7);
+    let new_val = val << 1;
+    (new_val, carry)
+}
+
+fn rotate_right(val: u8) -> (u8, bool) {
+    let carry = read_bit(val, 0);
+    let new_val = val >> 1;
+    (new_val, carry)
 }
 
 fn rotate_left_through_carry(val: u8, carry: bool) -> (u8, bool) {
