@@ -12,6 +12,11 @@ use window::Window;
 use ppu::NUM_PIXELS_IN_LINE;
 
 fn main() -> std::io::Result<()> {
+    if std::env::args().len() < 2 {
+        println!("Please provide a rom file");
+        return Ok(())
+    }
+
     let mut cpu = Cpu::new();
 
     let path = "bootrom.bin";
@@ -20,7 +25,7 @@ fn main() -> std::io::Result<()> {
     f.read_to_end(&mut buffer)?;
     cpu.load_bootrom(&buffer);
 
-    let path = "cpu_instrs/individual/09-op r,r.gb";
+    let path = std::env::args().nth(1).unwrap();
     let mut f = File::open(&path)?;
     let mut buffer = Vec::new();
     f.read_to_end(&mut buffer)?;
