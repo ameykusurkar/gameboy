@@ -413,6 +413,12 @@ impl Cpu {
             0xB8..=0xBF => {
                 self.execute_cp_reg(opcode);
             },
+            0xC0 => {
+                // RET NZ
+                self.ret_condition(!read_bit(self.regs[F], ZERO_FLAG));
+
+                println!("RET NZ");
+            },
             0xC1 => {
                 // POP BC
                 self.pop(BC);
@@ -421,35 +427,21 @@ impl Cpu {
             },
             0xC2 => {
                 // JP NZ,nn
-                let addr = self.read_u16(self.pc + 1);
-
-                if !read_bit(self.regs[F], ZERO_FLAG) {
-                    self.pc = addr;
-                } else {
-                    self.pc += 3;
-                }
+                let addr = self.jump_condition(!read_bit(self.regs[F], ZERO_FLAG));
 
                 println!("JP NZ, {:04x}", addr);
             },
             0xC3 => {
                 // JP nn
-                let addr = self.read_u16(self.pc + 1);
-                self.pc = addr;
+                let addr = self.jump_condition(true);
 
                 println!("JP {:04x}", addr);
             },
             0xC4 => {
                 // CALL NZ,nn
-                let nn = self.read_u16(self.pc + 1);
-                self.pc += 3;
+                let addr = self.call_condition(!read_bit(self.regs[F], ZERO_FLAG));
 
-                if !read_bit(self.regs[F], ZERO_FLAG) {
-                    self.sp -= 2;
-                    self.write_u16(self.sp, self.pc);
-                    self.pc = nn;
-                }
-
-                println!("CALL NZ, {:04x}", nn);
+                println!("CALL NZ, {:04x}", addr);
             },
             0xC5 => {
                 // PUSH BC
@@ -467,6 +459,9 @@ impl Cpu {
 
                 println!("ADD {:02x}", n);
             },
+            0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
+                self.execute_rst(opcode);
+            },
             0xC8 => {
                 // RET Z
                 self.ret_condition(read_bit(self.regs[F], ZERO_FLAG));
@@ -479,17 +474,26 @@ impl Cpu {
 
                 println!("RET");
             },
+            0xCA => {
+                // JP Z,nn
+                let addr = self.jump_condition(read_bit(self.regs[F], ZERO_FLAG));
+
+                println!("JP Z, {:04x}", addr);
+            },
             0xCB => {
                 self.execute_prefixed_instruction();
             },
+            0xCC => {
+                // CALL Z,nn
+                let addr = self.call_condition(read_bit(self.regs[F], ZERO_FLAG));
+
+                println!("CALL Z, {:04x}", addr);
+            },
             0xCD => {
                 // CALL nn
-                let nn = self.read_u16(self.pc + 1);
-                self.sp -= 2;
-                self.write_u16(self.sp, self.pc + 3);
-                self.pc = nn;
+                let addr = self.call_condition(true);
 
-                println!("CALL {:04x}", nn);
+                println!("CALL {:04x}", addr);
             },
             0xCE => {
                 // ADC n
@@ -514,6 +518,18 @@ impl Cpu {
 
                 println!("POP DE");
             },
+            0xD2 => {
+                // JP NC,nn
+                let addr = self.jump_condition(!read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("JP NC, {:04x}", addr);
+            },
+            0xD4 => {
+                // CALL NC,nn
+                let addr = self.call_condition(!read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("CALL NC, {:04x}", addr);
+            },
             0xD5 => {
                 // PUSH DE
                 self.push(DE);
@@ -535,6 +551,25 @@ impl Cpu {
                 self.ret_condition(read_bit(self.regs[F], CARRY_FLAG));
 
                 println!("RET C");
+            },
+            0xD9 => {
+                // RETI
+                self.ime = true;
+                self.ret();
+
+                println!("RET");
+            },
+            0xDA => {
+                // JP C,nn
+                let addr = self.jump_condition(read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("JP C, {:04x}", addr);
+            },
+            0xDC => {
+                // CALL C,nn
+                let addr = self.call_condition(read_bit(self.regs[F], CARRY_FLAG));
+
+                println!("CALL NC, {:04x}", addr);
             },
             0xDE => {
                 // SBC n
@@ -728,17 +763,15 @@ impl Cpu {
             0x38..=0x3F => {
                 self.execute_srl_reg(opcode);
             },
-            0x7C => {
-                // BIT 7,H
-                let bit = read_bit(self.regs[H], 7);
-                self.set_flag(ZERO_FLAG, !bit);
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, true);
-                self.pc += 1;
-
-                println!("BIT 7, H");
-            }
-            _ => panic!("Unimplemented prefixed (CB) opcode {:02x}", opcode),
+            0x40..=0x7F => {
+                self.execute_test_bit_reg(opcode);
+            },
+            0x80..=0xBF => {
+                self.execute_reset_bit_reg(opcode);
+            },
+            0xC0..=0xFF => {
+                self.execute_set_bit_reg(opcode);
+            },
         }
     }
 
@@ -1005,6 +1038,36 @@ impl Cpu {
         println!("SRL {}", display);
     }
 
+    fn execute_test_bit_reg(&mut self, opcode: u8) {
+        let bit_position = (opcode - 0x40) / 0x08;
+        let (src, display) = self.get_source_val(opcode);
+        let result = read_bit(src, bit_position);
+        self.set_flag(ZERO_FLAG, !result);
+        self.set_flag(SUBTRACT_FLAG, false);
+        self.set_flag(HALF_CARRY_FLAG, true);
+        self.pc += 1;
+
+        println!("BIT {}, {}", bit_position, display);
+    }
+
+    fn execute_reset_bit_reg(&mut self, opcode: u8) {
+        let bit_position = (opcode - 0x40) / 0x08;
+        let (src, display) = self.get_source_reg_mut(opcode);
+        *src = set_bit(*src, bit_position, false);
+        self.pc += 1;
+
+        println!("RES {}, {}", bit_position, display);
+    }
+
+    fn execute_set_bit_reg(&mut self, opcode: u8) {
+        let bit_position = (opcode - 0x40) / 0x08;
+        let (src, display) = self.get_source_reg_mut(opcode);
+        *src = set_bit(*src, bit_position, true);
+        self.pc += 1;
+
+        println!("SET {}, {}", bit_position, display);
+    }
+
     // Many arithmetic/logical opcodes are arranged a particular order,
     // eg. ADD r, where consecutive opcodes iterate through the different
     // registers (r). There is one caveat to this: these operations treat
@@ -1026,7 +1089,7 @@ impl Cpu {
             }
         }
     }
-    
+
     fn get_source_reg_mut(&mut self, opcode: u8) -> (&mut u8, String) {
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
@@ -1042,7 +1105,6 @@ impl Cpu {
             }
         }
     }
-
 
     fn inc_reg(&mut self, index: RegisterIndex) {
         // INC r
@@ -1108,6 +1170,33 @@ impl Cpu {
         offset
     }
 
+    fn jump_condition(&mut self, condition: bool) -> u16 {
+        // JP cc, nn
+        let addr = self.read_u16(self.pc + 1);
+
+        if condition {
+            self.pc = addr;
+        } else {
+            self.pc += 3;
+        }
+
+        addr
+    }
+
+    fn call_condition(&mut self, condition: bool) -> u16 {
+        // CALL cc, nn
+        let addr = self.read_u16(self.pc + 1);
+        self.pc += 3;
+
+        if condition {
+            self.sp -= 2;
+            self.write_u16(self.sp, self.pc);
+            self.pc = addr;
+        }
+
+        addr
+    }
+
     fn ret(&mut self) {
         self.ret_condition(true);
     }
@@ -1120,6 +1209,15 @@ impl Cpu {
         } else {
             self.pc += 1;
         }
+    }
+
+    fn execute_rst(&mut self, opcode: u8) {
+        let addr = (opcode - 0xC7) as u16;
+        self.sp -= 2;
+        self.write_u16(self.sp, self.pc + 1);
+        self.pc = addr;
+
+        println!("RST {:04x}", addr);
     }
 
     fn push(&mut self, index: TwoRegisterIndex) {
