@@ -815,482 +815,234 @@ impl Cpu {
     }
 
     fn execute_or_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let (result, flags) = or_u8(self.regs[A], src);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                self.or_reg(reg);
-                println!("OR {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = or_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("OR (HL)");
-            }
-        }
+        println!("OR {}", display);
     }
 
     fn execute_cp_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let (_, flags) = sub_u8(self.regs[A], src);
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (_, flags) = sub_u8(self.regs[A], self.regs[reg]);
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("CP {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (_, flags) = sub_u8(self.regs[A], n);
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("CP (HL)");
-            }
-        }
+        println!("CP {}", display);
     }
 
     fn execute_add_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let (result, flags) = add_u8(self.regs[A], src);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, flags) = add_u8(self.regs[A], self.regs[reg]);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("ADD {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = add_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("ADD (HL)");
-            }
-        }
+        println!("ADD {}", display);
     }
 
     fn execute_adc_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+        let (result, flags) = adc_u8(self.regs[A], src, old_carry);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = adc_u8(self.regs[A], self.regs[reg], old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("ADC {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = adc_u8(self.regs[A], n, old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("ADC (HL)");
-            }
-        }
+        println!("ADC {}", display);
     }
 
     fn execute_sub_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let (result, flags) = sub_u8(self.regs[A], src);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, flags) = sub_u8(self.regs[A], self.regs[reg]);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SUB {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = sub_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SUB (HL)");
-            }
-        }
+        println!("SUB {}", display);
     }
 
     fn execute_sbc_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+        let (result, flags) = sbc_u8(self.regs[A], src, old_carry);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = sbc_u8(self.regs[A], self.regs[reg], old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SBC {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SBC (HL)");
-            }
-        }
+        println!("SBC {}", display);
     }
 
     fn execute_and_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let (result, flags) = and_u8(self.regs[A], src);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, flags) = and_u8(self.regs[A], self.regs[reg]);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("AND {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = and_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("AND (HL)");
-            }
-        }
+        println!("AND {}", display);
     }
 
     fn execute_xor_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_val(opcode);
+        let (result, flags) = xor_u8(self.regs[A], src);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                self.xor_reg(reg);
-                println!("XOR {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let n = self.memory[addr];
-                let (result, flags) = xor_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("XOR (HL)");
-            }
-        }
+        println!("XOR {}", display);
     }
 
     fn execute_rlc_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = rotate_left(*src);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, carry) = rotate_left(self.regs[reg]);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RLC {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let (result, carry) = rotate_left(self.memory[addr]);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RLC (HL)");
-            }
-        }
+        println!("RLC {}", display);
     }
 
     fn execute_rrc_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = rotate_right(*src);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, carry) = rotate_right(self.regs[reg]);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RRC {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let (result, carry) = rotate_right(self.memory[addr]);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RRC (HL)");
-            }
-        }
+        println!("RRC {}", display);
     }
 
     fn execute_rl_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let carry = read_bit(self.regs[F], CARRY_FLAG);
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = rotate_left_through_carry(*src, carry);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, carry) = rotate_left_through_carry(self.regs[reg], carry);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RL {:?}", reg);
-            },
-            None => {
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let addr = self.regs.read(HL);
-                let (result, carry) = rotate_left_through_carry(self.memory[addr], carry);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RL (HL)");
-            }
-        }
+        println!("RL {}", display);
     }
 
     fn execute_rr_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let carry = read_bit(self.regs[F], CARRY_FLAG);
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = rotate_right_through_carry(*src, carry);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, carry) = rotate_right_through_carry(self.regs[reg], carry);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RR {:?}", reg);
-            },
-            None => {
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let addr = self.regs.read(HL);
-                let (result, carry) = rotate_right_through_carry(self.memory[addr], carry);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("RR (HL)");
-            }
-        }
+        println!("RR {}", display);
     }
 
     fn execute_sla_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = shift_left(*src);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, carry) = shift_left(self.regs[reg]);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("SLA {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let (result, carry) = shift_left(self.memory[addr]);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("SLA (HL)");
-            }
-        }
+        println!("SLA {}", display);
     }
 
     fn execute_sra_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = shift_right_arithmetic(*src);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, carry) = shift_right_arithmetic(self.regs[reg]);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("SRA {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let (result, carry) = shift_right_arithmetic(self.memory[addr]);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("SRA (HL)");
-            }
-        }
+        println!("SRA {}", display);
     }
 
     fn execute_swap_reg(&mut self, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, flags) = swap_u8(*src);
+        *src = result;
+        self.regs.write_flags(flags);
+        self.pc += 1;
 
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                let (result, flags) = swap_u8(self.regs[reg]);
-                self.regs[reg] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SWAP {:?}", reg);
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                let (result, flags) = swap_u8(self.memory[addr]);
-                self.memory[addr] = result;
-                self.regs.write_flags(flags);
-                self.pc += 1;
-
-                println!("SWAP (HL)");
-            }
-        }
+        println!("SWAP {}", display);
     }
 
     fn execute_srl_reg(&mut self, opcode: u8) {
+        let (src, display) = self.get_source_reg_mut(opcode);
+        let (result, carry) = shift_right_logical(*src);
+        *src = result;
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            carry,
+            ..Flags::default()
+        });
+        self.pc += 1;
+
+        println!("SRL {}", display);
+    }
+
+    // Many arithmetic/logical opcodes are arranged a particular order,
+    // eg. ADD r, where consecutive opcodes iterate through the different
+    // registers (r). There is one caveat to this: these operations treat
+    // the memory address pointed to by HL like a register as well, even
+    // though it is not really a register, but memory. This method hides
+    // that detail so that register operations can't tell the difference.
+    fn get_source_val(&self, opcode: u8) -> (u8, String) {
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
         ];
 
         match order[(opcode % 0x08) as usize] {
             Some(reg) => {
-                let (result, carry) = shift_right_logical(self.regs[reg]);
-                self.regs[reg] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("SRL {:?}", reg);
+                (self.regs[reg], format!("{:?}", reg))
             },
             None => {
                 let addr = self.regs.read(HL);
-                let (result, carry) = shift_right_logical(self.memory[addr]);
-                self.memory[addr] = result;
-                self.regs.write_flags(Flags {
-                    zero: result == 0,
-                    carry,
-                    ..Flags::default()
-                });
-                self.pc += 1;
-
-                println!("SRL (HL)");
+                (self.memory[addr], "(HL)".to_string())
             }
         }
     }
+    
+    fn get_source_reg_mut(&mut self, opcode: u8) -> (&mut u8, String) {
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        match order[(opcode % 0x08) as usize] {
+            Some(reg) => {
+                (&mut self.regs[reg], format!("{:?}", reg))
+            },
+            None => {
+                let addr = self.regs.read(HL);
+                (&mut self.memory[addr], "(HL)".to_string())
+            }
+        }
+    }
+
 
     fn inc_reg(&mut self, index: RegisterIndex) {
         // INC r
@@ -1299,20 +1051,6 @@ impl Cpu {
         self.set_flag(ZERO_FLAG, self.regs[index] == 0);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
-        self.pc += 1;
-    }
-
-    fn xor_reg(&mut self, index: RegisterIndex) {
-        let (result, flags) = xor_u8(self.regs[A], self.regs[index]);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
-        self.pc += 1;
-    }
-
-    fn or_reg(&mut self, index: RegisterIndex) {
-        let (result, flags) = or_u8(self.regs[A], self.regs[index]);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
         self.pc += 1;
     }
 
