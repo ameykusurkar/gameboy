@@ -272,6 +272,33 @@ impl Cpu {
 
                 println!("LD H, {:02x}", n);
             },
+            0x27 => {
+                // DAA
+                let val = self.regs[A];
+                let mut correction = 0;
+                let mut carry = read_bit(self.regs[F], CARRY_FLAG);
+                if read_bit(self.regs[F], HALF_CARRY_FLAG) || (!read_bit(self.regs[F], SUBTRACT_FLAG) && ((val & 0x0F) > 0x09)) {
+                    correction |= 0x06;
+                }
+
+                if read_bit(self.regs[F], CARRY_FLAG) || (!read_bit(self.regs[F], SUBTRACT_FLAG) && (val > 0x99)) {
+                    correction |= 0x60;
+                    carry = true;
+                }
+
+                if read_bit(self.regs[F], SUBTRACT_FLAG) {
+                    self.regs[A] -= correction;
+                } else {
+                    self.regs[A] += correction;
+                }
+
+                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+                self.set_flag(HALF_CARRY_FLAG, false);
+                self.set_flag(CARRY_FLAG, carry);
+                self.pc += 1;
+
+                println!("DAA");
+            },
             0x28 => {
                 // JR Z,n
                 let offset = self.jump_rel_condition(read_bit(self.regs[F], ZERO_FLAG));
