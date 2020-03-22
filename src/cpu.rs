@@ -8,6 +8,10 @@ use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
 use crate::memory::Memory;
 
+const IE_ADDR: u16 = 0xFFFF;
+const IF_ADDR: u16 = 0xFF0F;
+const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
+
 pub struct Cpu {
     regs: Registers,
     sp: u16,
@@ -815,6 +819,13 @@ impl Cpu {
 
                 println!("LD A, ({:04x})", nn);
             },
+            0xFB => {
+                // EI
+                self.ime = true;
+                self.pc += 1;
+
+                println!("EI");
+            },
             0xFE => {
                 // CP n
                 let n = self.memory[self.pc + 1];
@@ -829,9 +840,28 @@ impl Cpu {
 
         println!("{:02x?}, PC: {:#06x}", self.regs, self.pc);
 
+        if self.ime && (self.memory[IE_ADDR] & self.memory[IF_ADDR]) > 0 {
+            self.handle_interrupt();
+        }
+
         // if old_pc == self.pc {
         //     panic!("PC is still {:04x}, should have changed!", old_pc);
         // }
+    }
+
+    fn handle_interrupt(&mut self) {
+        let pending_interrupts = self.memory[IE_ADDR] & self.memory[IF_ADDR];
+
+        for i in 0..5 {
+            if read_bit(pending_interrupts, i) {
+                self.ime = false;
+                self.memory[IF_ADDR] = set_bit(self.memory[IF_ADDR], i, false);
+                let addr = INTERRUPT_ADDRS[i as usize];
+                self.sp -= 2;
+                self.write_u16(self.sp, self.pc);
+                self.pc = addr;
+            }
+        }
     }
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
