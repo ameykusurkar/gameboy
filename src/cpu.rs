@@ -364,6 +364,13 @@ impl Cpu {
 
                 println!("LD (HL-), A");
             },
+            0x33 => {
+                // INC SP
+                self.sp += 1;
+                self.pc += 1;
+
+                println!("INC SP");
+            },
             0x34 => {
                 // INC (HL)
                 let addr = self.regs.read(HL);
@@ -411,6 +418,16 @@ impl Cpu {
 
                 println!("JR C, {}", offset);
             },
+            0x39 => {
+                // ADD HL,SP
+                let old_zero = read_bit(self.regs[F], ZERO_FLAG);
+                let (result, flags) = add_u16(self.regs.read(HL), self.sp);
+                self.regs.write(HL, result);
+                self.regs.write_flags(Flags { zero: old_zero, ..flags });
+                self.pc += 1;
+
+                println!("ADD HL, SP");
+            },
             0x3A => {
                 // LD A, (HL-)
                 let addr = self.regs.read(HL);
@@ -419,6 +436,13 @@ impl Cpu {
                 self.pc += 1;
 
                 println!("LD A, (HL-)");
+            },
+            0x3B => {
+                // DEC SP
+                self.sp -= 1;
+                self.pc += 1;
+
+                println!("DEC SP");
             },
             0x3C => {
                 // INC A
@@ -700,6 +724,16 @@ impl Cpu {
 
                 println!("AND {:02x}", n);
             },
+            0xE8 => {
+                // ADD SP,n
+                let n = self.memory[self.pc + 1];
+                let (result, flags) = self.sum_sp_n(n);
+                self.sp = result;
+                self.regs.write_flags(flags);
+                self.pc += 2;
+
+                println!("ADD SP, {:02x}", n);
+            },
             0xEE => {
                 // XOR n
                 let n = self.memory[self.pc + 1];
@@ -755,6 +789,16 @@ impl Cpu {
                 self.pc += 2;
 
                 println!("OR {:02x}", n);
+            },
+            0xF8 => {
+                // LD HL, SP + n
+                let n = self.memory[self.pc + 1];
+                let (result, flags) = self.sum_sp_n(n);
+                self.regs.write(HL, result);
+                self.regs.write_flags(flags);
+                self.pc += 2;
+
+                println!("LD HL, SP + {:02x}", n);
             },
             0xF9 => {
                 // LD SP,HL
@@ -880,7 +924,7 @@ impl Cpu {
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
         self.pc += 1;
 
-        println!("INC HL, {:?}", reg);
+        println!("ADD HL, {:?}", reg);
     }
 
     fn execute_load_r_r(&mut self, opcode: u8) {
@@ -1214,6 +1258,27 @@ impl Cpu {
     fn load_reg_reg(&mut self, dest: RegisterIndex, source: RegisterIndex) {
         self.regs[dest] = self.regs[source];
         self.pc += 1;
+    }
+
+    fn sum_sp_n(&mut self, n: u8) -> (u16, Flags) {
+        // n is a signed value
+        let n = n as i8;
+        let sp = self.sp as i32;
+
+        let result = sp + (n as i32);
+        let (half_carry, carry) = if n < 0 {
+            (
+                (result & 0x0F) <= (sp & 0x0F),
+                (result & 0xFF) <= (sp & 0xFF),
+            )
+        } else {
+            (
+                (sp & 0x0F) + (n as i32 & 0x0F) > 0x0F,
+                (sp & 0xFF) + (n as i32 & 0xFF) > 0xFF,
+            )
+        };
+
+        (result as u16, Flags { half_carry, carry, ..Flags::default() })
     }
 
     fn jump_rel(&mut self) -> i8 {
