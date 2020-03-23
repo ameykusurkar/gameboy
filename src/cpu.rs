@@ -44,7 +44,7 @@ impl Cpu {
         &self.memory.get_memory()
     }
 
-    pub fn step(&mut self) {
+    pub fn step(&mut self) -> u32 {
         // TODO: Remove this
         // Temp hack to let CPU think that screen is done rendering
         self.memory[0xFF44] = 0x90;
@@ -864,6 +864,8 @@ impl Cpu {
         if old_clock_cycles == self.clock_cycles {
             panic!("Num cycles is still {}, should have changed! Opcode: {:02x}", old_clock_cycles, old_opcode);
         }
+
+        self.clock_cycles - old_clock_cycles
     }
 
     fn handle_interrupt(&mut self) {

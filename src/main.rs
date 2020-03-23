@@ -39,14 +39,16 @@ fn main() -> std::io::Result<()> {
     let mut window = Window::new(width, height);
     window.set_title("Gameboy");
 
+    let mut cycles = 0;
+
     while window.is_open() {
-        for _ in 0..20000 {
-            cpu.step();
+        cycles += cpu.step();
+        if cycles >= 175000 {
+            let memory = cpu.get_memory();
+            let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
+            window.update(&pixel_buffer);
+            cycles = 0;
         }
-        let memory = cpu.get_memory();
-        let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
-        window.update(&pixel_buffer);
-        // std::thread::sleep(std::time::Duration::from_millis(1));
     }
 
     Ok(())
