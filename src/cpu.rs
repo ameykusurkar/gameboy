@@ -67,9 +67,9 @@ impl Cpu {
             },
             0x02 => {
                 // LD (BC), A
+                self.tick();
                 let addr = self.regs.read(BC);
-                self.memory[addr] = self.regs[A];
-                self.pc += 1;
+                self.write_mem(addr, self.regs[A]);
 
                 println!("LD (BC), A");
             },
@@ -96,6 +96,7 @@ impl Cpu {
             },
             0x07 => {
                 // RLCA
+                self.tick();
                 let (result, carry) = rotate_left(self.regs[A]);
                 self.regs[A] = result;
                 // Unlike RLC X, zero flag is RESET
@@ -103,7 +104,6 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-                self.pc += 1;
 
                 println!("RLCA");
             },
@@ -120,9 +120,9 @@ impl Cpu {
             },
             0x0A => {
                 // LD A,(BC)
+                self.tick();
                 let addr = self.regs.read(BC);
-                self.regs[A] = self.memory[addr];
-                self.pc += 1;
+                self.regs[A] = self.read_mem(addr);
 
                 println!("LD A, (BC)");
             },
@@ -149,6 +149,7 @@ impl Cpu {
             },
             0x0F => {
                 // RRCA
+                self.tick();
                 let (result, carry) = rotate_right(self.regs[A]);
                 self.regs[A] = result;
                 // Unlike RRC X, zero flag is RESET
@@ -156,7 +157,6 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-                self.pc += 1;
 
                 println!("RRCA");
             },
@@ -281,6 +281,7 @@ impl Cpu {
             },
             0x27 => {
                 // DAA
+                self.tick();
                 let val = self.regs[A];
                 let mut correction = 0;
                 let mut carry = read_bit(self.regs[F], CARRY_FLAG);
@@ -302,7 +303,6 @@ impl Cpu {
                 self.set_flag(ZERO_FLAG, self.regs[A] == 0);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, carry);
-                self.pc += 1;
 
                 println!("DAA");
             },
@@ -341,10 +341,10 @@ impl Cpu {
             },
             0x2F => {
                 // CPL
+                self.tick();
                 self.regs[A] ^= 0xFF;
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, true);
-                self.pc += 1;
 
                 println!("CPL");
             },
@@ -406,18 +406,18 @@ impl Cpu {
             },
             0x36 => {
                 // LD (HL),n
-                let n = self.memory[self.pc + 1];
-                self.memory[self.regs.read(HL)] = n;
-                self.pc += 2;
+                self.tick();
+                let n = self.read_imm();
+                self.write_mem(self.regs.read(HL), n);
 
                 println!("LD (HL), {:02x}", n);
             },
             0x37 => {
                 // SCF
+                self.tick();
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, true);
-                self.pc += 1;
 
                 println!("SCF");
             },
@@ -441,10 +441,10 @@ impl Cpu {
             },
             0x3A => {
                 // LD A, (HL-)
+                self.tick();
                 let addr = self.regs.read(HL);
-                self.regs[A] = self.memory[addr];
+                self.regs[A] = self.read_mem(addr);
                 self.regs.write(HL, addr - 1);
-                self.pc += 1;
 
                 println!("LD A, (HL-)");
             },
@@ -479,11 +479,11 @@ impl Cpu {
             },
             0x3F => {
                 // CCF
+                self.tick();
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, old_carry ^ true);
-                self.pc += 1;
 
                 println!("CCF");
             },
@@ -674,12 +674,12 @@ impl Cpu {
             },
             0xDE => {
                 // SBC n
-                let n = self.memory[self.pc + 1];
+                self.tick();
+                let n = self.read_imm();
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-                self.pc += 2;
 
                 println!("SBC {:02x}", n);
             },
@@ -778,9 +778,9 @@ impl Cpu {
             },
             0xF2 => {
                 // LDH A,(C)
+                self.tick();
                 let addr = 0xFF00 + (self.regs[C] as u16);
-                self.regs[A] = self.memory[addr];
-                self.pc += 1;
+                self.regs[A] = self.read_mem(addr);
 
                 println!("LDH A, (C)");
             },
@@ -799,11 +799,11 @@ impl Cpu {
             },
             0xF6 => {
                 // OR n
-                let n = self.memory[self.pc + 1];
+                self.tick();
+                let n = self.read_imm();
                 let (result, flags) = or_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-                self.pc += 2;
 
                 println!("OR {:02x}", n);
             },
@@ -857,9 +857,7 @@ impl Cpu {
 
         println!("{:02x?}, PC: {:#06x}", self.regs, self.pc);
 
-        if self.ime && (self.memory[IE_ADDR] & self.memory[IF_ADDR]) > 0 {
-            self.handle_interrupt();
-        }
+        self.check_and_handle_interrupts();
 
         if old_clock_cycles == self.clock_cycles {
             panic!("Num cycles is still {}, should have changed! Opcode: {:02x}", old_clock_cycles, old_opcode);
@@ -868,19 +866,27 @@ impl Cpu {
         self.clock_cycles - old_clock_cycles
     }
 
-    fn handle_interrupt(&mut self) {
+    fn check_and_handle_interrupts(&mut self) {
         let pending_interrupts = self.memory[IE_ADDR] & self.memory[IF_ADDR];
 
-        for i in 0..5 {
-            if read_bit(pending_interrupts, i) {
-                self.ime = false;
-                self.memory[IF_ADDR] = set_bit(self.memory[IF_ADDR], i, false);
-                let addr = INTERRUPT_ADDRS[i as usize];
-                self.sp -= 2;
-                self.write_u16(self.sp, self.pc);
-                self.pc = addr;
+        if self.ime && pending_interrupts > 0 {
+            for i in 0..5 {
+                if read_bit(pending_interrupts, i) {
+                    self.handle_interrupt(i);
+                }
             }
         }
+    }
+
+    fn handle_interrupt(&mut self, interrupt_no: u8) {
+        // This routine should take 5 machine cycles
+        self.ime = false;
+        self.nop();
+        self.nop();
+        self.write_mem(IF_ADDR, set_bit(self.memory[IF_ADDR], interrupt_no, false));
+        self.sp -= 2;
+        self.write_mem_u16(self.sp, self.pc);
+        self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
     }
 
     fn nop(&mut self) {
@@ -978,11 +984,13 @@ impl Cpu {
     }
 
     fn execute_dec_rr(&mut self, opcode: u8) {
+        self.tick();
         let order = [BC, DE, HL];
         let reg = order[(opcode / 0x10) as usize];
 
         self.regs.write(reg, self.regs.read(reg) - 1);
-        self.pc += 1;
+        // Because it is a 16-bit register operation
+        self.nop();
 
         println!("DEC {:?}", reg);
     }
@@ -1411,8 +1419,9 @@ impl Cpu {
         let addr = self.read_imm_u16();
 
         if condition {
+            self.nop(); // To decrement sp
             self.sp -= 2;
-            self.write_u16(self.sp, self.pc);
+            self.write_mem_u16(self.sp, self.pc);
             self.pc = addr;
         }
 
@@ -1439,9 +1448,11 @@ impl Cpu {
     }
 
     fn execute_rst(&mut self, opcode: u8) {
+        self.tick();
         let addr = (opcode - 0xC7) as u16;
+        self.nop(); // To decrement sp
         self.sp -= 2;
-        self.write_u16(self.sp, self.pc + 1);
+        self.write_mem_u16(self.sp, self.pc);
         self.pc = addr;
 
         println!("RST {:04x}", addr);
@@ -1458,19 +1469,6 @@ impl Cpu {
         let nn = self.read_mem_u16(self.sp);
         self.regs.write(index, nn);
         self.sp += 2;
-    }
-
-    fn read_u16(&self, addr: u16) -> u16 {
-        let lsb = self.memory[addr] as u16;
-        let msb = self.memory[addr + 1] as u16;
-        (msb << 8) | lsb
-    }
-
-    fn write_u16(&mut self, addr: u16, val: u16) {
-        let lsb = (val & 0x00FF) as u8;
-        let msb = ((val & 0xFF00) >> 8) as u8;
-        self.memory[addr] = lsb;
-        self.memory[addr + 1] = msb;
     }
 
     fn set_flag(&mut self, flag_bit: u8, val: bool) {
