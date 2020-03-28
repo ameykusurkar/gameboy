@@ -6,6 +6,7 @@ mod ppu;
 mod registers;
 mod memory;
 mod window;
+mod instruction;
 
 use cpu::Cpu;
 use window::Window;
@@ -39,14 +40,18 @@ fn main() -> std::io::Result<()> {
     let mut window = Window::new(width, height);
     window.set_title("Gameboy");
 
+    let mut cycles = 0;
+
     while window.is_open() {
-        for _ in 0..20000 {
-            cpu.step();
+        cpu.step();
+        cycles += 1;
+
+        // Cycles per frame
+        if cycles % 17556 == 0 {
+            let memory = cpu.get_memory();
+            let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
+            window.update(&pixel_buffer);
         }
-        let memory = cpu.get_memory();
-        let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
-        window.update(&pixel_buffer);
-        // std::thread::sleep(std::time::Duration::from_millis(1));
     }
 
     Ok(())
