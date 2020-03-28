@@ -5,12 +5,13 @@ mod cpu;
 mod ppu;
 mod registers;
 mod memory;
-mod window;
 mod instruction;
+mod emulator;
 
-use cpu::Cpu;
-use window::Window;
-use ppu::NUM_PIXELS_IN_LINE;
+use emulator::Emulator;
+use crate::ppu::NUM_PIXELS_IN_LINE;
+
+use pge;
 
 fn main() -> std::io::Result<()> {
     if std::env::args().len() < 2 {
@@ -18,41 +19,26 @@ fn main() -> std::io::Result<()> {
         return Ok(())
     }
 
-    let mut cpu = Cpu::new();
+    let mut emulator = Emulator::new();
 
     let path = "bootrom.bin";
     let mut f = File::open(&path)?;
-    let mut buffer = Vec::new();
-    f.read_to_end(&mut buffer)?;
-    cpu.load_bootrom(&buffer);
+    let mut bootrom_buffer = Vec::new();
+    f.read_to_end(&mut bootrom_buffer)?;
 
     let path = std::env::args().nth(1).unwrap();
     let mut f = File::open(&path)?;
-    let mut buffer = Vec::new();
-    f.read_to_end(&mut buffer)?;
-    cpu.load_rom(&buffer);
+    let mut rom_buffer = Vec::new();
+    f.read_to_end(&mut rom_buffer)?;
 
-    // cpu.skip_bootrom();
+    emulator.load_setup(&bootrom_buffer, &rom_buffer);
 
     let width = 32 * NUM_PIXELS_IN_LINE;
     let height = 32 * NUM_PIXELS_IN_LINE;
+    let scale = 2;
 
-    let mut window = Window::new(width, height);
-    window.set_title("Gameboy");
-
-    let mut cycles = 0;
-
-    while window.is_open() {
-        cpu.step();
-        cycles += 1;
-
-        // Cycles per frame
-        if cycles % 17556 == 0 {
-            let memory = cpu.get_memory();
-            let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
-            window.update(&pixel_buffer);
-        }
-    }
+    let mut pge = pge::PGE::construct("Gameboy", width, height, scale, scale);
+    pge.start(&mut emulator);
 
     Ok(())
 }
