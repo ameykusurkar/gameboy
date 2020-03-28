@@ -10,9 +10,22 @@ use crate::memory::Memory;
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 
+// Address of the interrupt enable register
 const IE_ADDR: u16 = 0xFFFF;
+// Address of the interrupt flags register
 const IF_ADDR: u16 = 0xFF0F;
+// Address the cpu jumps to when the respective interrupts are triggered
 const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
+
+// Address for the divider register (DIV). The incremented at 16,384 Hx.
+const DIV_ADDR: u16 = 0xFF04;
+// Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
+const TIMA_ADDR: u16 = 0xFF05;
+// When TIMA overflows, the data at this address will be loaded.
+const TMA_ADDR: u16  = 0xFF06;
+// Address for the timer control register. Bit 2 specifies if the timer is active, and bits 1-0
+// specify the frequency at which to increment the timer.
+const TAC_ADDR: u16  = 0xFF07;
 
 pub struct Cpu {
     regs: Registers,
@@ -23,6 +36,7 @@ pub struct Cpu {
     clock_cycles: u32,
     remaining_cycles: u32,
     current_opcode: u8,
+    total_clock_cycles: u32,
 }
 
 impl Cpu {
@@ -37,6 +51,7 @@ impl Cpu {
             remaining_cycles: 0,
             // This should get populated when cpu starts running
             current_opcode: 0,
+            total_clock_cycles: 0,
         }
     }
 
@@ -53,11 +68,17 @@ impl Cpu {
 
     pub fn step(&mut self) {
         if self.remaining_cycles == 0 {
+            let interrupt_occurred = self.check_and_handle_interrupts();
+
+            if interrupt_occurred {
+                self.remaining_cycles += 5;
+            }
+
             let opcode = self.memory[self.pc];
             self.current_opcode = opcode;
 
             let next_byte = self.memory[self.pc + 1];
-            self.remaining_cycles = Self::cycles_for_instruction(opcode, next_byte);
+            self.remaining_cycles += Self::cycles_for_instruction(opcode, next_byte);
 
             // For instructions with a conditional jump, the cpu takes extra cycles if
             // the jump does happen, which `execute` determines based on the condition.
@@ -66,6 +87,9 @@ impl Cpu {
         }
 
         self.remaining_cycles -= 1;
+
+        self.total_clock_cycles += 1;
+        self.update_timers();
     }
 
     // Finds the number of cycles required for the given instruction. If the instruction
@@ -86,6 +110,34 @@ impl Cpu {
         }
 
         cycles
+    }
+
+    fn update_timers(&mut self) {
+        if self.total_clock_cycles % 64 == 0 {
+            self.memory[DIV_ADDR] += 1;
+        }
+
+        let timer_control = self.memory[TAC_ADDR];
+        let timer_is_active = read_bit(timer_control, 2);
+
+        if timer_is_active {
+            let cycles_per_update = match timer_control & 0b11 {
+                0b00 => 256,        // 4096 Hz
+                0b01 => 4,          // 262,144 Hz
+                0b10 => 16,         // 65,536 Hz
+                0b11..=0xFF => 64,  // 16,384 Hz
+            };
+
+            if self.total_clock_cycles % cycles_per_update == 0 {
+                if self.memory[TIMA_ADDR] == 0xFF {
+                    // If the timer is going to overflow, request a timer interrupt
+                    self.memory[IF_ADDR] |= 1 << 2;
+                    self.memory[TIMA_ADDR] = self.memory[TMA_ADDR];
+                } else {
+                    self.memory[TIMA_ADDR] += 1;
+                }
+            }
+        }
     }
 
     pub fn execute(&mut self) -> u32 {
@@ -964,9 +1016,7 @@ impl Cpu {
             _ => panic!("Unimplemented opcode {:02x}", opcode),
         }
 
-        println!("{:02x?}, PC: {:#06x}", self.regs, self.pc);
-
-        self.check_and_handle_interrupts();
+        println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.pc, self.total_clock_cycles);
 
         if old_clock_cycles == self.clock_cycles {
             panic!("Num cycles is still {}, should have changed! Opcode: {:02x}", old_clock_cycles, old_opcode);
@@ -975,16 +1025,19 @@ impl Cpu {
         extra_cycles
     }
 
-    fn check_and_handle_interrupts(&mut self) {
+    fn check_and_handle_interrupts(&mut self) -> bool {
         let pending_interrupts = self.memory[IE_ADDR] & self.memory[IF_ADDR];
 
         if self.ime && pending_interrupts > 0 {
             for i in 0..5 {
                 if read_bit(pending_interrupts, i) {
                     self.handle_interrupt(i);
+                    return true;
                 }
             }
         }
+
+        false
     }
 
     fn handle_interrupt(&mut self, interrupt_no: u8) {
