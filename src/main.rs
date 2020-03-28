@@ -6,6 +6,7 @@ mod ppu;
 mod registers;
 mod memory;
 mod window;
+mod instruction;
 
 use cpu::Cpu;
 use window::Window;
@@ -42,12 +43,14 @@ fn main() -> std::io::Result<()> {
     let mut cycles = 0;
 
     while window.is_open() {
-        cycles += cpu.step();
-        if cycles >= 175000 {
+        cpu.step();
+        cycles += 1;
+
+        // Cycles per frame
+        if cycles % 17556 == 0 {
             let memory = cpu.get_memory();
             let pixel_buffer = ppu::get_pixel_buffer(memory, width, height);
             window.update(&pixel_buffer);
-            cycles = 0;
         }
     }
 

@@ -7,6 +7,8 @@ use crate::registers::Flags;
 use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
 use crate::memory::Memory;
+use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
+use crate::instruction::CycleCount::*;
 
 const IE_ADDR: u16 = 0xFFFF;
 const IF_ADDR: u16 = 0xFF0F;
@@ -19,6 +21,8 @@ pub struct Cpu {
     ime: bool,
     memory: Memory,
     clock_cycles: u32,
+    remaining_cycles: u32,
+    current_opcode: u8,
 }
 
 impl Cpu {
@@ -30,6 +34,9 @@ impl Cpu {
             ime: false,
             memory: Memory::new(),
             clock_cycles: 0,
+            remaining_cycles: 0,
+            // This should get populated when cpu starts running
+            current_opcode: 0,
         }
     }
 
@@ -44,7 +51,44 @@ impl Cpu {
         &self.memory.get_memory()
     }
 
-    pub fn step(&mut self) -> u32 {
+    pub fn step(&mut self) {
+        if self.remaining_cycles == 0 {
+            let opcode = self.memory[self.pc];
+            self.current_opcode = opcode;
+
+            let next_byte = self.memory[self.pc + 1];
+            self.remaining_cycles = Self::cycles_for_instruction(opcode, next_byte);
+
+            // For instructions with a conditional jump, the cpu takes extra cycles if
+            // the jump does happen, which `execute` determines based on the condition.
+            let extra_cycles = self.execute();
+            self.remaining_cycles += extra_cycles;
+        }
+
+        self.remaining_cycles -= 1;
+    }
+
+    // Finds the number of cycles required for the given instruction. If the instruction
+    // is a conditional jump, this does not take into account the extra cycles required
+    // for the jump: that is determined by the `execute` method. For instructions prefixed
+    // with the byte "CB", we need to look at the next byte to determine the total cycles.
+    fn cycles_for_instruction(opcode: u8, next_byte: u8) -> u32 {
+        let mut cycles = match &INSTRUCTIONS[opcode as usize].cycles {
+            Fixed(cycles) => *cycles,
+            Jump(_, cycles_without_jump) => *cycles_without_jump,
+        };
+
+        if opcode == 0xCB {
+            cycles += match &PREFIXED_INSTRUCTIONS[next_byte as usize].cycles {
+                Fixed(cycles) => *cycles,
+                Jump(_, cycles_without_jump) => *cycles_without_jump,
+            };
+        }
+
+        cycles
+    }
+
+    pub fn execute(&mut self) -> u32 {
         // TODO: Remove this
         // Temp hack to let CPU think that screen is done rendering
         self.memory[0xFF44] = 0x90;
@@ -54,6 +98,7 @@ impl Cpu {
 
         let old_clock_cycles = self.clock_cycles;
         let old_opcode = opcode;
+        let mut extra_cycles = 0;
 
         match opcode {
             0x00 => {
@@ -248,7 +293,11 @@ impl Cpu {
             },
             0x20 => {
                 // JR NZ,n
-                let offset = self.jump_rel_condition(!read_bit(self.regs[F], ZERO_FLAG));
+                let condition = !read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let offset = self.jump_rel_condition(condition);
 
                 println!("JR NZ, {}", offset);
             },
@@ -308,7 +357,11 @@ impl Cpu {
             },
             0x28 => {
                 // JR Z,n
-                let offset = self.jump_rel_condition(read_bit(self.regs[F], ZERO_FLAG));
+                let condition = read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let offset = self.jump_rel_condition(condition);
 
                 println!("JR Z, {}", offset);
             },
@@ -350,7 +403,11 @@ impl Cpu {
             },
             0x30 => {
                 // JR NC,n
-                let offset = self.jump_rel_condition(!read_bit(self.regs[F], CARRY_FLAG));
+                let condition = !read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let offset = self.jump_rel_condition(condition);
 
                 println!("JR NC, {}", offset);
             },
@@ -423,7 +480,11 @@ impl Cpu {
             },
             0x38 => {
                 // JR C,n
-                let offset = self.jump_rel_condition(read_bit(self.regs[F], CARRY_FLAG));
+                let condition = read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let offset = self.jump_rel_condition(condition);
 
                 println!("JR C, {}", offset);
             },
@@ -516,7 +577,11 @@ impl Cpu {
             },
             0xC0 => {
                 // RET NZ
-                self.ret_condition(!read_bit(self.regs[F], ZERO_FLAG));
+                let condition = !read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                self.ret_condition(condition);
 
                 println!("RET NZ");
             },
@@ -528,7 +593,11 @@ impl Cpu {
             },
             0xC2 => {
                 // JP NZ,nn
-                let addr = self.jump_condition(!read_bit(self.regs[F], ZERO_FLAG));
+                let condition = !read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.jump_condition(condition);
 
                 println!("JP NZ, {:04x}", addr);
             },
@@ -540,7 +609,11 @@ impl Cpu {
             },
             0xC4 => {
                 // CALL NZ,nn
-                let addr = self.call_condition(!read_bit(self.regs[F], ZERO_FLAG));
+                let condition = !read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.call_condition(condition);
 
                 println!("CALL NZ, {:04x}", addr);
             },
@@ -565,7 +638,11 @@ impl Cpu {
             },
             0xC8 => {
                 // RET Z
-                self.ret_condition(read_bit(self.regs[F], ZERO_FLAG));
+                let condition = read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                self.ret_condition(condition);
 
                 println!("RET Z");
             },
@@ -577,7 +654,11 @@ impl Cpu {
             },
             0xCA => {
                 // JP Z,nn
-                let addr = self.jump_condition(read_bit(self.regs[F], ZERO_FLAG));
+                let condition = read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.jump_condition(condition);
 
                 println!("JP Z, {:04x}", addr);
             },
@@ -586,7 +667,11 @@ impl Cpu {
             },
             0xCC => {
                 // CALL Z,nn
-                let addr = self.call_condition(read_bit(self.regs[F], ZERO_FLAG));
+                let condition = read_bit(self.regs[F], ZERO_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.call_condition(condition);
 
                 println!("CALL Z, {:04x}", addr);
             },
@@ -609,7 +694,11 @@ impl Cpu {
             },
             0xD0 => {
                 // RET NC
-                self.ret_condition(!read_bit(self.regs[F], CARRY_FLAG));
+                let condition = !read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                self.ret_condition(condition);
 
                 println!("RET NC");
             },
@@ -621,13 +710,21 @@ impl Cpu {
             },
             0xD2 => {
                 // JP NC,nn
-                let addr = self.jump_condition(!read_bit(self.regs[F], CARRY_FLAG));
+                let condition = !read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.jump_condition(condition);
 
                 println!("JP NC, {:04x}", addr);
             },
             0xD4 => {
                 // CALL NC,nn
-                let addr = self.call_condition(!read_bit(self.regs[F], CARRY_FLAG));
+                let condition = !read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.call_condition(condition);
 
                 println!("CALL NC, {:04x}", addr);
             },
@@ -649,7 +746,11 @@ impl Cpu {
             },
             0xD8 => {
                 // RET C
-                self.ret_condition(read_bit(self.regs[F], CARRY_FLAG));
+                let condition = read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                self.ret_condition(condition);
 
                 println!("RET C");
             },
@@ -662,13 +763,21 @@ impl Cpu {
             },
             0xDA => {
                 // JP C,nn
-                let addr = self.jump_condition(read_bit(self.regs[F], CARRY_FLAG));
+                let condition = read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.jump_condition(condition);
 
                 println!("JP C, {:04x}", addr);
             },
             0xDC => {
                 // CALL C,nn
-                let addr = self.call_condition(read_bit(self.regs[F], CARRY_FLAG));
+                let condition = read_bit(self.regs[F], CARRY_FLAG);
+                if condition {
+                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                }
+                let addr = self.call_condition(condition);
 
                 println!("CALL NC, {:04x}", addr);
             },
@@ -863,7 +972,7 @@ impl Cpu {
             panic!("Num cycles is still {}, should have changed! Opcode: {:02x}", old_clock_cycles, old_opcode);
         }
 
-        self.clock_cycles - old_clock_cycles
+        extra_cycles
     }
 
     fn check_and_handle_interrupts(&mut self) {
