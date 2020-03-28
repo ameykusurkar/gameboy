@@ -37,6 +37,7 @@ pub struct Cpu {
     remaining_cycles: u32,
     current_opcode: u8,
     total_clock_cycles: u32,
+    halted: bool,
 }
 
 impl Cpu {
@@ -52,6 +53,7 @@ impl Cpu {
             // This should get populated when cpu starts running
             current_opcode: 0,
             total_clock_cycles: 0,
+            halted: false,
         }
     }
 
@@ -67,26 +69,32 @@ impl Cpu {
     }
 
     pub fn step(&mut self) {
-        if self.remaining_cycles == 0 {
-            let interrupt_occurred = self.check_and_handle_interrupts();
-
-            if interrupt_occurred {
-                self.remaining_cycles += 5;
-            }
-
-            let opcode = self.memory[self.pc];
-            self.current_opcode = opcode;
-
-            let next_byte = self.memory[self.pc + 1];
-            self.remaining_cycles += Self::cycles_for_instruction(opcode, next_byte);
-
-            // For instructions with a conditional jump, the cpu takes extra cycles if
-            // the jump does happen, which `execute` determines based on the condition.
-            let extra_cycles = self.execute();
-            self.remaining_cycles += extra_cycles;
+        if self.halted && self.get_pending_interrupts() > 0 {
+            self.halted = false;
         }
 
-        self.remaining_cycles -= 1;
+        if !self.halted {
+            if self.remaining_cycles == 0 {
+                let interrupt_was_serviced = self.check_and_handle_interrupts();
+
+                if interrupt_was_serviced {
+                    self.remaining_cycles += 5;
+                }
+
+                let opcode = self.memory[self.pc];
+                self.current_opcode = opcode;
+
+                let next_byte = self.memory[self.pc + 1];
+                self.remaining_cycles += Self::cycles_for_instruction(opcode, next_byte);
+
+                // For instructions with a conditional jump, the cpu takes extra cycles if
+                // the jump does happen, which `execute` determines based on the condition.
+                let extra_cycles = self.execute();
+                self.remaining_cycles += extra_cycles;
+            }
+
+            self.remaining_cycles -= 1;
+        }
 
         self.total_clock_cycles += 1;
         self.update_timers();
@@ -600,8 +608,15 @@ impl Cpu {
 
                 println!("CCF");
             },
-            0x40..=0x7F => {
+            0x40..=0x75 | 0x77..=0x7F => {
                 self.execute_load_r_r(opcode);
+            },
+            0x76 => {
+                // HALT
+                self.tick();
+                self.halted = true;
+
+                println!("HALT");
             },
             0x80..=0x87 => {
                 self.execute_add_reg(opcode);
@@ -1026,7 +1041,7 @@ impl Cpu {
     }
 
     fn check_and_handle_interrupts(&mut self) -> bool {
-        let pending_interrupts = self.memory[IE_ADDR] & self.memory[IF_ADDR];
+        let pending_interrupts = self.get_pending_interrupts();
 
         if self.ime && pending_interrupts > 0 {
             for i in 0..5 {
@@ -1038,6 +1053,10 @@ impl Cpu {
         }
 
         false
+    }
+
+    fn get_pending_interrupts(&self) -> u8 {
+        self.memory[IE_ADDR] & self.memory[IF_ADDR]
     }
 
     fn handle_interrupt(&mut self, interrupt_no: u8) {
