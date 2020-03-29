@@ -93,8 +93,10 @@ impl Emulator {
         let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };
         pge.draw_string(x, y + 14 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
 
+        pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory[0xFF05]), &pge::WHITE, scale);
+
         let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
-        let start_y = y + 16 * cy;
+        let start_y = y + 18 * cy;
         for (i, (addr, repr)) in instructions.iter().enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
             let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };

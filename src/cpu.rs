@@ -114,22 +114,12 @@ impl Cpu {
 
     // Finds the number of cycles required for the given instruction. If the instruction
     // is a conditional jump, this does not take into account the extra cycles required
-    // for the jump: that is determined by the `execute` method. For prefixed instructions,
-    // we also add the cycles of the prefix instruction "CB".
+    // for the jump: that is determined by the `execute` method.
     fn cycles_for_instruction(&self, instruction: &Instruction) -> u32 {
-        let mut cycles = match instruction.cycles {
+        match instruction.cycles {
             Fixed(cycles) => cycles,
             Jump(_, cycles_without_jump) => cycles_without_jump,
-        };
-
-        if instruction.prefixed {
-            cycles += match &INSTRUCTIONS[0xCB].cycles {
-                Fixed(cycles) => *cycles,
-                Jump(_, cycles_without_jump) => *cycles_without_jump,
-            };
         }
-
-        cycles
     }
 
     fn update_timers(&mut self) {
