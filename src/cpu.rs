@@ -82,9 +82,9 @@ impl Cpu {
                     self.remaining_cycles += 5;
                 }
 
-                self.fetch_instruction();
+                self.current_instruction = self.fetch_instruction(self.pc);
 
-                self.remaining_cycles += self.cycles_for_current_instruction();
+                self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
                 // For instructions with a conditional jump, the cpu takes extra cycles if
                 // the jump does happen, which `execute` determines based on the condition.
@@ -99,14 +99,14 @@ impl Cpu {
         self.update_timers();
     }
 
-    fn fetch_instruction(&mut self) {
-        let opcode = self.memory[self.pc];
+    fn fetch_instruction(&self, addr: u16) -> &'static Instruction<'static> {
+        let opcode = self.memory[addr];
 
         if opcode == 0xCB {
-            let next_byte = self.memory[self.pc + 1];
-            self.current_instruction = &PREFIXED_INSTRUCTIONS[next_byte as usize];
+            let next_byte = self.memory[addr + 1];
+            &PREFIXED_INSTRUCTIONS[next_byte as usize]
         } else {
-            self.current_instruction = &INSTRUCTIONS[opcode as usize];
+            &INSTRUCTIONS[opcode as usize]
         }
     }
 
@@ -114,13 +114,13 @@ impl Cpu {
     // is a conditional jump, this does not take into account the extra cycles required
     // for the jump: that is determined by the `execute` method. For prefixed instructions,
     // we also add the cycles of the prefix instruction "CB".
-    fn cycles_for_current_instruction(&self) -> u32 {
-        let mut cycles = match self.current_instruction.cycles {
+    fn cycles_for_instruction(&self, instruction: &Instruction) -> u32 {
+        let mut cycles = match instruction.cycles {
             Fixed(cycles) => cycles,
             Jump(_, cycles_without_jump) => cycles_without_jump,
         };
 
-        if self.current_instruction.prefixed {
+        if instruction.prefixed {
             cycles += match &INSTRUCTIONS[0xCB].cycles {
                 Fixed(cycles) => *cycles,
                 Jump(_, cycles_without_jump) => *cycles_without_jump,
@@ -997,6 +997,25 @@ impl Cpu {
         println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.pc, self.total_clock_cycles);
 
         extra_cycles
+    }
+
+    pub fn disassemble(&self, start_addr: u16, end_addr: u16) -> Vec<(u16, String)> {
+        let mut current_addr = start_addr;
+        let mut instruction_reprs = Vec::new();
+
+        loop {
+            if current_addr > end_addr { break };
+
+            let instruction = self.fetch_instruction(current_addr);
+            let num_bytes = (instruction.num_bytes as u32) + (instruction.prefixed as u32);
+
+            if current_addr as u32 + num_bytes > end_addr as u32 { break };
+
+            instruction_reprs.push((current_addr, String::from(instruction.repr)));
+            current_addr += num_bytes as u16;
+        }
+
+        instruction_reprs
     }
 
     fn check_and_handle_interrupts(&mut self) -> bool {

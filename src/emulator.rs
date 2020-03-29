@@ -12,17 +12,16 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new() -> Emulator {
+    pub fn new(bootrom: &[u8], rom: &[u8]) -> Emulator {
+        let mut cpu = Cpu::new();
+        cpu.load_bootrom(bootrom);
+        cpu.load_rom(rom);
+
         Emulator {
-            cpu: Cpu::new(),
+            cpu,
             cycles: 0,
             single_step_mode: false,
         }
-    }
-
-    pub fn load_setup(&mut self, bootrom: &[u8], rom: &[u8]) {
-        self.cpu.load_bootrom(bootrom);
-        self.cpu.load_rom(rom);
     }
 
     fn clock(&mut self) {
@@ -89,11 +88,16 @@ impl Emulator {
 
         pge.draw_string(x, y + 12 * cy, &format!("CYCLES: {}", self.cycles), &pge::WHITE, scale);
 
-        let instruction = self.cpu.current_instruction.repr;
-        pge.draw_string(x, y + 14 * cy, &format!("INSTR: {}", instruction), &pge::WHITE, scale);
-
         let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };
-        pge.draw_string(x, y + 16 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
+        pge.draw_string(x, y + 14 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
+
+        let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
+        let start_y = y + 16 * cy;
+        for (i, (addr, repr)) in instructions.iter().enumerate() {
+            let formatted = format!("{:#04x}: {}", addr, repr);
+            let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
+            pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
+        }
     }
 }
 
