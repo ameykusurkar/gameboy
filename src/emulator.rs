@@ -5,6 +5,8 @@ use crate::registers::TwoRegisterIndex::HL;
 
 use crate::ppu::NUM_PIXELS_IN_LINE;
 
+pub const DEBUG: bool = false;
+
 pub struct Emulator {
     cpu: Cpu,
     cycles: u32,
@@ -126,7 +128,9 @@ impl pge::State for Emulator {
             }
         }
 
-        println!("CYCLE: {}", now.elapsed().as_nanos());
+        if DEBUG {
+            println!("CYCLE: {}", now.elapsed().as_nanos());
+        }
 
         let now = std::time::Instant::now();
 
@@ -135,7 +139,9 @@ impl pge::State for Emulator {
         self.draw_background_map(pge, 0, 0, 2);
         self.draw_cpu_state(pge, (32 * NUM_PIXELS_IN_LINE * 2) as i32, 0);
 
-        println!("DRAW: {}", now.elapsed().as_nanos());
+        if DEBUG {
+            println!("DRAW: {}", now.elapsed().as_nanos());
+        }
 
         true
     }

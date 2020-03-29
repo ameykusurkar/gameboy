@@ -11,6 +11,8 @@ use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 
+use crate::emulator::DEBUG;
+
 // Address of the interrupt enable register
 const IE_ADDR: u16 = 0xFFFF;
 // Address of the interrupt flags register
@@ -164,18 +166,17 @@ impl Cpu {
         self.memory[0xFF44] = 0x90;
 
         let opcode = self.memory[self.pc];
-        print!("{:#06x}: ", self.pc);
 
         let mut extra_cycles = 0;
 
         self.pc += 1;
 
-        match opcode {
-            0x00 => {
-                // NOP
+        if DEBUG {
+            println!("{:#06x}: {}", self.pc - 1, self.build_instruction_repr(self.pc, self.current_instruction));
+        }
 
-                println!("NOP");
-            },
+        match opcode {
+            0x00 => (),
             0x01 | 0x11 | 0x21=> {
                 self.execute_load_rr_nn(opcode);
             },
@@ -183,8 +184,6 @@ impl Cpu {
                 // LD (BC), A
                 let addr = self.regs.read(BC);
                 self.write_mem(addr, self.regs[A]);
-
-                println!("LD (BC), A");
             },
             0x03 | 0x13 | 0x23 => {
                 self.execute_inc_rr(opcode);
@@ -192,20 +191,14 @@ impl Cpu {
             0x04 => {
                 // INC B
                 self.inc_reg(B);
-
-                println!("INC B");
             },
             0x05 => {
                 // DEC B
                 self.dec_reg(B);
-
-                println!("DEC B");
             },
             0x06 => {
                 // LD B,n
                 let n = self.load_reg_byte(B);
-
-                println!("LD B, {:02x}", n);
             },
             0x07 => {
                 // RLCA
@@ -216,15 +209,11 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-
-                println!("RLCA");
             },
             0x08 => {
                 // LD (nn),SP
                 let nn = self.read_imm_u16();
                 self.write_mem_u16(nn, self.sp);
-
-                println!("LD ({:04x}), SP", nn);
             },
             0x09 | 0x19 | 0x29 => {
                 self.execute_add_rr(opcode);
@@ -233,8 +222,6 @@ impl Cpu {
                 // LD A,(BC)
                 let addr = self.regs.read(BC);
                 self.regs[A] = self.read_mem(addr);
-
-                println!("LD A, (BC)");
             },
             0x0B | 0x1B | 0x2B => {
                 self.execute_dec_rr(opcode);
@@ -242,20 +229,14 @@ impl Cpu {
             0x0C => {
                 // INC C
                 self.inc_reg(C);
-
-                println!("INC C");
             },
             0x0D => {
                 // DEC C
                 self.dec_reg(C);
-
-                println!("DEC C");
             },
             0x0E => {
                 // LD C,n
                 let n = self.load_reg_byte(C);
-
-                println!("LD C, {:02x}", n);
             },
             0x0F => {
                 // RRCA
@@ -266,33 +247,23 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-
-                println!("RRCA");
             },
             0x12 => {
                 // LD (DE), A
                 let addr = self.regs.read(DE);
                 self.write_mem(addr, self.regs[A]);
-
-                println!("LD (DE), A");
             },
             0x14 => {
                 // INC D
                 self.inc_reg(D);
-
-                println!("INC D");
             },
             0x15 => {
                 // DEC D
                 self.dec_reg(D);
-
-                println!("DEC D");
             },
             0x16 => {
                 // LD D,n
                 let n = self.load_reg_byte(D);
-
-                println!("LD D, {:02x}", n);
             },
             0x17 => {
                 // RLA
@@ -304,39 +275,27 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-
-                println!("RLA");
             },
             0x18 => {
                 // JR n
                 let offset = self.jump_rel();
-
-                println!("JR {}", offset);
             },
             0x1A => {
                 // LD A,(DE)
                 let addr = self.regs.read(DE);
                 self.regs[A] = self.read_mem(addr);
-
-                println!("LD A, (DE)");
             },
             0x1C => {
                 // INC E
                 self.inc_reg(E);
-
-                println!("INC E");
             },
             0x1D => {
                 // DEC E
                 self.dec_reg(E);
-
-                println!("DEC E");
             },
             0x1E => {
                 // LD E,n
                 let n = self.load_reg_byte(E);
-
-                println!("LD E, {:02x}", n);
             },
             0x1F => {
                 // RRA
@@ -348,8 +307,6 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-
-                println!("RRA");
             },
             0x20 => {
                 // JR NZ,n
@@ -358,34 +315,24 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
-
-                println!("JR NZ, {}", offset);
             },
             0x22 => {
                 // LD (HL+),A
                 let addr = self.regs.read(HL);
                 self.write_mem(addr, self.regs[A]);
                 self.regs.write(HL, addr + 1);
-
-                println!("LD (HL+), A");
             },
             0x24 => {
                 // INC H
                 self.inc_reg(H);
-
-                println!("INC H");
             },
             0x25 => {
                 // DEC H
                 self.dec_reg(H);
-
-                println!("DEC H");
             },
             0x26 => {
                 // LD H,n
                 let n = self.load_reg_byte(H);
-
-                println!("LD H, {:02x}", n);
             },
             0x27 => {
                 // DAA
@@ -410,8 +357,6 @@ impl Cpu {
                 self.set_flag(ZERO_FLAG, self.regs[A] == 0);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, carry);
-
-                println!("DAA");
             },
             0x28 => {
                 // JR Z,n
@@ -420,42 +365,30 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
-
-                println!("JR Z, {}", offset);
             },
             0x2A => {
                 // LD A, (HL+)
                 let addr = self.regs.read(HL);
                 self.regs[A] = self.read_mem(addr);
                 self.regs.write(HL, addr + 1);
-
-                println!("LD A, (HL+)");
             },
             0x2C => {
                 // INC L
                 self.inc_reg(L);
-
-                println!("INC L");
             },
             0x2D => {
                 // DEC L
                 self.dec_reg(L);
-
-                println!("DEC L");
             },
             0x2E => {
                 // LD L,n
                 let n = self.load_reg_byte(L);
-
-                println!("LD L, {:02x}", n);
             },
             0x2F => {
                 // CPL
                 self.regs[A] ^= 0xFF;
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, true);
-
-                println!("CPL");
             },
             0x30 => {
                 // JR NC,n
@@ -464,31 +397,23 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
-
-                println!("JR NC, {}", offset);
             },
             0x31 => {
                 // LD SP,nn
                 let nn = self.read_imm_u16();
                 self.sp = nn;
-
-                println!("LD SP, {:04x}", nn);
             },
             0x32 => {
                 // LD (HL-), A
                 let addr = self.regs.read(HL);
                 self.write_mem(addr, self.regs[A]);
                 self.regs.write(HL, addr - 1);
-
-                println!("LD (HL-), A");
             },
             0x33 => {
                 // INC SP
                 self.sp += 1;
                 // 16-bit operation
                 self.nop();
-
-                println!("INC SP");
             },
             0x34 => {
                 // INC (HL)
@@ -498,8 +423,6 @@ impl Cpu {
                 self.set_flag(ZERO_FLAG, self.memory[addr] == 0);
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0xF);
-
-                println!("INC (HL)");
             },
             0x35 => {
                 // DEC (HL)
@@ -509,23 +432,17 @@ impl Cpu {
                 self.set_flag(ZERO_FLAG, self.memory[addr] == 0);
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
-
-                println!("DEC (HL)");
             },
             0x36 => {
                 // LD (HL),n
                 let n = self.read_imm();
                 self.write_mem(self.regs.read(HL), n);
-
-                println!("LD (HL), {:02x}", n);
             },
             0x37 => {
                 // SCF
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, true);
-
-                println!("SCF");
             },
             0x38 => {
                 // JR C,n
@@ -534,8 +451,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
-
-                println!("JR C, {}", offset);
             },
             0x39 => {
                 // ADD HL,SP
@@ -545,43 +460,31 @@ impl Cpu {
                 self.regs.write_flags(Flags { zero: old_zero, ..flags });
                 // 16-bit operation
                 self.nop();
-
-                println!("ADD HL, SP");
             },
             0x3A => {
                 // LD A, (HL-)
                 let addr = self.regs.read(HL);
                 self.regs[A] = self.read_mem(addr);
                 self.regs.write(HL, addr - 1);
-
-                println!("LD A, (HL-)");
             },
             0x3B => {
                 // DEC SP
                 self.sp -= 1;
                 // 16-bit operation
                 self.nop();
-
-                println!("DEC SP");
             },
             0x3C => {
                 // INC A
                 self.inc_reg(A);
-
-                println!("INC A");
             },
             0x3D => {
                 // DEC A
                 self.dec_reg(A);
-
-                println!("DEC A");
             },
             0x3E => {
                 // LD A,n
                 let n = self.read_imm();
                 self.regs[A] = n;
-
-                println!("LD A, {:02x}", n);
             },
             0x3F => {
                 // CCF
@@ -589,8 +492,6 @@ impl Cpu {
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, old_carry ^ true);
-
-                println!("CCF");
             },
             0x40..=0x75 | 0x77..=0x7F => {
                 self.execute_load_r_r(opcode);
@@ -598,8 +499,6 @@ impl Cpu {
             0x76 => {
                 // HALT
                 self.halted = true;
-
-                println!("HALT");
             },
             0x80..=0x87 => {
                 self.execute_add_reg(opcode);
@@ -632,14 +531,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
-
-                println!("RET NZ");
             },
             0xC1 => {
                 // POP BC
                 self.pop(BC);
-
-                println!("POP BC");
             },
             0xC2 => {
                 // JP NZ,nn
@@ -648,14 +543,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
-
-                println!("JP NZ, {:04x}", addr);
             },
             0xC3 => {
                 // JP nn
                 let addr = self.jump();
-
-                println!("JP {:04x}", addr);
             },
             0xC4 => {
                 // CALL NZ,nn
@@ -664,14 +555,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
-
-                println!("CALL NZ, {:04x}", addr);
             },
             0xC5 => {
                 // PUSH BC
                 self.push(BC);
-
-                println!("PUSH BC");
             },
             0xC6 => {
                 // ADD n
@@ -679,8 +566,6 @@ impl Cpu {
                 let (result, flags) = add_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("ADD {:02x}", n);
             },
             0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
                 self.execute_rst(opcode);
@@ -692,14 +577,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
-
-                println!("RET Z");
             },
             0xC9 => {
                 // RET
                 self.ret();
-
-                println!("RET");
             },
             0xCA => {
                 // JP Z,nn
@@ -708,8 +589,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
-
-                println!("JP Z, {:04x}", addr);
             },
             0xCB => {
                 self.execute_prefixed_instruction();
@@ -721,14 +600,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
-
-                println!("CALL Z, {:04x}", addr);
             },
             0xCD => {
                 // CALL nn
                 let addr = self.call_condition(true);
-
-                println!("CALL {:04x}", addr);
             },
             0xCE => {
                 // ADC n
@@ -737,8 +612,6 @@ impl Cpu {
                 let (result, flags) = adc_u8(self.regs[A], n, old_carry);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("ADC {:02x}", n);
             },
             0xD0 => {
                 // RET NC
@@ -747,14 +620,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
-
-                println!("RET NC");
             },
             0xD1 => {
                 // POP DE
                 self.pop(DE);
-
-                println!("POP DE");
             },
             0xD2 => {
                 // JP NC,nn
@@ -763,8 +632,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
-
-                println!("JP NC, {:04x}", addr);
             },
             0xD4 => {
                 // CALL NC,nn
@@ -773,14 +640,10 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
-
-                println!("CALL NC, {:04x}", addr);
             },
             0xD5 => {
                 // PUSH DE
                 self.push(DE);
-
-                println!("PUSH DE");
             },
             0xD6 => {
                 // SUB n
@@ -788,8 +651,6 @@ impl Cpu {
                 let (result, flags) = sub_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("SUB {:02x}", n);
             },
             0xD8 => {
                 // RET C
@@ -798,15 +659,11 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
-
-                println!("RET C");
             },
             0xD9 => {
                 // RETI
                 self.ime = true;
                 self.ret();
-
-                println!("RET");
             },
             0xDA => {
                 // JP C,nn
@@ -815,8 +672,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
-
-                println!("JP C, {:04x}", addr);
             },
             0xDC => {
                 // CALL C,nn
@@ -825,8 +680,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
-
-                println!("CALL NC, {:04x}", addr);
             },
             0xDE => {
                 // SBC n
@@ -835,49 +688,35 @@ impl Cpu {
                 let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("SBC {:02x}", n);
             },
             0xE0 => {
                 // LDH (n),A
                 let offset = self.read_imm();
                 let addr = 0xFF00 + (offset as u16);
                 self.write_mem(addr, self.regs[A]);
-
-                println!("LDH ({:02x}), A", offset);
             },
             0xE1 => {
                 // POP HL
                 self.pop(HL);
-
-                println!("POP HL");
             },
             0xE2 => {
                 // LDH (C),A
                 let addr = 0xFF00 + (self.regs[C] as u16);
                 self.write_mem(addr, self.regs[A]);
-
-                println!("LDH (C), A");
             },
             0xE9 => {
                 // JP (HL)
                 let addr = self.regs.read(HL);
                 self.pc = addr;
-
-                println!("JP (HL)");
             },
             0xEA => {
                 // LD (nn),A
                 let nn = self.read_imm_u16();
                 self.write_mem(nn, self.regs[A]);
-
-                println!("LD ({:04x}), A", nn);
             },
             0xE5 => {
                 // PUSH HL
                 self.push(HL);
-
-                println!("PUSH HL");
             },
             0xE6 => {
                 // AND n
@@ -885,8 +724,6 @@ impl Cpu {
                 let (result, flags) = and_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("AND {:02x}", n);
             },
             0xE8 => {
                 // ADD SP,n
@@ -897,8 +734,6 @@ impl Cpu {
                 // Extra IO for 16-bit operation
                 self.nop();
                 self.nop();
-
-                println!("ADD SP, {:02x}", n);
             },
             0xEE => {
                 // XOR n
@@ -906,41 +741,29 @@ impl Cpu {
                 let (result, flags) = xor_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("XOR {:02x}", n);
             },
             0xF0 => {
                 // LDH A,(n)
                 let offset = self.read_imm();
                 let addr = 0xFF00 + (offset as u16);
                 self.regs[A] = self.read_mem(addr);
-
-                println!("LDH A, ({:02x})", offset);
             },
             0xF1 => {
                 // POP AF
                 self.pop(AF);
-
-                println!("POP AF");
             },
             0xF2 => {
                 // LDH A,(C)
                 let addr = 0xFF00 + (self.regs[C] as u16);
                 self.regs[A] = self.read_mem(addr);
-
-                println!("LDH A, (C)");
             },
             0xF3 => {
                 // DI
                 self.ime = false;
-
-                println!("DI");
             },
             0xF5 => {
                 // PUSH AF
                 self.push(AF);
-
-                println!("PUSH AF");
             },
             0xF6 => {
                 // OR n
@@ -948,8 +771,6 @@ impl Cpu {
                 let (result, flags) = or_u8(self.regs[A], n);
                 self.regs[A] = result;
                 self.regs.write_flags(flags);
-
-                println!("OR {:02x}", n);
             },
             0xF8 => {
                 // LD HL, SP + n
@@ -959,42 +780,34 @@ impl Cpu {
                 self.regs.write_flags(flags);
                 // 16-bit operation
                 self.nop();
-
-                println!("LD HL, SP + {:02x}", n);
             },
             0xF9 => {
                 // LD SP,HL
                 self.sp = self.regs.read(HL);
                 // 16-bit operation
                 self.nop();
-
-                println!("LD SP,HL");
             },
             0xFA => {
                 // LD A,(nn)
                 let nn = self.read_imm_u16();
                 self.regs[A] = self.read_mem(nn);
-
-                println!("LD A, ({:04x})", nn);
             },
             0xFB => {
                 // EI
                 self.ime = true;
-
-                println!("EI");
             },
             0xFE => {
                 // CP n
                 let n = self.read_imm();
                 let (_, flags) = sub_u8(self.regs[A], n);
                 self.regs.write_flags(flags);
-
-                println!("CP {:02x}", n);
             },
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
 
-        println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.pc, self.total_clock_cycles);
+        if DEBUG {
+            println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.pc, self.total_clock_cycles);
+        }
 
         extra_cycles
     }
@@ -1213,8 +1026,6 @@ impl Cpu {
         self.regs.write(reg, self.regs.read(reg) - 1);
         // Because it is a 16-bit register operation
         self.nop();
-
-        println!("DEC {:?}", reg);
     }
 
     fn execute_inc_rr(&mut self, opcode: u8) {
@@ -1224,8 +1035,6 @@ impl Cpu {
         self.regs.write(reg, self.regs.read(reg) + 1);
         // Because it is a 16-bit register operation
         self.nop();
-
-        println!("INC {:?}", reg);
     }
 
     fn execute_load_rr_nn(&mut self, opcode: u8) {
@@ -1234,8 +1043,6 @@ impl Cpu {
 
         let nn = self.read_imm_u16();
         self.regs.write(reg, nn);
-
-        println!("LD {:?}, {:04x}", reg, nn);
     }
 
     fn execute_add_rr(&mut self, opcode: u8) {
@@ -1248,8 +1055,6 @@ impl Cpu {
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
         // Because it is a 16-bit register operation
         self.nop();
-
-        println!("ADD HL, {:?}", reg);
     }
 
     fn execute_load_r_r(&mut self, opcode: u8) {
@@ -1264,15 +1069,12 @@ impl Cpu {
         match (dst_index, src_index) {
             (Some(reg), Some(reg1)) => {
                 self.load_reg_reg(reg, reg1);
-                println!("LD {:?}, {:?}", reg, reg1);
             },
             (None, Some(reg)) => {
                 self.load_hl_reg(reg);
-                println!("LD (HL), {:?}", reg);
             },
             (Some(reg), None) => {
                 self.load_reg_hl(reg);
-                println!("LD {:?}, (HL)", reg);
             },
             (None, None) => {
                 panic!("Cannot handle {:04x} here!", opcode);
@@ -1285,16 +1087,12 @@ impl Cpu {
         let (result, flags) = or_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("OR {}", display);
     }
 
     fn execute_cp_reg(&mut self, opcode: u8) {
         let (src, display) = self.get_source_val(opcode);
         let (_, flags) = sub_u8(self.regs[A], src);
         self.regs.write_flags(flags);
-
-        println!("CP {}", display);
     }
 
     fn execute_add_reg(&mut self, opcode: u8) {
@@ -1302,8 +1100,6 @@ impl Cpu {
         let (result, flags) = add_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("ADD {}", display);
     }
 
     fn execute_adc_reg(&mut self, opcode: u8) {
@@ -1312,8 +1108,6 @@ impl Cpu {
         let (result, flags) = adc_u8(self.regs[A], src, old_carry);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("ADC {}", display);
     }
 
     fn execute_sub_reg(&mut self, opcode: u8) {
@@ -1321,8 +1115,6 @@ impl Cpu {
         let (result, flags) = sub_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("SUB {}", display);
     }
 
     fn execute_sbc_reg(&mut self, opcode: u8) {
@@ -1331,8 +1123,6 @@ impl Cpu {
         let (result, flags) = sbc_u8(self.regs[A], src, old_carry);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("SBC {}", display);
     }
 
     fn execute_and_reg(&mut self, opcode: u8) {
@@ -1340,8 +1130,6 @@ impl Cpu {
         let (result, flags) = and_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("AND {}", display);
     }
 
     fn execute_xor_reg(&mut self, opcode: u8) {
@@ -1349,8 +1137,6 @@ impl Cpu {
         let (result, flags) = xor_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
-
-        println!("XOR {}", display);
     }
 
     fn execute_rlc_reg(&mut self, opcode: u8) {
@@ -1362,8 +1148,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("RLC {}", display);
     }
 
     fn execute_rrc_reg(&mut self, opcode: u8) {
@@ -1375,8 +1159,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("RRC {}", display);
     }
 
     fn execute_rl_reg(&mut self, opcode: u8) {
@@ -1389,8 +1171,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("RL {}", display);
     }
 
     fn execute_rr_reg(&mut self, opcode: u8) {
@@ -1403,8 +1183,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("RR {}", display);
     }
 
     fn execute_sla_reg(&mut self, opcode: u8) {
@@ -1416,8 +1194,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("SLA {}", display);
     }
 
     fn execute_sra_reg(&mut self, opcode: u8) {
@@ -1429,8 +1205,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("SRA {}", display);
     }
 
     fn execute_swap_reg(&mut self, opcode: u8) {
@@ -1438,8 +1212,6 @@ impl Cpu {
         let (result, flags) = swap_u8(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(flags);
-
-        println!("SWAP {}", display);
     }
 
     fn execute_srl_reg(&mut self, opcode: u8) {
@@ -1451,8 +1223,6 @@ impl Cpu {
             carry,
             ..Flags::default()
         });
-
-        println!("SRL {}", display);
     }
 
     fn execute_test_bit_reg(&mut self, opcode: u8) {
@@ -1462,8 +1232,6 @@ impl Cpu {
         self.set_flag(ZERO_FLAG, !result);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, true);
-
-        println!("BIT {}, {}", bit_position, display);
     }
 
     fn execute_reset_bit_reg(&mut self, opcode: u8) {
@@ -1471,8 +1239,6 @@ impl Cpu {
         let (src, display) = self.get_source_val(opcode);
         let result = set_bit(src, bit_position, false);
         self.set_dst_reg(opcode, result);
-
-        println!("RES {}, {}", bit_position, display);
     }
 
     fn execute_set_bit_reg(&mut self, opcode: u8) {
@@ -1480,8 +1246,6 @@ impl Cpu {
         let (src, display) = self.get_source_val(opcode);
         let result = set_bit(src, bit_position, true);
         self.set_dst_reg(opcode, result);
-
-        println!("SET {}, {}", bit_position, display);
     }
 
     // Many arithmetic/logical opcodes are arranged a particular order,
@@ -1654,8 +1418,6 @@ impl Cpu {
         self.sp -= 2;
         self.write_mem_u16(self.sp, self.pc);
         self.pc = addr;
-
-        println!("RST {:04x}", addr);
     }
 
     fn push(&mut self, index: TwoRegisterIndex) {
