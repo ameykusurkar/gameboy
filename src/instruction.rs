@@ -1,4 +1,4 @@
-use AdressingMode::*;
+use AddressingMode::*;
 use CycleCount::*;
 
 #[derive(Debug)]
@@ -7,12 +7,12 @@ pub struct Instruction<'a> {
     pub repr: &'a str,
     pub num_bytes: u32,
     pub cycles: CycleCount,
-    pub addressing_mode: AdressingMode,
+    pub addressing_mode: AddressingMode,
     pub prefixed: bool,
 }
 
 #[derive(Debug)]
-pub enum AdressingMode {
+pub enum AddressingMode {
     Implied,
     Imm8,
     Imm16,

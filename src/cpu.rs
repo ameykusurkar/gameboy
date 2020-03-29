@@ -7,7 +7,7 @@ use crate::registers::Flags;
 use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
 use crate::memory::Memory;
-use crate::instruction::Instruction;
+use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 
@@ -1011,11 +1011,81 @@ impl Cpu {
 
             if current_addr as u32 + num_bytes > end_addr as u32 { break };
 
-            instruction_reprs.push((current_addr, String::from(instruction.repr)));
+            let repr = self.build_instruction_repr(current_addr + 1, instruction);
+            instruction_reprs.push((current_addr, repr));
             current_addr += num_bytes as u16;
         }
 
         instruction_reprs
+    }
+
+    // Depends on `instruction.repr` being in the correct format
+    fn build_instruction_repr(&self, addr: u16, instruction: &Instruction) -> String {
+        let (operand, _) = self.fetch_operand(addr, instruction);
+        let mut repr = String::from(instruction.repr);
+
+        match &instruction.addressing_mode {
+            AddressingMode::Implied => (),
+            AddressingMode::Imm8 => {
+                let index = repr.find("d").unwrap_or(repr.len());
+                if index == repr.len() {
+                    panic!("Cannot find in {}", repr);
+                }
+                repr.replace_range(index..index+2, &format!("{:02x}", operand));
+            },
+            AddressingMode::Imm16 => {
+                let index = repr.find("d").unwrap_or(repr.len());
+                if index == repr.len() {
+                    panic!("Cannot find in {}", repr);
+                }
+                repr.replace_range(index..index+3, &format!("{:04x}", operand));
+            },
+            AddressingMode::Addr16 => {
+                let index = repr.find("a").unwrap_or(repr.len());
+                if index == repr.len() {
+                    panic!("Cannot find in {}", repr);
+                }
+                repr.replace_range(index..index+3, &format!("{:04x}", operand));
+            },
+            AddressingMode::ZeroPageOffset => {
+                let index = repr.find("a").unwrap_or(repr.len());
+                if index == repr.len() {
+                    panic!("Cannot find in {}", repr);
+                }
+                repr.replace_range(index..index+2, &format!("{:04x}", operand));
+            },
+            AddressingMode::SignedAddrOffset => {
+                let index = repr.find("r").unwrap_or(repr.len());
+                if index == repr.len() {
+                    panic!("Cannot find in {}", repr);
+                }
+                repr.replace_range(index..index+2, &format!("{:04x}", operand));
+            },
+        };
+
+        repr
+    }
+
+    fn fetch_operand(&self, addr: u16, instruction: &Instruction) -> (u16, u32) {
+        // (operand, bytes_read)
+        let lsb = self.memory[addr] as u16;
+        match &instruction.addressing_mode {
+            AddressingMode::Implied => (0, 0),
+            AddressingMode::Imm8 => (lsb, 0),
+            AddressingMode::Imm16 | AddressingMode::Addr16 => {
+                let msb = self.memory[addr + 1] as u16;
+                (msb << 8 | lsb, 2)
+            },
+            AddressingMode::ZeroPageOffset => {
+                (0xFF00 | lsb, 1)
+            },
+            AddressingMode::SignedAddrOffset => {
+                let lsb = lsb as i8;
+                // The offset assumes that the PC has already been incremented
+                let target_addr = ((addr + 1) as i32) + (lsb as i32);
+                (target_addr as u16, 1)
+            },
+        }
     }
 
     fn check_and_handle_interrupts(&mut self) -> bool {
