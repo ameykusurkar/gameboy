@@ -33,9 +33,9 @@ fn main() -> std::io::Result<()> {
 
     emulator.load_setup(&bootrom_buffer, &rom_buffer);
 
-    let width = 32 * NUM_PIXELS_IN_LINE;
-    let height = 32 * NUM_PIXELS_IN_LINE;
-    let scale = 2;
+    let width = 32 * (NUM_PIXELS_IN_LINE * 4);
+    let height = 32 * NUM_PIXELS_IN_LINE * 2;
+    let scale = 1;
 
     let mut pge = pge::PGE::construct("Gameboy", width, height, scale, scale);
     pge.start(&mut emulator);
