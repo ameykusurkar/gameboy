@@ -1,16 +1,18 @@
-use AdressingMode::*;
+use AddressingMode::*;
 use CycleCount::*;
 
+#[derive(Debug)]
 pub struct Instruction<'a> {
     pub opcode: u8,
     pub repr: &'a str,
     pub num_bytes: u32,
     pub cycles: CycleCount,
-    pub addressing_mode: AdressingMode,
+    pub addressing_mode: AddressingMode,
     pub prefixed: bool,
 }
 
-pub enum AdressingMode {
+#[derive(Debug)]
+pub enum AddressingMode {
     Implied,
     Imm8,
     Imm16,
@@ -19,6 +21,7 @@ pub enum AdressingMode {
     SignedAddrOffset,
 }
 
+#[derive(Debug)]
 pub enum CycleCount {
     Fixed(u32),
     // Jump(cycles_if_jump_occurs, cycles_if_no_jump_occurs)
@@ -263,7 +266,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction { opcode: 0xDF, prefixed: false, repr: "RST 18H", num_bytes: 1, cycles: Fixed(4), addressing_mode: Implied },
     Instruction { opcode: 0xE0, prefixed: false, repr: "LDH (a8),A", num_bytes: 2, cycles: Fixed(3), addressing_mode: ZeroPageOffset },
     Instruction { opcode: 0xE1, prefixed: false, repr: "POP HL", num_bytes: 1, cycles: Fixed(3), addressing_mode: Implied },
-    Instruction { opcode: 0xE2, prefixed: false, repr: "LD (C),A", num_bytes: 1, cycles: Fixed(2), addressing_mode: ZeroPageOffset },
+    Instruction { opcode: 0xE2, prefixed: false, repr: "LD (C),A", num_bytes: 1, cycles: Fixed(2), addressing_mode: Implied },
     Instruction { opcode: 0xE3, prefixed: false, repr: "UNIMPLEMENTED", num_bytes: 0, cycles: Fixed(0), addressing_mode: ZeroPageOffset },
     Instruction { opcode: 0xE4, prefixed: false, repr: "UNIMPLEMENTED", num_bytes: 0, cycles: Fixed(0), addressing_mode: ZeroPageOffset },
     Instruction { opcode: 0xE5, prefixed: false, repr: "PUSH HL", num_bytes: 1, cycles: Fixed(4), addressing_mode: Implied },
@@ -279,7 +282,7 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     Instruction { opcode: 0xEF, prefixed: false, repr: "RST 28H", num_bytes: 1, cycles: Fixed(4), addressing_mode: Implied },
     Instruction { opcode: 0xF0, prefixed: false, repr: "LDH A,(a8)", num_bytes: 2, cycles: Fixed(3), addressing_mode: ZeroPageOffset },
     Instruction { opcode: 0xF1, prefixed: false, repr: "POP AF", num_bytes: 1, cycles: Fixed(3), addressing_mode: Implied },
-    Instruction { opcode: 0xF2, prefixed: false, repr: "LD A,(C)", num_bytes: 1, cycles: Fixed(2), addressing_mode: ZeroPageOffset },
+    Instruction { opcode: 0xF2, prefixed: false, repr: "LD A,(C)", num_bytes: 1, cycles: Fixed(2), addressing_mode: Implied },
     Instruction { opcode: 0xF3, prefixed: false, repr: "DI", num_bytes: 1, cycles: Fixed(1), addressing_mode: Implied },
     Instruction { opcode: 0xF4, prefixed: false, repr: "UNIMPLEMENTED", num_bytes: 0, cycles: Fixed(0), addressing_mode: Implied },
     Instruction { opcode: 0xF5, prefixed: false, repr: "PUSH AF", num_bytes: 1, cycles: Fixed(4), addressing_mode: Implied },

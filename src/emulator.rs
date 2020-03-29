@@ -5,6 +5,8 @@ use crate::registers::TwoRegisterIndex::HL;
 
 use crate::ppu::NUM_PIXELS_IN_LINE;
 
+pub const DEBUG: bool = false;
+
 pub struct Emulator {
     cpu: Cpu,
     cycles: u32,
@@ -12,17 +14,16 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new() -> Emulator {
+    pub fn new(bootrom: &[u8], rom: &[u8]) -> Emulator {
+        let mut cpu = Cpu::new();
+        cpu.load_bootrom(bootrom);
+        cpu.load_rom(rom);
+
         Emulator {
-            cpu: Cpu::new(),
+            cpu,
             cycles: 0,
             single_step_mode: false,
         }
-    }
-
-    pub fn load_setup(&mut self, bootrom: &[u8], rom: &[u8]) {
-        self.cpu.load_bootrom(bootrom);
-        self.cpu.load_rom(rom);
     }
 
     fn clock(&mut self) {
@@ -89,11 +90,16 @@ impl Emulator {
 
         pge.draw_string(x, y + 12 * cy, &format!("CYCLES: {}", self.cycles), &pge::WHITE, scale);
 
-        let instruction = self.cpu.current_instruction.repr;
-        pge.draw_string(x, y + 14 * cy, &format!("INSTR: {}", instruction), &pge::WHITE, scale);
-
         let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };
-        pge.draw_string(x, y + 16 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
+        pge.draw_string(x, y + 14 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
+
+        let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
+        let start_y = y + 16 * cy;
+        for (i, (addr, repr)) in instructions.iter().enumerate() {
+            let formatted = format!("{:#04x}: {}", addr, repr);
+            let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
+            pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
+        }
     }
 }
 
@@ -122,7 +128,9 @@ impl pge::State for Emulator {
             }
         }
 
-        println!("CYCLE: {}", now.elapsed().as_nanos());
+        if DEBUG {
+            println!("CYCLE: {}", now.elapsed().as_nanos());
+        }
 
         let now = std::time::Instant::now();
 
@@ -131,7 +139,9 @@ impl pge::State for Emulator {
         self.draw_background_map(pge, 0, 0, 2);
         self.draw_cpu_state(pge, (32 * NUM_PIXELS_IN_LINE * 2) as i32, 0);
 
-        println!("DRAW: {}", now.elapsed().as_nanos());
+        if DEBUG {
+            println!("DRAW: {}", now.elapsed().as_nanos());
+        }
 
         true
     }

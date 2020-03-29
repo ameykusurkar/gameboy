@@ -19,8 +19,6 @@ fn main() -> std::io::Result<()> {
         return Ok(())
     }
 
-    let mut emulator = Emulator::new();
-
     let path = "bootrom.bin";
     let mut f = File::open(&path)?;
     let mut bootrom_buffer = Vec::new();
@@ -31,7 +29,7 @@ fn main() -> std::io::Result<()> {
     let mut rom_buffer = Vec::new();
     f.read_to_end(&mut rom_buffer)?;
 
-    emulator.load_setup(&bootrom_buffer, &rom_buffer);
+    let mut emulator = Emulator::new(&bootrom_buffer, &rom_buffer);
 
     let width = 32 * (NUM_PIXELS_IN_LINE * 4);
     let height = 32 * NUM_PIXELS_IN_LINE * 2;
