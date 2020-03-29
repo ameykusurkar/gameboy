@@ -166,14 +166,13 @@ impl Cpu {
         let opcode = self.memory[self.pc];
         print!("{:#06x}: ", self.pc);
 
-        let old_clock_cycles = self.clock_cycles;
-        let old_opcode = opcode;
         let mut extra_cycles = 0;
+
+        self.pc += 1;
 
         match opcode {
             0x00 => {
                 // NOP
-                self.tick();
 
                 println!("NOP");
             },
@@ -182,7 +181,6 @@ impl Cpu {
             },
             0x02 => {
                 // LD (BC), A
-                self.tick();
                 let addr = self.regs.read(BC);
                 self.write_mem(addr, self.regs[A]);
 
@@ -211,7 +209,6 @@ impl Cpu {
             },
             0x07 => {
                 // RLCA
-                self.tick();
                 let (result, carry) = rotate_left(self.regs[A]);
                 self.regs[A] = result;
                 // Unlike RLC X, zero flag is RESET
@@ -224,7 +221,6 @@ impl Cpu {
             },
             0x08 => {
                 // LD (nn),SP
-                self.tick();
                 let nn = self.read_imm_u16();
                 self.write_mem_u16(nn, self.sp);
 
@@ -235,7 +231,6 @@ impl Cpu {
             },
             0x0A => {
                 // LD A,(BC)
-                self.tick();
                 let addr = self.regs.read(BC);
                 self.regs[A] = self.read_mem(addr);
 
@@ -264,7 +259,6 @@ impl Cpu {
             },
             0x0F => {
                 // RRCA
-                self.tick();
                 let (result, carry) = rotate_right(self.regs[A]);
                 self.regs[A] = result;
                 // Unlike RRC X, zero flag is RESET
@@ -277,7 +271,6 @@ impl Cpu {
             },
             0x12 => {
                 // LD (DE), A
-                self.tick();
                 let addr = self.regs.read(DE);
                 self.write_mem(addr, self.regs[A]);
 
@@ -303,7 +296,6 @@ impl Cpu {
             },
             0x17 => {
                 // RLA
-                self.tick();
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, carry) = rotate_left_through_carry(self.regs[A], carry);
                 self.regs[A] = result;
@@ -323,7 +315,6 @@ impl Cpu {
             },
             0x1A => {
                 // LD A,(DE)
-                self.tick();
                 let addr = self.regs.read(DE);
                 self.regs[A] = self.read_mem(addr);
 
@@ -349,7 +340,6 @@ impl Cpu {
             },
             0x1F => {
                 // RRA
-                self.tick();
                 let carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, carry) = rotate_right_through_carry(self.regs[A], carry);
                 self.regs[A] = result;
@@ -373,7 +363,6 @@ impl Cpu {
             },
             0x22 => {
                 // LD (HL+),A
-                self.tick();
                 let addr = self.regs.read(HL);
                 self.write_mem(addr, self.regs[A]);
                 self.regs.write(HL, addr + 1);
@@ -400,7 +389,6 @@ impl Cpu {
             },
             0x27 => {
                 // DAA
-                self.tick();
                 let val = self.regs[A];
                 let mut correction = 0;
                 let mut carry = read_bit(self.regs[F], CARRY_FLAG);
@@ -437,7 +425,6 @@ impl Cpu {
             },
             0x2A => {
                 // LD A, (HL+)
-                self.tick();
                 let addr = self.regs.read(HL);
                 self.regs[A] = self.read_mem(addr);
                 self.regs.write(HL, addr + 1);
@@ -464,7 +451,6 @@ impl Cpu {
             },
             0x2F => {
                 // CPL
-                self.tick();
                 self.regs[A] ^= 0xFF;
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, true);
@@ -483,7 +469,6 @@ impl Cpu {
             },
             0x31 => {
                 // LD SP,nn
-                self.tick();
                 let nn = self.read_imm_u16();
                 self.sp = nn;
 
@@ -491,7 +476,6 @@ impl Cpu {
             },
             0x32 => {
                 // LD (HL-), A
-                self.tick();
                 let addr = self.regs.read(HL);
                 self.write_mem(addr, self.regs[A]);
                 self.regs.write(HL, addr - 1);
@@ -500,7 +484,6 @@ impl Cpu {
             },
             0x33 => {
                 // INC SP
-                self.tick();
                 self.sp += 1;
                 // 16-bit operation
                 self.nop();
@@ -509,7 +492,6 @@ impl Cpu {
             },
             0x34 => {
                 // INC (HL)
-                self.tick();
                 let addr = self.regs.read(HL);
                 let old = self.read_mem(addr);
                 self.write_mem(addr, old + 1);
@@ -521,7 +503,6 @@ impl Cpu {
             },
             0x35 => {
                 // DEC (HL)
-                self.tick();
                 let addr = self.regs.read(HL);
                 let old = self.read_mem(addr);
                 self.write_mem(addr, old - 1);
@@ -533,7 +514,6 @@ impl Cpu {
             },
             0x36 => {
                 // LD (HL),n
-                self.tick();
                 let n = self.read_imm();
                 self.write_mem(self.regs.read(HL), n);
 
@@ -541,7 +521,6 @@ impl Cpu {
             },
             0x37 => {
                 // SCF
-                self.tick();
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, true);
@@ -560,7 +539,6 @@ impl Cpu {
             },
             0x39 => {
                 // ADD HL,SP
-                self.tick();
                 let old_zero = read_bit(self.regs[F], ZERO_FLAG);
                 let (result, flags) = add_u16(self.regs.read(HL), self.sp);
                 self.regs.write(HL, result);
@@ -572,7 +550,6 @@ impl Cpu {
             },
             0x3A => {
                 // LD A, (HL-)
-                self.tick();
                 let addr = self.regs.read(HL);
                 self.regs[A] = self.read_mem(addr);
                 self.regs.write(HL, addr - 1);
@@ -581,7 +558,6 @@ impl Cpu {
             },
             0x3B => {
                 // DEC SP
-                self.tick();
                 self.sp -= 1;
                 // 16-bit operation
                 self.nop();
@@ -602,7 +578,6 @@ impl Cpu {
             },
             0x3E => {
                 // LD A,n
-                self.tick();
                 let n = self.read_imm();
                 self.regs[A] = n;
 
@@ -610,7 +585,6 @@ impl Cpu {
             },
             0x3F => {
                 // CCF
-                self.tick();
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
@@ -623,7 +597,6 @@ impl Cpu {
             },
             0x76 => {
                 // HALT
-                self.tick();
                 self.halted = true;
 
                 println!("HALT");
@@ -702,7 +675,6 @@ impl Cpu {
             },
             0xC6 => {
                 // ADD n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = add_u8(self.regs[A], n);
                 self.regs[A] = result;
@@ -760,7 +732,6 @@ impl Cpu {
             },
             0xCE => {
                 // ADC n
-                self.tick();
                 let n = self.read_imm();
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, flags) = adc_u8(self.regs[A], n, old_carry);
@@ -813,7 +784,6 @@ impl Cpu {
             },
             0xD6 => {
                 // SUB n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = sub_u8(self.regs[A], n);
                 self.regs[A] = result;
@@ -860,7 +830,6 @@ impl Cpu {
             },
             0xDE => {
                 // SBC n
-                self.tick();
                 let n = self.read_imm();
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
                 let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
@@ -871,7 +840,6 @@ impl Cpu {
             },
             0xE0 => {
                 // LDH (n),A
-                self.tick();
                 let offset = self.read_imm();
                 let addr = 0xFF00 + (offset as u16);
                 self.write_mem(addr, self.regs[A]);
@@ -886,7 +854,6 @@ impl Cpu {
             },
             0xE2 => {
                 // LDH (C),A
-                self.tick();
                 let addr = 0xFF00 + (self.regs[C] as u16);
                 self.write_mem(addr, self.regs[A]);
 
@@ -894,7 +861,6 @@ impl Cpu {
             },
             0xE9 => {
                 // JP (HL)
-                self.tick();
                 let addr = self.regs.read(HL);
                 self.pc = addr;
 
@@ -902,7 +868,6 @@ impl Cpu {
             },
             0xEA => {
                 // LD (nn),A
-                self.tick();
                 let nn = self.read_imm_u16();
                 self.write_mem(nn, self.regs[A]);
 
@@ -916,7 +881,6 @@ impl Cpu {
             },
             0xE6 => {
                 // AND n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = and_u8(self.regs[A], n);
                 self.regs[A] = result;
@@ -926,7 +890,6 @@ impl Cpu {
             },
             0xE8 => {
                 // ADD SP,n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = self.sum_sp_n(n);
                 self.sp = result;
@@ -939,7 +902,6 @@ impl Cpu {
             },
             0xEE => {
                 // XOR n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = xor_u8(self.regs[A], n);
                 self.regs[A] = result;
@@ -949,7 +911,6 @@ impl Cpu {
             },
             0xF0 => {
                 // LDH A,(n)
-                self.tick();
                 let offset = self.read_imm();
                 let addr = 0xFF00 + (offset as u16);
                 self.regs[A] = self.read_mem(addr);
@@ -964,7 +925,6 @@ impl Cpu {
             },
             0xF2 => {
                 // LDH A,(C)
-                self.tick();
                 let addr = 0xFF00 + (self.regs[C] as u16);
                 self.regs[A] = self.read_mem(addr);
 
@@ -972,7 +932,6 @@ impl Cpu {
             },
             0xF3 => {
                 // DI
-                self.tick();
                 self.ime = false;
 
                 println!("DI");
@@ -985,7 +944,6 @@ impl Cpu {
             },
             0xF6 => {
                 // OR n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = or_u8(self.regs[A], n);
                 self.regs[A] = result;
@@ -995,7 +953,6 @@ impl Cpu {
             },
             0xF8 => {
                 // LD HL, SP + n
-                self.tick();
                 let n = self.read_imm();
                 let (result, flags) = self.sum_sp_n(n);
                 self.regs.write(HL, result);
@@ -1007,7 +964,6 @@ impl Cpu {
             },
             0xF9 => {
                 // LD SP,HL
-                self.tick();
                 self.sp = self.regs.read(HL);
                 // 16-bit operation
                 self.nop();
@@ -1016,7 +972,6 @@ impl Cpu {
             },
             0xFA => {
                 // LD A,(nn)
-                self.tick();
                 let nn = self.read_imm_u16();
                 self.regs[A] = self.read_mem(nn);
 
@@ -1024,28 +979,22 @@ impl Cpu {
             },
             0xFB => {
                 // EI
-                self.tick();
                 self.ime = true;
 
                 println!("EI");
             },
             0xFE => {
                 // CP n
-                self.tick();
                 let n = self.read_imm();
                 let (_, flags) = sub_u8(self.regs[A], n);
                 self.regs.write_flags(flags);
 
                 println!("CP {:02x}", n);
             },
-            _ => panic!("Unimplemented opcode {:02x}", opcode),
+            _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
 
         println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.pc, self.total_clock_cycles);
-
-        if old_clock_cycles == self.clock_cycles {
-            panic!("Num cycles is still {}, should have changed! Opcode: {:02x}", old_clock_cycles, old_opcode);
-        }
 
         extra_cycles
     }
@@ -1081,11 +1030,6 @@ impl Cpu {
     }
 
     fn nop(&mut self) {
-        self.clock_cycles += 1;
-    }
-
-    fn tick(&mut self) {
-        self.pc += 1;
         self.clock_cycles += 1;
     }
 
@@ -1134,7 +1078,6 @@ impl Cpu {
     }
 
     fn execute_prefixed_instruction(&mut self) {
-        self.tick();
         let opcode = self.read_imm();
 
         match opcode {
@@ -1175,7 +1118,6 @@ impl Cpu {
     }
 
     fn execute_dec_rr(&mut self, opcode: u8) {
-        self.tick();
         let order = [BC, DE, HL];
         let reg = order[(opcode / 0x10) as usize];
 
@@ -1187,7 +1129,6 @@ impl Cpu {
     }
 
     fn execute_inc_rr(&mut self, opcode: u8) {
-        self.tick();
         let order = [BC, DE, HL];
         let reg = order[(opcode / 0x10) as usize];
 
@@ -1202,7 +1143,6 @@ impl Cpu {
         let order = [BC, DE, HL];
         let reg = order[(opcode / 0x10) as usize];
 
-        self.tick();
         let nn = self.read_imm_u16();
         self.regs.write(reg, nn);
 
@@ -1213,7 +1153,6 @@ impl Cpu {
         let order = [BC, DE, HL];
         let reg = order[(opcode / 0x10) as usize];
 
-        self.tick();
         let old_zero = read_bit(self.regs[F], ZERO_FLAG);
         let (result, flags) = add_u16(self.regs.read(HL), self.regs.read(reg));
         self.regs.write(HL, result);
@@ -1233,7 +1172,6 @@ impl Cpu {
         let dst_index = order[(opcode_index / 0x08) as usize];
         let src_index = order[(opcode_index % 0x08) as usize];
 
-        self.tick();
         match (dst_index, src_index) {
             (Some(reg), Some(reg1)) => {
                 self.load_reg_reg(reg, reg1);
@@ -1254,7 +1192,6 @@ impl Cpu {
     }
 
     fn execute_or_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let (result, flags) = or_u8(self.regs[A], src);
         self.regs[A] = result;
@@ -1264,7 +1201,6 @@ impl Cpu {
     }
 
     fn execute_cp_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let (_, flags) = sub_u8(self.regs[A], src);
         self.regs.write_flags(flags);
@@ -1273,7 +1209,6 @@ impl Cpu {
     }
 
     fn execute_add_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let (result, flags) = add_u8(self.regs[A], src);
         self.regs[A] = result;
@@ -1283,7 +1218,6 @@ impl Cpu {
     }
 
     fn execute_adc_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
         let (result, flags) = adc_u8(self.regs[A], src, old_carry);
@@ -1294,7 +1228,6 @@ impl Cpu {
     }
 
     fn execute_sub_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let (result, flags) = sub_u8(self.regs[A], src);
         self.regs[A] = result;
@@ -1304,7 +1237,6 @@ impl Cpu {
     }
 
     fn execute_sbc_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
         let (result, flags) = sbc_u8(self.regs[A], src, old_carry);
@@ -1315,7 +1247,6 @@ impl Cpu {
     }
 
     fn execute_and_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let (result, flags) = and_u8(self.regs[A], src);
         self.regs[A] = result;
@@ -1325,7 +1256,6 @@ impl Cpu {
     }
 
     fn execute_xor_reg(&mut self, opcode: u8) {
-        self.tick();
         let (src, display) = self.get_source_val(opcode);
         let (result, flags) = xor_u8(self.regs[A], src);
         self.regs[A] = result;
@@ -1505,7 +1435,6 @@ impl Cpu {
 
     fn inc_reg(&mut self, index: RegisterIndex) {
         // INC r
-        self.tick();
         let old = self.regs[index];
         self.regs[index] += 1;
         self.set_flag(ZERO_FLAG, self.regs[index] == 0);
@@ -1515,7 +1444,6 @@ impl Cpu {
 
     fn dec_reg(&mut self, index: RegisterIndex) {
         // DEC r
-        self.tick();
         let old = self.regs[index];
         self.regs[index] -= 1;
         self.set_flag(ZERO_FLAG, self.regs[index] == 0);
@@ -1525,7 +1453,6 @@ impl Cpu {
 
     fn load_reg_byte(&mut self, index: RegisterIndex) -> u8 {
         // LD r, n
-        self.tick();
         let n = self.read_imm();
         self.regs[index] = n;
 
@@ -1574,7 +1501,6 @@ impl Cpu {
 
     fn jump_rel_condition(&mut self, condition: bool) -> i8 {
         // JR cc, n
-        self.tick();
         // Offset is signed
         let offset = self.read_imm() as i8;
 
@@ -1586,7 +1512,6 @@ impl Cpu {
     }
 
     fn jump(&mut self) -> u16 {
-        self.tick();
         let addr = self.read_imm_u16();
         self.pc = addr;
         self.nop();
@@ -1595,7 +1520,6 @@ impl Cpu {
 
     fn jump_condition(&mut self, condition: bool) -> u16 {
         // JP cc, nn
-        self.tick();
         let addr = self.read_imm_u16();
         if condition {
             self.pc = addr;
@@ -1606,7 +1530,6 @@ impl Cpu {
 
     fn call_condition(&mut self, condition: bool) -> u16 {
         // CALL cc, nn
-        self.tick();
         let addr = self.read_imm_u16();
 
         if condition {
@@ -1621,7 +1544,6 @@ impl Cpu {
 
     fn ret(&mut self) {
         // RET
-        self.tick();
         self.pc = self.read_mem_u16(self.sp);
         self.sp += 2;
         self.nop();
@@ -1629,7 +1551,6 @@ impl Cpu {
 
     fn ret_condition(&mut self, condition: bool) {
         // RET cc
-        self.tick();
         self.nop();
         if condition {
             self.pc = self.read_mem_u16(self.sp);
@@ -1639,7 +1560,6 @@ impl Cpu {
     }
 
     fn execute_rst(&mut self, opcode: u8) {
-        self.tick();
         let addr = (opcode - 0xC7) as u16;
         self.nop(); // To decrement sp
         self.sp -= 2;
@@ -1650,13 +1570,11 @@ impl Cpu {
     }
 
     fn push(&mut self, index: TwoRegisterIndex) {
-        self.tick();
         self.sp -= 2;
         self.write_mem_u16(self.sp, self.regs.read(index));
     }
 
     fn pop(&mut self, index: TwoRegisterIndex) {
-        self.tick();
         let nn = self.read_mem_u16(self.sp);
         self.regs.write(index, nn);
         self.sp += 2;

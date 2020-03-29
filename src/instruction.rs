@@ -1,6 +1,7 @@
 use AdressingMode::*;
 use CycleCount::*;
 
+#[derive(Debug)]
 pub struct Instruction<'a> {
     pub opcode: u8,
     pub repr: &'a str,
@@ -10,6 +11,7 @@ pub struct Instruction<'a> {
     pub prefixed: bool,
 }
 
+#[derive(Debug)]
 pub enum AdressingMode {
     Implied,
     Imm8,
@@ -19,6 +21,7 @@ pub enum AdressingMode {
     SignedAddrOffset,
 }
 
+#[derive(Debug)]
 pub enum CycleCount {
     Fixed(u32),
     // Jump(cycles_if_jump_occurs, cycles_if_no_jump_occurs)
