@@ -2,7 +2,6 @@ use crate::cpu::Cpu;
 use crate::ppu;
 use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex::HL;
-use crate::instruction::INSTRUCTIONS;
 
 use crate::ppu::NUM_PIXELS_IN_LINE;
 
@@ -90,7 +89,7 @@ impl Emulator {
 
         pge.draw_string(x, y + 12 * cy, &format!("CYCLES: {}", self.cycles), &pge::WHITE, scale);
 
-        let instruction = INSTRUCTIONS[self.cpu.current_opcode as usize].repr;
+        let instruction = self.cpu.current_instruction.repr;
         pge.draw_string(x, y + 14 * cy, &format!("INSTR: {}", instruction), &pge::WHITE, scale);
 
         let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };

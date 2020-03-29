@@ -7,6 +7,7 @@ use crate::registers::Flags;
 use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
 use crate::memory::Memory;
+use crate::instruction::Instruction;
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 
@@ -35,9 +36,9 @@ pub struct Cpu {
     pub memory: Memory,
     clock_cycles: u32,
     remaining_cycles: u32,
-    pub current_opcode: u8,
     total_clock_cycles: u32,
     halted: bool,
+    pub current_instruction: &'static Instruction<'static>,
 }
 
 impl Cpu {
@@ -50,10 +51,10 @@ impl Cpu {
             memory: Memory::new(),
             clock_cycles: 0,
             remaining_cycles: 0,
-            // This should get populated when cpu starts running
-            current_opcode: 0,
             total_clock_cycles: 0,
             halted: false,
+            // This should get populated when cpu starts running
+            current_instruction: &INSTRUCTIONS[0],
         }
     }
 
@@ -81,11 +82,9 @@ impl Cpu {
                     self.remaining_cycles += 5;
                 }
 
-                let opcode = self.memory[self.pc];
-                self.current_opcode = opcode;
+                self.fetch_instruction();
 
-                let next_byte = self.memory[self.pc + 1];
-                self.remaining_cycles += Self::cycles_for_instruction(opcode, next_byte);
+                self.remaining_cycles += self.cycles_for_current_instruction();
 
                 // For instructions with a conditional jump, the cpu takes extra cycles if
                 // the jump does happen, which `execute` determines based on the condition.
@@ -100,18 +99,29 @@ impl Cpu {
         self.update_timers();
     }
 
-    // Finds the number of cycles required for the given instruction. If the instruction
-    // is a conditional jump, this does not take into account the extra cycles required
-    // for the jump: that is determined by the `execute` method. For instructions prefixed
-    // with the byte "CB", we need to look at the next byte to determine the total cycles.
-    fn cycles_for_instruction(opcode: u8, next_byte: u8) -> u32 {
-        let mut cycles = match &INSTRUCTIONS[opcode as usize].cycles {
-            Fixed(cycles) => *cycles,
-            Jump(_, cycles_without_jump) => *cycles_without_jump,
-        };
+    fn fetch_instruction(&mut self) {
+        let opcode = self.memory[self.pc];
 
         if opcode == 0xCB {
-            cycles += match &PREFIXED_INSTRUCTIONS[next_byte as usize].cycles {
+            let next_byte = self.memory[self.pc + 1];
+            self.current_instruction = &PREFIXED_INSTRUCTIONS[next_byte as usize];
+        } else {
+            self.current_instruction = &INSTRUCTIONS[opcode as usize];
+        }
+    }
+
+    // Finds the number of cycles required for the given instruction. If the instruction
+    // is a conditional jump, this does not take into account the extra cycles required
+    // for the jump: that is determined by the `execute` method. For prefixed instructions,
+    // we also add the cycles of the prefix instruction "CB".
+    fn cycles_for_current_instruction(&self) -> u32 {
+        let mut cycles = match self.current_instruction.cycles {
+            Fixed(cycles) => cycles,
+            Jump(_, cycles_without_jump) => cycles_without_jump,
+        };
+
+        if self.current_instruction.prefixed {
+            cycles += match &INSTRUCTIONS[0xCB].cycles {
                 Fixed(cycles) => *cycles,
                 Jump(_, cycles_without_jump) => *cycles_without_jump,
             };
@@ -355,7 +365,7 @@ impl Cpu {
                 // JR NZ,n
                 let condition = !read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
 
@@ -419,7 +429,7 @@ impl Cpu {
                 // JR Z,n
                 let condition = read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
 
@@ -465,7 +475,7 @@ impl Cpu {
                 // JR NC,n
                 let condition = !read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
 
@@ -542,7 +552,7 @@ impl Cpu {
                 // JR C,n
                 let condition = read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let offset = self.jump_rel_condition(condition);
 
@@ -646,7 +656,7 @@ impl Cpu {
                 // RET NZ
                 let condition = !read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
 
@@ -662,7 +672,7 @@ impl Cpu {
                 // JP NZ,nn
                 let condition = !read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
 
@@ -678,7 +688,7 @@ impl Cpu {
                 // CALL NZ,nn
                 let condition = !read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
 
@@ -707,7 +717,7 @@ impl Cpu {
                 // RET Z
                 let condition = read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
 
@@ -723,7 +733,7 @@ impl Cpu {
                 // JP Z,nn
                 let condition = read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
 
@@ -736,7 +746,7 @@ impl Cpu {
                 // CALL Z,nn
                 let condition = read_bit(self.regs[F], ZERO_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
 
@@ -763,7 +773,7 @@ impl Cpu {
                 // RET NC
                 let condition = !read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
 
@@ -779,7 +789,7 @@ impl Cpu {
                 // JP NC,nn
                 let condition = !read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
 
@@ -789,7 +799,7 @@ impl Cpu {
                 // CALL NC,nn
                 let condition = !read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
 
@@ -815,7 +825,7 @@ impl Cpu {
                 // RET C
                 let condition = read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.ret_condition(condition);
 
@@ -832,7 +842,7 @@ impl Cpu {
                 // JP C,nn
                 let condition = read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.jump_condition(condition);
 
@@ -842,7 +852,7 @@ impl Cpu {
                 // CALL C,nn
                 let condition = read_bit(self.regs[F], CARRY_FLAG);
                 if condition {
-                    extra_cycles = INSTRUCTIONS[self.current_opcode as usize].cycles.get_extra_cycles();
+                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 let addr = self.call_condition(condition);
 
