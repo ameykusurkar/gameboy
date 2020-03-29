@@ -81,6 +81,28 @@ impl Ppu {
 
         pixels
     }
+
+    pub fn get_tilset(memory: &[u8]) -> Vec<u8> {
+        let (width, height) = (16 * 8, 24 * 8);
+        let background_palette = memory[0xFF47];
+
+        let mut pixels = vec![0; width * height];
+
+        for (tile_no, tile) in get_tileset_memory(memory).chunks(TILE_NUM_BYTES).enumerate() {
+            for (line_no, line) in tile.chunks(LINES_NUM_BYTES).enumerate() {
+                for i in 0..NUM_PIXELS_IN_LINE {
+                    let upper_bit = read_bit(line[0], (NUM_PIXELS_IN_LINE-1-i) as u8) as u8;
+                    let lower_bit = read_bit(line[1], (NUM_PIXELS_IN_LINE-1-i) as u8) as u8;
+                    let pixel = pixel_map(upper_bit << 1 | lower_bit, background_palette);
+                    let (x, y) = coords_for_pixel(tile_no, line_no, i as usize, width);
+                    let pixel_index = y * width + x;
+                    pixels[pixel_index] = pixel;
+                }
+            }
+        }
+
+        pixels
+    }
 }
 
 fn coords_for_pixel(tile_no: usize,
@@ -117,6 +139,10 @@ fn get_window_map_memory(memory: &[u8]) -> &[u8] {
     } else {
         &memory[0x9800..0x9BFF]
     }
+}
+
+fn get_tileset_memory(memory: &[u8]) -> &[u8] {
+    &memory[0x8000..0x9800]
 }
 
 fn pixel_map(color_number: u8, palette: u8) -> u8 {

@@ -68,6 +68,20 @@ impl Emulator {
         pge.draw_sprite(x + width as i32 + 10, y, &window_map_sprite, scale);
     }
 
+    fn draw_tileset(&mut self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) {
+        let (width, height) = (16 * 8, 24 * 8);
+        let pixel_buffer = Ppu::get_tilset(self.cpu.get_memory());
+
+        let mut tileset_sprite = pge::Sprite::new(width, height);
+        for (i, pixel) in pixel_buffer.iter().enumerate() {
+            let x = i % width;
+            let y = i / width;
+            tileset_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+        }
+
+        pge.draw_sprite(x, y, &tileset_sprite, scale);
+    }
+
     fn draw_cpu_state(&mut self, pge: &mut pge::PGE, x: i32, y: i32) {
         let scale = 2;
         let (cx, cy) = (scale * 8 + 2, scale * 8 + 2);
@@ -156,6 +170,7 @@ impl pge::State for Emulator {
 
         let screen_scale = 3;
 
+        self.draw_tileset(pge, 0, 0, 2);
         self.draw_maps(pge, 0, (LCD_HEIGHT * screen_scale) as i32, 1);
         self.draw_cpu_state(pge, (LCD_WIDTH * (screen_scale + 1)) as i32, 0);
 
