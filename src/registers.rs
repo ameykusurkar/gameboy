@@ -68,6 +68,10 @@ impl Registers {
     pub fn write_flags(&mut self, flags: Flags) {
         self[F] = u8::from(flags);
     }
+
+    pub fn read_flags(&self) -> Flags {
+        Flags::from(self[F])
+    }
 }
 
 impl std::ops::Index<RegisterIndex> for Registers {
@@ -114,5 +118,16 @@ impl std::convert::From<Flags> for u8 {
             | (flags.subtract as u8) << SUBTRACT_FLAG
             | (flags.half_carry as u8) << HALF_CARRY_FLAG
             | (flags.carry as u8) << CARRY_FLAG
+    }
+}
+
+impl std::convert::From<u8> for Flags {
+    fn from(flags: u8) -> Self {
+        Flags {
+            zero: flags & (1 << ZERO_FLAG) > 0,
+            subtract: flags & (1 << SUBTRACT_FLAG) > 0,
+            half_carry: flags & (1 << HALF_CARRY_FLAG) > 0,
+            carry: flags & (1 << CARRY_FLAG) > 0,
+        }
     }
 }

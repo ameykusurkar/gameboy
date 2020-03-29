@@ -28,14 +28,14 @@ const TMA_ADDR: u16  = 0xFF06;
 const TAC_ADDR: u16  = 0xFF07;
 
 pub struct Cpu {
-    regs: Registers,
-    sp: u16,
-    pc: u16,
+    pub regs: Registers,
+    pub sp: u16,
+    pub pc: u16,
     ime: bool,
-    memory: Memory,
+    pub memory: Memory,
     clock_cycles: u32,
     remaining_cycles: u32,
-    current_opcode: u8,
+    pub current_opcode: u8,
     total_clock_cycles: u32,
     halted: bool,
 }
