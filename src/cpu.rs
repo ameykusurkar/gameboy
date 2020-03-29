@@ -198,7 +198,7 @@ impl Cpu {
             },
             0x06 => {
                 // LD B,n
-                let n = self.load_reg_byte(B);
+                self.load_reg_byte(B);
             },
             0x07 => {
                 // RLCA
@@ -236,7 +236,7 @@ impl Cpu {
             },
             0x0E => {
                 // LD C,n
-                let n = self.load_reg_byte(C);
+                self.load_reg_byte(C);
             },
             0x0F => {
                 // RRCA
@@ -263,7 +263,7 @@ impl Cpu {
             },
             0x16 => {
                 // LD D,n
-                let n = self.load_reg_byte(D);
+                self.load_reg_byte(D);
             },
             0x17 => {
                 // RLA
@@ -278,7 +278,7 @@ impl Cpu {
             },
             0x18 => {
                 // JR n
-                let offset = self.jump_rel();
+                self.jump_rel();
             },
             0x1A => {
                 // LD A,(DE)
@@ -295,7 +295,7 @@ impl Cpu {
             },
             0x1E => {
                 // LD E,n
-                let n = self.load_reg_byte(E);
+                self.load_reg_byte(E);
             },
             0x1F => {
                 // RRA
@@ -314,7 +314,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let offset = self.jump_rel_condition(condition);
+                self.jump_rel_condition(condition);
             },
             0x22 => {
                 // LD (HL+),A
@@ -332,7 +332,7 @@ impl Cpu {
             },
             0x26 => {
                 // LD H,n
-                let n = self.load_reg_byte(H);
+                self.load_reg_byte(H);
             },
             0x27 => {
                 // DAA
@@ -364,7 +364,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let offset = self.jump_rel_condition(condition);
+                self.jump_rel_condition(condition);
             },
             0x2A => {
                 // LD A, (HL+)
@@ -382,7 +382,7 @@ impl Cpu {
             },
             0x2E => {
                 // LD L,n
-                let n = self.load_reg_byte(L);
+                self.load_reg_byte(L);
             },
             0x2F => {
                 // CPL
@@ -396,7 +396,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let offset = self.jump_rel_condition(condition);
+                self.jump_rel_condition(condition);
             },
             0x31 => {
                 // LD SP,nn
@@ -450,7 +450,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let offset = self.jump_rel_condition(condition);
+                self.jump_rel_condition(condition);
             },
             0x39 => {
                 // ADD HL,SP
@@ -542,11 +542,11 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.jump_condition(condition);
+                self.jump_condition(condition);
             },
             0xC3 => {
                 // JP nn
-                let addr = self.jump();
+                self.jump();
             },
             0xC4 => {
                 // CALL NZ,nn
@@ -554,7 +554,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.call_condition(condition);
+                self.call_condition(condition);
             },
             0xC5 => {
                 // PUSH BC
@@ -588,7 +588,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.jump_condition(condition);
+                self.jump_condition(condition);
             },
             0xCB => {
                 self.execute_prefixed_instruction();
@@ -599,11 +599,11 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.call_condition(condition);
+                self.call_condition(condition);
             },
             0xCD => {
                 // CALL nn
-                let addr = self.call_condition(true);
+                self.call_condition(true);
             },
             0xCE => {
                 // ADC n
@@ -631,7 +631,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.jump_condition(condition);
+                self.jump_condition(condition);
             },
             0xD4 => {
                 // CALL NC,nn
@@ -639,7 +639,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.call_condition(condition);
+                self.call_condition(condition);
             },
             0xD5 => {
                 // PUSH DE
@@ -671,7 +671,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.jump_condition(condition);
+                self.jump_condition(condition);
             },
             0xDC => {
                 // CALL C,nn
@@ -679,7 +679,7 @@ impl Cpu {
                 if condition {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
-                let addr = self.call_condition(condition);
+                self.call_condition(condition);
             },
             0xDE => {
                 // SBC n
@@ -820,11 +820,12 @@ impl Cpu {
             if current_addr > end_addr { break };
 
             let instruction = self.fetch_instruction(current_addr);
-            let num_bytes = (instruction.num_bytes as u32) + (instruction.prefixed as u32);
+            let num_bytes = instruction.num_bytes as u32;
 
             if current_addr as u32 + num_bytes > end_addr as u32 { break };
 
-            let repr = self.build_instruction_repr(current_addr + 1, instruction);
+            let operand_start_addr = current_addr + 1 + (instruction.prefixed as u16);
+            let repr = self.build_instruction_repr(operand_start_addr, instruction);
             instruction_reprs.push((current_addr, repr));
             current_addr += num_bytes as u16;
         }
@@ -842,35 +843,36 @@ impl Cpu {
             AddressingMode::Imm8 => {
                 let index = repr.find("d").unwrap_or(repr.len());
                 if index == repr.len() {
-                    panic!("Cannot find in {}", repr);
+                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
                 }
                 repr.replace_range(index..index+2, &format!("{:02x}", operand));
             },
             AddressingMode::Imm16 => {
                 let index = repr.find("d").unwrap_or(repr.len());
                 if index == repr.len() {
-                    panic!("Cannot find in {}", repr);
+                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
                 }
                 repr.replace_range(index..index+3, &format!("{:04x}", operand));
             },
             AddressingMode::Addr16 => {
                 let index = repr.find("a").unwrap_or(repr.len());
                 if index == repr.len() {
-                    panic!("Cannot find in {}", repr);
+                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
                 }
                 repr.replace_range(index..index+3, &format!("{:04x}", operand));
             },
             AddressingMode::ZeroPageOffset => {
                 let index = repr.find("a").unwrap_or(repr.len());
                 if index == repr.len() {
-                    panic!("Cannot find in {}", repr);
+                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
                 }
                 repr.replace_range(index..index+2, &format!("{:04x}", operand));
             },
             AddressingMode::SignedAddrOffset => {
                 let index = repr.find("r").unwrap_or(repr.len());
                 if index == repr.len() {
-                    panic!("Cannot find in {}", repr);
+                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc,
+                           addr);
                 }
                 repr.replace_range(index..index+2, &format!("{:04x}", operand));
             },
@@ -1083,27 +1085,27 @@ impl Cpu {
     }
 
     fn execute_or_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, flags) = or_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
     fn execute_cp_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (_, flags) = sub_u8(self.regs[A], src);
         self.regs.write_flags(flags);
     }
 
     fn execute_add_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, flags) = add_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
     fn execute_adc_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
         let (result, flags) = adc_u8(self.regs[A], src, old_carry);
         self.regs[A] = result;
@@ -1111,14 +1113,14 @@ impl Cpu {
     }
 
     fn execute_sub_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, flags) = sub_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
     fn execute_sbc_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
         let (result, flags) = sbc_u8(self.regs[A], src, old_carry);
         self.regs[A] = result;
@@ -1126,21 +1128,21 @@ impl Cpu {
     }
 
     fn execute_and_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, flags) = and_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
     fn execute_xor_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, flags) = xor_u8(self.regs[A], src);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
     fn execute_rlc_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = rotate_left(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1151,7 +1153,7 @@ impl Cpu {
     }
 
     fn execute_rrc_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = rotate_right(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1163,7 +1165,7 @@ impl Cpu {
 
     fn execute_rl_reg(&mut self, opcode: u8) {
         let carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = rotate_left_through_carry(src, carry);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1175,7 +1177,7 @@ impl Cpu {
 
     fn execute_rr_reg(&mut self, opcode: u8) {
         let carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = rotate_right_through_carry(src, carry);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1186,7 +1188,7 @@ impl Cpu {
     }
 
     fn execute_sla_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = shift_left(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1197,7 +1199,7 @@ impl Cpu {
     }
 
     fn execute_sra_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = shift_right_arithmetic(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1208,14 +1210,14 @@ impl Cpu {
     }
 
     fn execute_swap_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, flags) = swap_u8(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(flags);
     }
 
     fn execute_srl_reg(&mut self, opcode: u8) {
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let (result, carry) = shift_right_logical(src);
         self.set_dst_reg(opcode, result);
         self.regs.write_flags(Flags {
@@ -1227,7 +1229,7 @@ impl Cpu {
 
     fn execute_test_bit_reg(&mut self, opcode: u8) {
         let bit_position = (opcode - 0x40) / 0x08;
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let result = read_bit(src, bit_position);
         self.set_flag(ZERO_FLAG, !result);
         self.set_flag(SUBTRACT_FLAG, false);
@@ -1236,14 +1238,14 @@ impl Cpu {
 
     fn execute_reset_bit_reg(&mut self, opcode: u8) {
         let bit_position = (opcode - 0x40) / 0x08;
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let result = set_bit(src, bit_position, false);
         self.set_dst_reg(opcode, result);
     }
 
     fn execute_set_bit_reg(&mut self, opcode: u8) {
         let bit_position = (opcode - 0x40) / 0x08;
-        let (src, display) = self.get_source_val(opcode);
+        let src = self.get_source_val(opcode);
         let result = set_bit(src, bit_position, true);
         self.set_dst_reg(opcode, result);
     }
@@ -1254,18 +1256,16 @@ impl Cpu {
     // the memory address pointed to by HL like a register as well, even
     // though it is not really a register, but memory. This method hides
     // that detail so that register operations can't tell the difference.
-    fn get_source_val(&mut self, opcode: u8) -> (u8, String) {
+    fn get_source_val(&mut self, opcode: u8) -> u8 {
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
         ];
 
         match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                (self.regs[reg], format!("{:?}", reg))
-            },
+            Some(reg) => self.regs[reg],
             None => {
                 let addr = self.regs.read(HL);
-                (self.read_mem(addr), "(HL)".to_string())
+                self.read_mem(addr)
             }
         }
     }
