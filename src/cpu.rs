@@ -71,6 +71,10 @@ impl Cpu {
         &self.memory.get_memory()
     }
 
+    pub fn get_memory_mut(&mut self) -> &mut Memory {
+        &mut self.memory
+    }
+
     pub fn step(&mut self) {
         if self.halted && self.get_pending_interrupts() > 0 {
             self.halted = false;
@@ -154,10 +158,6 @@ impl Cpu {
     }
 
     pub fn execute(&mut self) -> u32 {
-        // TODO: Remove this
-        // Temp hack to let CPU think that screen is done rendering
-        self.memory.master_write(0xFF44, 0x90);
-
         let opcode = self.read(self.pc);
 
         let mut extra_cycles = 0;

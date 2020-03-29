@@ -9,7 +9,7 @@ mod instruction;
 mod emulator;
 
 use emulator::Emulator;
-use crate::ppu::NUM_PIXELS_IN_LINE;
+use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
 
 use pge;
 
@@ -31,11 +31,11 @@ fn main() -> std::io::Result<()> {
 
     let mut emulator = Emulator::new(&bootrom_buffer, &rom_buffer);
 
-    let width = 32 * (NUM_PIXELS_IN_LINE * 4);
-    let height = 32 * NUM_PIXELS_IN_LINE * 2;
+    let width = LCD_WIDTH * 6;
+    let height = LCD_HEIGHT * 5;
     let scale = 1;
 
-    let mut pge = pge::PGE::construct("Gameboy", width, height, scale, scale);
+    let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
     pge.start(&mut emulator);
 
     Ok(())

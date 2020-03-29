@@ -55,4 +55,12 @@ impl Memory {
 
         self.memory[addr as usize] = val;
     }
+
+    pub fn ppu_read(&self, addr: u16) -> u8 {
+        self.cpu_read(addr)
+    }
+
+    pub fn ppu_write(&mut self, addr: u16, val: u8) {
+        self.cpu_write(addr, val);
+    }
 }
