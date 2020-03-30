@@ -422,7 +422,7 @@ impl Cpu {
                 let addr = self.regs.read(HL);
                 let old = self.read_mem(addr);
                 self.write_mem(addr, old - 1);
-                self.set_flag(ZERO_FLAG, (old + 1) == 0);
+                self.set_flag(ZERO_FLAG, (old - 1) == 0);
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
             },

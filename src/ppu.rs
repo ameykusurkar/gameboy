@@ -41,10 +41,10 @@ impl Ppu {
         self.cycles = (self.cycles + 1) % SCANLINE_CYCLES;
         if self.cycles == 0 {
             self.scanline = (self.scanline + 1) % LINES_PER_FRAME;
-            memory.write(0xFF44, self.scanline as u8);
-            if memory.read(0xFF44) == memory.read(0xFF45) {
-                let status = memory.read(0xFF41);
-                memory.write(0xFF41, set_bit(status, 2, true));
+            memory.ppu_write(0xFF44, self.scanline as u8);
+            if memory.ppu_read(0xFF44) == memory.ppu_read(0xFF45) {
+                let status = memory.ppu_read(0xFF41);
+                memory.ppu_write(0xFF41, set_bit(status, 2, true));
                 if read_bit(status, 6) {
                     Self::set_status_interrupt(memory);
                 }
@@ -53,17 +53,17 @@ impl Ppu {
             if self.scanline == LCD_HEIGHT {
                 // V BLANK
                 Self::set_lcd_mode(memory, 1);
-                let interrupt_flags = memory.read(0xFF0F);
-                memory.write(0xFF0F, interrupt_flags | 1);
+                let interrupt_flags = memory.ppu_read(0xFF0F);
+                memory.ppu_write(0xFF0F, interrupt_flags | 1);
 
-                let status = memory.read(0xFF41);
+                let status = memory.ppu_read(0xFF41);
                 if read_bit(status, 4) {
                     Self::set_status_interrupt(memory);
                 }
             } else {
                 // OAM SEARCH
                 Self::set_lcd_mode(memory, 2);
-                let status = memory.read(0xFF41);
+                let status = memory.ppu_read(0xFF41);
                 if read_bit(status, 5) {
                     Self::set_status_interrupt(memory);
                 }
@@ -77,7 +77,7 @@ impl Ppu {
             } else if self.cycles == (OAM_SEARCH_CYCLES + PIXEL_TRANSFER_CYCLES) {
                 // H BLANK
                 Self::set_lcd_mode(memory, 0);
-                let status = memory.read(0xFF41);
+                let status = memory.ppu_read(0xFF41);
                 if read_bit(status, 3) {
                     Self::set_status_interrupt(memory);
                 }
@@ -86,15 +86,15 @@ impl Ppu {
     }
 
     fn set_status_interrupt(memory: &mut Memory) {
-        let interrupt_flags = memory.read(0xFF0F);
-        memory.write(0xFF0F, interrupt_flags | 2);
+        let interrupt_flags = memory.ppu_read(0xFF0F);
+        memory.ppu_write(0xFF0F, interrupt_flags | 2);
     }
 
     fn set_lcd_mode(memory: &mut Memory, mode: u8) {
-        let mut status = memory.read(0xFF41);
+        let mut status = memory.ppu_read(0xFF41);
         status = set_bit(status, 0, mode & 0x1 > 0);
         status = set_bit(status, 1, mode & 0x2 > 0);
-        memory.write(0xFF41, status);
+        memory.ppu_write(0xFF41, status);
     }
 
     pub fn get_background_map(memory: &[u8]) -> Vec<u8> {
