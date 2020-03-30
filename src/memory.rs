@@ -27,26 +27,32 @@ impl Memory {
     fn is_bootrom_active(&self) -> bool {
         (self.memory[0xFF50] & 0x01) == 0
     }
-}
 
-impl std::ops::Index<u16> for Memory {
-    type Output = u8;
-
-    fn index(&self, addr: u16) -> &Self::Output {
-        if addr < 0x100 && self.is_bootrom_active() {
-            &self.bootrom[addr as usize]
-        } else {
-            &self.memory[addr as usize]
-        }
+    pub fn master_read(&self, addr: u16) -> u8 {
+        self.memory[addr as usize]
     }
-}
 
-impl std::ops::IndexMut<u16> for Memory {
-    fn index_mut(&mut self, addr: u16) -> &mut Self::Output {
+    pub fn master_write(&mut self, addr: u16, val: u8) {
         if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
             println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
         }
 
-        &mut self.memory[addr as usize]
+        self.memory[addr as usize] = val;
+    }
+
+    pub fn cpu_read(&self, addr: u16) -> u8 {
+        if addr < 0x100 && self.is_bootrom_active() {
+            self.bootrom[addr as usize]
+        } else {
+            self.memory[addr as usize]
+        }
+    }
+
+    pub fn cpu_write(&mut self, addr: u16, val: u8) {
+        if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
+            println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
+        }
+
+        self.memory[addr as usize] = val;
     }
 }

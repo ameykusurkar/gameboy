@@ -64,7 +64,7 @@ impl Cpu {
     pub fn skip_bootrom(&mut self) {
         self.pc = 0x100;
         self.sp = 0xFFFE;
-        self.memory[0xFF50] = 1;
+        self.write(0xFF50, 1);
     }
 
     pub fn get_memory(&self) -> &[u8] {
@@ -102,10 +102,10 @@ impl Cpu {
     }
 
     fn fetch_instruction(&self, addr: u16) -> &'static Instruction<'static> {
-        let opcode = self.memory[addr];
+        let opcode = self.read(addr);
 
         if opcode == 0xCB {
-            let next_byte = self.memory[addr + 1];
+            let next_byte = self.read(addr + 1);
             &PREFIXED_INSTRUCTIONS[next_byte as usize]
         } else {
             &INSTRUCTIONS[opcode as usize]
@@ -124,10 +124,11 @@ impl Cpu {
 
     fn update_timers(&mut self) {
         if self.total_clock_cycles % 64 == 0 {
-            self.memory[DIV_ADDR] += 1;
+            let div = self.read(DIV_ADDR);
+            self.write(DIV_ADDR, div + 1);
         }
 
-        let timer_control = self.memory[TAC_ADDR];
+        let timer_control = self.read(TAC_ADDR);
         let timer_is_active = read_bit(timer_control, 2);
 
         if timer_is_active {
@@ -139,12 +140,14 @@ impl Cpu {
             };
 
             if self.total_clock_cycles % cycles_per_update == 0 {
-                if self.memory[TIMA_ADDR] == 0xFF {
+                if self.read(TIMA_ADDR) == 0xFF {
                     // If the timer is going to overflow, request a timer interrupt
-                    self.memory[IF_ADDR] |= 1 << 2;
-                    self.memory[TIMA_ADDR] = self.memory[TMA_ADDR];
+                    let flags = self.read(IF_ADDR);
+                    self.write(IF_ADDR, flags | 1 << 2);
+                    self.write(TIMA_ADDR, self.read(TMA_ADDR));
                 } else {
-                    self.memory[TIMA_ADDR] += 1;
+                    let tima = self.read(TIMA_ADDR);
+                    self.write(TIMA_ADDR, tima + 1);
                 }
             }
         }
@@ -153,9 +156,9 @@ impl Cpu {
     pub fn execute(&mut self) -> u32 {
         // TODO: Remove this
         // Temp hack to let CPU think that screen is done rendering
-        self.memory[0xFF44] = 0x90;
+        self.memory.master_write(0xFF44, 0x90);
 
-        let opcode = self.memory[self.pc];
+        let opcode = self.read(self.pc);
 
         let mut extra_cycles = 0;
 
@@ -410,7 +413,7 @@ impl Cpu {
                 let addr = self.regs.read(HL);
                 let old = self.read_mem(addr);
                 self.write_mem(addr, old + 1);
-                self.set_flag(ZERO_FLAG, self.memory[addr] == 0);
+                self.set_flag(ZERO_FLAG, (old + 1) == 0);
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0xF);
             },
@@ -419,7 +422,7 @@ impl Cpu {
                 let addr = self.regs.read(HL);
                 let old = self.read_mem(addr);
                 self.write_mem(addr, old - 1);
-                self.set_flag(ZERO_FLAG, self.memory[addr] == 0);
+                self.set_flag(ZERO_FLAG, (old + 1) == 0);
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
             },
@@ -873,12 +876,12 @@ impl Cpu {
 
     fn fetch_operand(&self, addr: u16, instruction: &Instruction) -> (u16, u32) {
         // (operand, bytes_read)
-        let lsb = self.memory[addr] as u16;
+        let lsb = self.read(addr) as u16;
         match &instruction.addressing_mode {
             AddressingMode::Implied => (0, 0),
             AddressingMode::Imm8 => (lsb, 0),
             AddressingMode::Imm16 | AddressingMode::Addr16 => {
-                let msb = self.memory[addr + 1] as u16;
+                let msb = self.read(addr + 1) as u16;
                 (msb << 8 | lsb, 2)
             },
             AddressingMode::ZeroPageOffset => {
@@ -909,7 +912,7 @@ impl Cpu {
     }
 
     fn get_pending_interrupts(&self) -> u8 {
-        self.memory[IE_ADDR] & self.memory[IF_ADDR]
+        self.read(IE_ADDR) & self.read(IF_ADDR)
     }
 
     fn handle_interrupt(&mut self, interrupt_no: u8) {
@@ -917,10 +920,18 @@ impl Cpu {
         self.ime = false;
         self.nop();
         self.nop();
-        self.write_mem(IF_ADDR, set_bit(self.memory[IF_ADDR], interrupt_no, false));
+        self.write_mem(IF_ADDR, set_bit(self.read(IF_ADDR), interrupt_no, false));
         self.sp -= 2;
         self.write_mem_u16(self.sp, self.pc);
         self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
+    }
+
+    fn read(&self, addr: u16) -> u8{
+        self.memory.cpu_read(addr)
+    }
+
+    fn write(&mut self, addr: u16, val: u8) {
+        self.memory.cpu_write(addr, val);
     }
 
     fn nop(&mut self) {
@@ -940,7 +951,7 @@ impl Cpu {
     }
 
     fn read_mem(&mut self, addr: u16) -> u8 {
-        let n = self.memory[addr];
+        let n = self.read(addr);
         self.clock_cycles += 1;
         n
     }
@@ -952,7 +963,7 @@ impl Cpu {
     }
 
     fn write_mem(&mut self, addr: u16, val: u8) {
-        self.memory[addr] = val;
+        self.write(addr, val);
         self.clock_cycles += 1;
     }
 
