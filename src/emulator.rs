@@ -62,7 +62,7 @@ impl Emulator {
         pge.draw_string(x, y, "REGISTERS", &pge::WHITE, scale);
 
         pge.draw_string(x, y + cy, &format!("A: {:02X}", self.cpu.regs[A]), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + cy, &format!("(HL): {:02X}", self.cpu.memory[self.cpu.regs.read(HL)]), &pge::WHITE, scale);
+        pge.draw_string(x + 6 * cx, y + cy, &format!("(HL): {:02X}", self.cpu.memory.cpu_read(self.cpu.regs.read(HL))), &pge::WHITE, scale);
 
         pge.draw_string(x, y + 2 * cy, &format!("B: {:02X}", self.cpu.regs[B]), &pge::WHITE, scale);
         pge.draw_string(x + 6 * cx, y + 2 * cy, &format!("C:    {:02X}", self.cpu.regs[C]), &pge::WHITE, scale);
@@ -93,7 +93,7 @@ impl Emulator {
         let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };
         pge.draw_string(x, y + 14 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory[0xFF05]), &pge::WHITE, scale);
+        pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
 
         let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
         let start_y = y + 18 * cy;
