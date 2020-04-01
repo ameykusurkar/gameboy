@@ -45,7 +45,7 @@ impl Emulator {
         }
     }
 
-    fn draw_maps(&mut self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) {
+    fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let width = MAP_WIDTH;
         let height = MAP_HEIGHT;
         let pixel_buffer = Ppu::get_background_map(self.cpu.get_memory());
@@ -65,11 +65,14 @@ impl Emulator {
             window_map_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
         }
 
+        let gap_x = 100;
         pge.draw_sprite(x, y, &background_map_sprite, scale);
-        pge.draw_sprite(x + width as i32 + 10, y, &window_map_sprite, scale);
+        pge.draw_sprite(x + width as i32 + gap_x, y, &window_map_sprite, scale);
+
+        (x + (scale * 256 * 2) as i32 + gap_x, y + (scale * 256) as i32)
     }
 
-    fn draw_tileset(&mut self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) {
+    fn draw_tileset(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (16 * 8, 24 * 8);
         let pixel_buffer = Ppu::get_tilset(self.cpu.get_memory());
 
@@ -81,9 +84,10 @@ impl Emulator {
         }
 
         pge.draw_sprite(x, y, &tileset_sprite, scale);
+        (x + (width * scale) as i32, y + (height * scale) as i32)
     }
 
-    fn draw_cpu_state(&mut self, pge: &mut pge::PGE, x: i32, y: i32) {
+    fn draw_cpu_state(&self, pge: &mut pge::PGE, x: i32, y: i32) {
         let scale = 2;
         let (cx, cy) = (scale * 8 + 2, scale * 8 + 2);
         pge.draw_string(x, y, "REGISTERS", &pge::WHITE, scale);
@@ -133,6 +137,12 @@ impl Emulator {
             pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
         }
     }
+
+    fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: u32) -> (i32, i32) {
+        let (width, height) = ((LCD_WIDTH * scale) as i32, (LCD_HEIGHT * scale) as i32);
+        pge.fill_rect(x, y, width, height, &pge::WHITE);
+        (x + width, y + height)
+    }
 }
 
 impl pge::State for Emulator {
@@ -174,9 +184,10 @@ impl pge::State for Emulator {
 
         let screen_scale = 3;
 
-        self.draw_tileset(pge, 0, 0, 2);
-        self.draw_maps(pge, 0, (LCD_HEIGHT * screen_scale) as i32, 1);
-        self.draw_cpu_state(pge, (LCD_WIDTH * (screen_scale + 1)) as i32, 0);
+        let (screen_end_x, screen_end_y) = self.draw_screen(pge, 10, 10, screen_scale);
+        let (maps_end_x, _) = self.draw_maps(pge, 10, screen_end_y + 150, 1);
+        self.draw_cpu_state(pge, screen_end_x + 10, 10);
+        self.draw_tileset(pge, maps_end_x + 100, screen_end_y + 150, 1);
 
         if DEBUG {
             println!("DRAW: {}", now.elapsed().as_nanos());

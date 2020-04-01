@@ -32,7 +32,7 @@ fn main() -> std::io::Result<()> {
     let mut emulator = Emulator::new(&bootrom_buffer, &rom_buffer);
 
     let width = LCD_WIDTH * 6;
-    let height = LCD_HEIGHT * 5;
+    let height = LCD_HEIGHT * 6;
     let scale = 1;
 
     let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
