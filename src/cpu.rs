@@ -16,7 +16,7 @@ use crate::emulator::DEBUG;
 // Address of the interrupt enable register
 const IE_ADDR: u16 = 0xFFFF;
 // Address of the interrupt flags register
-const IF_ADDR: u16 = 0xFF0F;
+pub const IF_ADDR: u16 = 0xFF0F;
 // Address the cpu jumps to when the respective interrupts are triggered
 const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
 

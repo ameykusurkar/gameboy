@@ -1,5 +1,7 @@
 use crate::memory::Memory;
 
+use crate::cpu::IF_ADDR;
+
 const NUM_PIXELS_IN_LINE: usize = 8;
 const NUM_LINES_IN_TILE: usize = 8;
 const LINES_NUM_BYTES: usize = 2;
@@ -64,12 +66,12 @@ impl Ppu {
         if self.cycles == 0 {
             self.scanline = (self.scanline + 1) % LINES_PER_FRAME;
 
-            memory.ppu_write(0xFF44, self.scanline as u8);
+            memory.ppu_write(LY_ADDR, self.scanline as u8);
 
             // Request interrupt if scanline matches the requested one
-            if memory.ppu_read(0xFF44) == memory.ppu_read(0xFF45) {
-                let status = memory.ppu_read(0xFF41);
-                memory.ppu_write(0xFF41, set_bit(status, 2, true));
+            if memory.ppu_read(LY_ADDR) == memory.ppu_read(LYC_ADDR) {
+                let status = memory.ppu_read(STAT_ADDR);
+                memory.ppu_write(STAT_ADDR, set_bit(status, 2, true));
                 if read_bit(status, 6) {
                     Self::set_status_interrupt(memory);
                 }
@@ -104,7 +106,7 @@ impl Ppu {
     }
 
     fn status_interrupt_enabled(memory: &Memory, mode: LcdMode) -> bool {
-        let status = memory.ppu_read(0xFF41);
+        let status = memory.ppu_read(STAT_ADDR);
 
         match mode {
             LcdMode::HBlank => read_bit(status, 3),
@@ -115,13 +117,13 @@ impl Ppu {
     }
 
     fn set_status_interrupt(memory: &mut Memory) {
-        let interrupt_flags = memory.ppu_read(0xFF0F);
-        memory.ppu_write(0xFF0F, interrupt_flags | 2);
+        let interrupt_flags = memory.ppu_read(IF_ADDR);
+        memory.ppu_write(IF_ADDR, interrupt_flags | 2);
     }
 
     fn set_vblank_interrupt(memory: &mut Memory) {
-        let interrupt_flags = memory.ppu_read(0xFF0F);
-        memory.ppu_write(0xFF0F, interrupt_flags | 1);
+        let interrupt_flags = memory.ppu_read(IF_ADDR);
+        memory.ppu_write(IF_ADDR, interrupt_flags | 1);
     }
 
     fn set_lcd_mode(memory: &mut Memory, mode: LcdMode) {
@@ -132,10 +134,10 @@ impl Ppu {
             LcdMode::PixelTransfer => 3,
         };
 
-        let mut status = memory.ppu_read(0xFF41);
+        let mut status = memory.ppu_read(STAT_ADDR);
         status = set_bit(status, 0, mode_bits & 0x1 > 0);
         status = set_bit(status, 1, mode_bits & 0x2 > 0);
-        memory.ppu_write(0xFF41, status);
+        memory.ppu_write(STAT_ADDR, status);
     }
 
     pub fn get_background_map(memory: &[u8]) -> Vec<u8> {
@@ -149,7 +151,7 @@ impl Ppu {
     }
 
     pub fn get_map_data(memory: &[u8], map_memory: &[u8]) -> Vec<u8> {
-        let background_palette = memory[0xFF47];
+        let background_palette = memory[BGP_ADDR as usize];
 
         let mut pixels = vec![0; MAP_WIDTH * MAP_HEIGHT];
 
@@ -172,7 +174,7 @@ impl Ppu {
 
     pub fn get_tilset(memory: &[u8]) -> Vec<u8> {
         let (width, height) = (16 * 8, 24 * 8);
-        let background_palette = memory[0xFF47];
+        let background_palette = memory[BGP_ADDR as usize];
 
         let mut pixels = vec![0; width * height];
 
@@ -204,7 +206,7 @@ fn coords_for_pixel(tile_no: usize,
 }
 
 fn get_tile(memory: &[u8], tile_index: u8) -> &[u8] {
-    let start_index = if read_bit(memory[0xFF40], 4) {
+    let start_index = if read_bit(memory[LCDC_ADDR as usize], 4) {
         0x8000 + (tile_index as usize * TILE_NUM_BYTES)
     } else {
         ((0x9000 as i32) + ((tile_index as i8) as i32 * TILE_NUM_BYTES as i32)) as usize
@@ -214,7 +216,7 @@ fn get_tile(memory: &[u8], tile_index: u8) -> &[u8] {
 }
 
 fn get_background_map_memory(memory: &[u8]) -> &[u8] {
-    if read_bit(memory[0xFF40], 3) {
+    if read_bit(memory[LCDC_ADDR as usize], 3) {
         &memory[0x9C00..0xA000]
     } else {
         &memory[0x9800..0x9C00]
@@ -222,7 +224,7 @@ fn get_background_map_memory(memory: &[u8]) -> &[u8] {
 }
 
 fn get_window_map_memory(memory: &[u8]) -> &[u8] {
-    if read_bit(memory[0xFF40], 6) {
+    if read_bit(memory[LCDC_ADDR as usize], 6) {
         &memory[0x9C00..0xA000]
     } else {
         &memory[0x9800..0x9C00]
