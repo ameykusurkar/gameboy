@@ -19,6 +19,26 @@ const V_BLANK_LINES: u32 = 10;
 const LINES_PER_FRAME: u32 = LCD_HEIGHT + V_BLANK_LINES;
 const FRAME_CYCLES: u32 = SCANLINE_CYCLES * LINES_PER_FRAME;
 
+// Video I/O Register addresses
+const LCDC_ADDR: u16 = 0xFF40;
+const STAT_ADDR: u16 = 0xFF41;
+const SCY_ADDR: u16  = 0xFF42;
+const SCX_ADDR: u16  = 0xFF43;
+const LY_ADDR: u16   = 0xFF44;
+const LYC_ADDR: u16  = 0xFF45;
+const BGP_ADDR: u16  = 0xFF47;
+const OBP1_ADDR: u16 = 0xFF48;
+const OBP2_ADDR: u16 = 0xFF49;
+const WX_ADDR: u16   = 0xFF4A;
+const WY_ADDR: u16   = 0xFF4B;
+
+#[derive(PartialEq, Eq, Copy, Clone, Debug)]
+pub enum LcdMode {
+    HBlank,
+    VBlank,
+    OAMSearch,
+    PixelTransfer,
+}
 
 pub struct Ppu {
     screen: [u8; (LCD_WIDTH * LCD_HEIGHT) as usize],
@@ -38,10 +58,15 @@ impl Ppu {
     pub fn clock(&mut self, memory: &mut Memory) {
         // TODO: Update screen buffer
 
+        let old_mode = Self::get_lcd_mode(self.cycles, self.scanline);
+
         self.cycles = (self.cycles + 1) % SCANLINE_CYCLES;
         if self.cycles == 0 {
             self.scanline = (self.scanline + 1) % LINES_PER_FRAME;
+
             memory.ppu_write(0xFF44, self.scanline as u8);
+
+            // Request interrupt if scanline matches the requested one
             if memory.ppu_read(0xFF44) == memory.ppu_read(0xFF45) {
                 let status = memory.ppu_read(0xFF41);
                 memory.ppu_write(0xFF41, set_bit(status, 2, true));
@@ -49,39 +74,43 @@ impl Ppu {
                     Self::set_status_interrupt(memory);
                 }
             }
-
-            if self.scanline == LCD_HEIGHT {
-                // V BLANK
-                Self::set_lcd_mode(memory, 1);
-                let interrupt_flags = memory.ppu_read(0xFF0F);
-                memory.ppu_write(0xFF0F, interrupt_flags | 1);
-
-                let status = memory.ppu_read(0xFF41);
-                if read_bit(status, 4) {
-                    Self::set_status_interrupt(memory);
-                }
-            } else {
-                // OAM SEARCH
-                Self::set_lcd_mode(memory, 2);
-                let status = memory.ppu_read(0xFF41);
-                if read_bit(status, 5) {
-                    Self::set_status_interrupt(memory);
-                }
-            }
         }
 
-        if self.scanline < LCD_HEIGHT {
-            if self.cycles == OAM_SEARCH_CYCLES {
-                // PIXEL TRANSFER
-                Self::set_lcd_mode(memory, 3);
-            } else if self.cycles == (OAM_SEARCH_CYCLES + PIXEL_TRANSFER_CYCLES) {
-                // H BLANK
-                Self::set_lcd_mode(memory, 0);
-                let status = memory.ppu_read(0xFF41);
-                if read_bit(status, 3) {
-                    Self::set_status_interrupt(memory);
-                }
+        let mode = Self::get_lcd_mode(self.cycles, self.scanline);
+
+        if mode != old_mode {
+            Self::set_lcd_mode(memory, mode);
+
+            if mode == LcdMode::VBlank {
+                Self::set_vblank_interrupt(memory);
             }
+
+            if Self::status_interrupt_enabled(memory, mode) {
+                Self::set_status_interrupt(memory);
+            }
+        }
+    }
+
+    fn get_lcd_mode(cycles: u32, scanline: u32) -> LcdMode {
+        if scanline >= LCD_HEIGHT {
+            LcdMode::VBlank
+        } else if cycles < OAM_SEARCH_CYCLES {
+            LcdMode::OAMSearch
+        } else if cycles < OAM_SEARCH_CYCLES + PIXEL_TRANSFER_CYCLES {
+            LcdMode::PixelTransfer
+        } else {
+            LcdMode::HBlank
+        }
+    }
+
+    fn status_interrupt_enabled(memory: &Memory, mode: LcdMode) -> bool {
+        let status = memory.ppu_read(0xFF41);
+
+        match mode {
+            LcdMode::HBlank => read_bit(status, 3),
+            LcdMode::VBlank => read_bit(status, 4),
+            LcdMode::OAMSearch => read_bit(status, 5),
+            LcdMode::PixelTransfer => false,
         }
     }
 
@@ -90,10 +119,22 @@ impl Ppu {
         memory.ppu_write(0xFF0F, interrupt_flags | 2);
     }
 
-    fn set_lcd_mode(memory: &mut Memory, mode: u8) {
+    fn set_vblank_interrupt(memory: &mut Memory) {
+        let interrupt_flags = memory.ppu_read(0xFF0F);
+        memory.ppu_write(0xFF0F, interrupt_flags | 1);
+    }
+
+    fn set_lcd_mode(memory: &mut Memory, mode: LcdMode) {
+        let mode_bits = match mode {
+            LcdMode::HBlank => 0,
+            LcdMode::VBlank => 1,
+            LcdMode::OAMSearch => 2,
+            LcdMode::PixelTransfer => 3,
+        };
+
         let mut status = memory.ppu_read(0xFF41);
-        status = set_bit(status, 0, mode & 0x1 > 0);
-        status = set_bit(status, 1, mode & 0x2 > 0);
+        status = set_bit(status, 0, mode_bits & 0x1 > 0);
+        status = set_bit(status, 1, mode_bits & 0x2 > 0);
         memory.ppu_write(0xFF41, status);
     }
 

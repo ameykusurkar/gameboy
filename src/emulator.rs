@@ -6,6 +6,7 @@ use crate::registers::TwoRegisterIndex::HL;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
 
 pub const DEBUG: bool = false;
+const NORMAL_SPEED: bool = false;
 
 pub struct Emulator {
     cpu: Cpu,
@@ -121,8 +122,11 @@ impl Emulator {
 
         pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
 
+        pge.draw_string(x, y + 18 * cy, &format!("IE: {:08b}", self.cpu.memory.cpu_read(0xFFFF)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 20 * cy, &format!("IF: {:08b}", self.cpu.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
+
         let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
-        let start_y = y + 18 * cy;
+        let start_y = y + 22 * cy;
         for (i, (addr, repr)) in instructions.iter().enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
             let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
@@ -156,7 +160,7 @@ impl pge::State for Emulator {
             }
         }
 
-        if !self.single_step_mode {
+        if !self.single_step_mode && NORMAL_SPEED {
             std::thread::sleep(std::time::Duration::from_millis(16));
         }
 
