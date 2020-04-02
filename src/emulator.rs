@@ -48,7 +48,7 @@ impl Emulator {
     fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let width = MAP_WIDTH;
         let height = MAP_HEIGHT;
-        let pixel_buffer = Ppu::get_background_map(self.cpu.get_memory());
+        let pixel_buffer = Ppu::get_background_map(&self.cpu.memory);
 
         let mut background_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -57,7 +57,7 @@ impl Emulator {
             background_map_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
         }
 
-        let pixel_buffer = Ppu::get_window_map(self.cpu.get_memory());
+        let pixel_buffer = Ppu::get_window_map(&self.cpu.memory);
         let mut window_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
             let x = i % width;
@@ -74,7 +74,7 @@ impl Emulator {
 
     fn draw_tileset(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (16 * 8, 24 * 8);
-        let pixel_buffer = Ppu::get_tilset(self.cpu.get_memory());
+        let pixel_buffer = Ppu::get_tileset(&self.cpu.memory);
 
         let mut tileset_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {

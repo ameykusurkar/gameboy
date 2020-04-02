@@ -67,10 +67,6 @@ impl Cpu {
         self.write(0xFF50, 1);
     }
 
-    pub fn get_memory(&self) -> &[u8] {
-        &self.memory.get_memory()
-    }
-
     pub fn get_memory_mut(&mut self) -> &mut Memory {
         &mut self.memory
     }

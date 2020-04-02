@@ -58,8 +58,6 @@ impl Ppu {
     }
 
     pub fn clock(&mut self, memory: &mut Memory) {
-        // TODO: Update screen buffer
-
         let old_mode = Self::get_lcd_mode(self.cycles, self.scanline);
 
         if old_mode == LcdMode::PixelTransfer && (self.cycles - OAM_SEARCH_CYCLES) < 40 {
@@ -69,11 +67,12 @@ impl Ppu {
             let scroll_x = memory.ppu_read(SCX_ADDR);
             let scroll_y = memory.ppu_read(SCY_ADDR);
 
+            let map = Self::get_background_map_memory(memory);
+
             for x in start_x..(start_x + 4) {
-                let pixel = Self::get_background_pixel(
-                    // Since we are using u8, x and y should automatically wrap
-                    // around 256
-                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y
+                let pixel = Self::get_pixel(
+                    // Since we are using u8, x and y should automatically wrap around 256
+                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
                 );
                 let index = self.scanline * LCD_WIDTH + x;
                 self.screen[index as usize] = pixel;
@@ -111,14 +110,16 @@ impl Ppu {
         }
     }
 
-    // TODO: Clean up and refactor everything
-    fn get_background_pixel(memory: &Memory, x: u8, y: u8) -> u8 {
-        let (tile_x, tile_y) = (x as u32 / 8, y as u32 / 8);
-        let map = Self::get_background_map_memory(memory);
-        let tileset_index = map[(tile_y * 32 + tile_x) as usize];
-        let tile = Self::get_tile(memory, tileset_index);
+    fn get_pixel(memory: &Memory, x: u8, y: u8, map: &[u8]) -> u8 {
+        let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
+        let tileset_index = map[tile_y * 32 + tile_x];
+        let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
 
-        let (line_x, line_y) = (x % 8, y % 8);
+        let tile = Self::get_tile(memory, tileset_index);
+        Self::get_tile_pixel(memory, tile, line_x, line_y)
+    }
+
+    fn get_tile_pixel(memory: &Memory, tile: &[u8], line_x: u8, line_y: u8) -> u8 {
         let upper_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
         let lower_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
 
@@ -138,6 +139,14 @@ impl Ppu {
 
     fn get_background_map_memory(memory: &Memory) -> &[u8] {
         if read_bit(memory.ppu_read(LCDC_ADDR), 3) {
+            memory.ppu_read_range(0x9C00..0xA000)
+        } else {
+            memory.ppu_read_range(0x9800..0x9C00)
+        }
+    }
+
+    fn get_window_map_memory(memory: &Memory) -> &[u8] {
+        if read_bit(memory.ppu_read(LCDC_ADDR), 6) {
             memory.ppu_read_range(0x9C00..0xA000)
         } else {
             memory.ppu_read_range(0x9800..0x9C00)
@@ -191,99 +200,41 @@ impl Ppu {
         memory.ppu_write(STAT_ADDR, status);
     }
 
-    pub fn get_background_map(memory: &[u8]) -> Vec<u8> {
-        let background_map_memory = get_background_map_memory(memory);
+    pub fn get_background_map(memory: &Memory) -> Vec<u8> {
+        let background_map_memory = Self::get_background_map_memory(memory);
         Self::get_map_data(memory, background_map_memory)
     }
 
-    pub fn get_window_map(memory: &[u8]) -> Vec<u8> {
-        let window_map_memory = get_window_map_memory(memory);
+    pub fn get_window_map(memory: &Memory) -> Vec<u8> {
+        let window_map_memory = Self::get_window_map_memory(memory);
         Self::get_map_data(memory, window_map_memory)
     }
 
-    pub fn get_map_data(memory: &[u8], map_memory: &[u8]) -> Vec<u8> {
-        let background_palette = memory[BGP_ADDR as usize];
+    pub fn get_map_data(memory: &Memory, map: &[u8]) -> Vec<u8> {
+        (0..MAP_WIDTH * MAP_HEIGHT).map(|i| {
+            let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
+            // Since we are using u8, x and y should automatically wrap around 256
+            Self::get_pixel(memory, x as u8, y as u8, map)
+        }).collect()
+    }
 
-        let mut pixels = vec![0; MAP_WIDTH * MAP_HEIGHT];
+    pub fn get_tileset(memory: &Memory) -> Vec<u8> {
+        let num_tiles = 16 * 24;
+        let num_pixels_in_tile = NUM_LINES_IN_TILE * NUM_PIXELS_IN_LINE;
+        let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
-        for (tile_no, tile_index) in map_memory.iter().enumerate() {
-            let tile = get_tile(memory, *tile_index);
-            for (line_no, line) in tile.chunks(LINES_NUM_BYTES).enumerate() {
-                for i in 0..NUM_PIXELS_IN_LINE {
-                    let upper_bit = read_bit(line[0], (NUM_PIXELS_IN_LINE-1-i) as u8) as u8;
-                    let lower_bit = read_bit(line[1], (NUM_PIXELS_IN_LINE-1-i) as u8) as u8;
-                    let pixel = pixel_map(upper_bit << 1 | lower_bit, background_palette);
-                    let (x, y) = coords_for_pixel(tile_no, line_no, i as usize, MAP_WIDTH);
-                    let pixel_index = y * MAP_WIDTH + x;
-                    pixels[pixel_index] = pixel;
-                }
+        for (tile_index, tile) in memory.ppu_read_range(0x8000..0x9800).chunks(TILE_NUM_BYTES).enumerate() {
+            for p in 0..num_pixels_in_tile {
+                let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
+                let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
+                let y = (tile_index / 16) * NUM_PIXELS_IN_LINE + line_y;
+                pixels[y * NUM_PIXELS_IN_LINE * 16 + x] =
+                    Self::get_tile_pixel(memory, tile, line_x as u8, line_y as u8);
             }
         }
 
         pixels
     }
-
-    pub fn get_tilset(memory: &[u8]) -> Vec<u8> {
-        let (width, height) = (16 * 8, 24 * 8);
-        let background_palette = memory[BGP_ADDR as usize];
-
-        let mut pixels = vec![0; width * height];
-
-        for (tile_no, tile) in get_tileset_memory(memory).chunks(TILE_NUM_BYTES).enumerate() {
-            for (line_no, line) in tile.chunks(LINES_NUM_BYTES).enumerate() {
-                for i in 0..NUM_PIXELS_IN_LINE {
-                    let upper_bit = read_bit(line[0], (NUM_PIXELS_IN_LINE-1-i) as u8) as u8;
-                    let lower_bit = read_bit(line[1], (NUM_PIXELS_IN_LINE-1-i) as u8) as u8;
-                    let pixel = pixel_map(upper_bit << 1 | lower_bit, background_palette);
-                    let (x, y) = coords_for_pixel(tile_no, line_no, i as usize, width);
-                    let pixel_index = y * width + x;
-                    pixels[pixel_index] = pixel;
-                }
-            }
-        }
-
-        pixels
-    }
-}
-
-fn coords_for_pixel(tile_no: usize,
-                    line_no: usize,
-                    pixel_no: usize,
-                    width: usize) -> (usize, usize) {
-    let tiles_per_row = width / NUM_PIXELS_IN_LINE;
-    let x = (tile_no % (tiles_per_row)) * NUM_PIXELS_IN_LINE + pixel_no;
-    let y = tile_no / (tiles_per_row) * NUM_LINES_IN_TILE + line_no;
-    (x, y)
-}
-
-fn get_tile(memory: &[u8], tile_index: u8) -> &[u8] {
-    let start_index = if read_bit(memory[LCDC_ADDR as usize], 4) {
-        0x8000 + (tile_index as usize * TILE_NUM_BYTES)
-    } else {
-        ((0x9000 as i32) + ((tile_index as i8) as i32 * TILE_NUM_BYTES as i32)) as usize
-    };
-
-    &memory[start_index..start_index+TILE_NUM_BYTES]
-}
-
-fn get_background_map_memory(memory: &[u8]) -> &[u8] {
-    if read_bit(memory[LCDC_ADDR as usize], 3) {
-        &memory[0x9C00..0xA000]
-    } else {
-        &memory[0x9800..0x9C00]
-    }
-}
-
-fn get_window_map_memory(memory: &[u8]) -> &[u8] {
-    if read_bit(memory[LCDC_ADDR as usize], 6) {
-        &memory[0x9C00..0xA000]
-    } else {
-        &memory[0x9800..0x9C00]
-    }
-}
-
-fn get_tileset_memory(memory: &[u8]) -> &[u8] {
-    &memory[0x8000..0x9800]
 }
 
 fn pixel_map(color_number: u8, palette: u8) -> u8 {
