@@ -88,6 +88,10 @@ impl Memory {
         self.memory[addr as usize]
     }
 
+    pub fn ppu_read_range(&self, addr_range: std::ops::Range<usize>) -> &[u8] {
+        &self.memory[addr_range]
+    }
+
     pub fn ppu_write(&mut self, addr: u16, val: u8) {
         self.memory[addr as usize] = val;
     }

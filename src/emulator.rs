@@ -6,7 +6,7 @@ use crate::registers::TwoRegisterIndex::HL;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
 
 pub const DEBUG: bool = false;
-const NORMAL_SPEED: bool = false;
+const NORMAL_SPEED: bool = true;
 
 pub struct Emulator {
     cpu: Cpu,
@@ -138,10 +138,16 @@ impl Emulator {
         }
     }
 
-    fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: u32) -> (i32, i32) {
-        let (width, height) = ((LCD_WIDTH * scale) as i32, (LCD_HEIGHT * scale) as i32);
-        pge.fill_rect(x, y, width, height, &pge::WHITE);
-        (x + width, y + height)
+    fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
+        let (width, height) = (LCD_WIDTH as usize, LCD_HEIGHT as usize);
+        let mut screen_sprite = pge::Sprite::new(width, height);
+        for (i, pixel) in self.ppu.screen.iter().enumerate() {
+            let (x, y) = (i % width, i / width);
+            screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+        }
+        pge.draw_sprite(x, y, &screen_sprite, scale);
+
+        (x + (width * scale) as i32, y + (height * scale) as i32)
     }
 }
 
@@ -171,7 +177,8 @@ impl pge::State for Emulator {
         }
 
         if !self.single_step_mode && NORMAL_SPEED {
-            std::thread::sleep(std::time::Duration::from_millis(16));
+            // TODO: Make this accurate based on elapsed time
+            std::thread::sleep(std::time::Duration::from_millis(9));
         }
 
         if DEBUG {

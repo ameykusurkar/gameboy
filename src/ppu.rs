@@ -43,7 +43,7 @@ pub enum LcdMode {
 }
 
 pub struct Ppu {
-    screen: [u8; (LCD_WIDTH * LCD_HEIGHT) as usize],
+    pub screen: [u8; (LCD_WIDTH * LCD_HEIGHT) as usize],
     cycles: u32,
     scanline: u32,
 }
@@ -61,6 +61,24 @@ impl Ppu {
         // TODO: Update screen buffer
 
         let old_mode = Self::get_lcd_mode(self.cycles, self.scanline);
+
+        if old_mode == LcdMode::PixelTransfer && (self.cycles - OAM_SEARCH_CYCLES) < 40 {
+            // We are drawing 4 pixels per cycle
+            let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
+
+            let scroll_x = memory.ppu_read(SCX_ADDR);
+            let scroll_y = memory.ppu_read(SCY_ADDR);
+
+            for x in start_x..(start_x + 4) {
+                let pixel = Self::get_background_pixel(
+                    // Since we are using u8, x and y should automatically wrap
+                    // around 256
+                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y
+                );
+                let index = self.scanline * LCD_WIDTH + x;
+                self.screen[index as usize] = pixel;
+            }
+        }
 
         self.cycles = (self.cycles + 1) % SCANLINE_CYCLES;
         if self.cycles == 0 {
@@ -90,6 +108,39 @@ impl Ppu {
             if Self::status_interrupt_enabled(memory, mode) {
                 Self::set_status_interrupt(memory);
             }
+        }
+    }
+
+    // TODO: Clean up and refactor everything
+    fn get_background_pixel(memory: &Memory, x: u8, y: u8) -> u8 {
+        let (tile_x, tile_y) = (x as u32 / 8, y as u32 / 8);
+        let map = Self::get_background_map_memory(memory);
+        let tileset_index = map[(tile_y * 32 + tile_x) as usize];
+        let tile = Self::get_tile(memory, tileset_index);
+
+        let (line_x, line_y) = (x % 8, y % 8);
+        let upper_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
+        let lower_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
+
+        let background_palette = memory.ppu_read(BGP_ADDR);
+        pixel_map(upper_bit << 1 | lower_bit, background_palette)
+    }
+
+    fn get_tile(memory: &Memory, tile_index: u8) -> &[u8] {
+        let start_index = if read_bit(memory.ppu_read(LCDC_ADDR), 4) {
+            0x8000 + (tile_index as usize * TILE_NUM_BYTES)
+        } else {
+            ((0x9000 as i32) + ((tile_index as i8) as i32 * TILE_NUM_BYTES as i32)) as usize
+        };
+
+        memory.ppu_read_range(start_index..start_index+TILE_NUM_BYTES)
+    }
+
+    fn get_background_map_memory(memory: &Memory) -> &[u8] {
+        if read_bit(memory.ppu_read(LCDC_ADDR), 3) {
+            memory.ppu_read_range(0x9C00..0xA000)
+        } else {
+            memory.ppu_read_range(0x9800..0x9C00)
         }
     }
 
