@@ -16,7 +16,7 @@ use crate::emulator::DEBUG;
 // Address of the interrupt enable register
 const IE_ADDR: u16 = 0xFFFF;
 // Address of the interrupt flags register
-const IF_ADDR: u16 = 0xFF0F;
+pub const IF_ADDR: u16 = 0xFF0F;
 // Address the cpu jumps to when the respective interrupts are triggered
 const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
 
@@ -67,8 +67,8 @@ impl Cpu {
         self.write(0xFF50, 1);
     }
 
-    pub fn get_memory(&self) -> &[u8] {
-        &self.memory.get_memory()
+    pub fn get_memory_mut(&mut self) -> &mut Memory {
+        &mut self.memory
     }
 
     pub fn step(&mut self) {
@@ -154,10 +154,6 @@ impl Cpu {
     }
 
     pub fn execute(&mut self) -> u32 {
-        // TODO: Remove this
-        // Temp hack to let CPU think that screen is done rendering
-        self.memory.master_write(0xFF44, 0x90);
-
         let opcode = self.read(self.pc);
 
         let mut extra_cycles = 0;
@@ -422,7 +418,7 @@ impl Cpu {
                 let addr = self.regs.read(HL);
                 let old = self.read_mem(addr);
                 self.write_mem(addr, old - 1);
-                self.set_flag(ZERO_FLAG, (old + 1) == 0);
+                self.set_flag(ZERO_FLAG, (old - 1) == 0);
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
             },

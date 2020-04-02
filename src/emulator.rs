@@ -1,14 +1,16 @@
 use crate::cpu::Cpu;
-use crate::ppu;
+use crate::ppu::Ppu;
 use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex::HL;
 
-use crate::ppu::NUM_PIXELS_IN_LINE;
+use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
 
 pub const DEBUG: bool = false;
+const NORMAL_SPEED: bool = true;
 
 pub struct Emulator {
     cpu: Cpu,
+    ppu: Ppu,
     cycles: u32,
     single_step_mode: bool,
 }
@@ -21,6 +23,7 @@ impl Emulator {
 
         Emulator {
             cpu,
+            ppu: Ppu::new(),
             cycles: 0,
             single_step_mode: false,
         }
@@ -28,6 +31,7 @@ impl Emulator {
 
     fn clock(&mut self) {
         self.cpu.step();
+        self.ppu.clock(self.cpu.get_memory_mut());
         self.cycles += 1;
     }
 
@@ -41,22 +45,49 @@ impl Emulator {
         }
     }
 
-    fn draw_background_map(&mut self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) {
-        let width = 32 * NUM_PIXELS_IN_LINE;
-        let height = 32 * NUM_PIXELS_IN_LINE;
-        let pixel_buffer = ppu::get_pixel_buffer(self.cpu.get_memory(), width, height);
+    fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
+        let width = MAP_WIDTH;
+        let height = MAP_HEIGHT;
+        let pixel_buffer = Ppu::get_background_map(&self.cpu.memory);
 
-        let mut sprite = pge::Sprite::new(width, height);
+        let mut background_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
             let x = i % width;
             let y = i / width;
-            sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+            background_map_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
         }
 
-        pge.draw_sprite(x, y, &sprite, scale);
+        let pixel_buffer = Ppu::get_window_map(&self.cpu.memory);
+        let mut window_map_sprite = pge::Sprite::new(width, height);
+        for (i, pixel) in pixel_buffer.iter().enumerate() {
+            let x = i % width;
+            let y = i / width;
+            window_map_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+        }
+
+        let gap_x = 100;
+        pge.draw_sprite(x, y, &background_map_sprite, scale);
+        pge.draw_sprite(x + width as i32 + gap_x, y, &window_map_sprite, scale);
+
+        (x + (scale * 256 * 2) as i32 + gap_x, y + (scale * 256) as i32)
     }
 
-    fn draw_cpu_state(&mut self, pge: &mut pge::PGE, x: i32, y: i32) {
+    fn draw_tileset(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
+        let (width, height) = (16 * 8, 24 * 8);
+        let pixel_buffer = Ppu::get_tileset(&self.cpu.memory);
+
+        let mut tileset_sprite = pge::Sprite::new(width, height);
+        for (i, pixel) in pixel_buffer.iter().enumerate() {
+            let x = i % width;
+            let y = i / width;
+            tileset_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+        }
+
+        pge.draw_sprite(x, y, &tileset_sprite, scale);
+        (x + (width * scale) as i32, y + (height * scale) as i32)
+    }
+
+    fn draw_cpu_state(&self, pge: &mut pge::PGE, x: i32, y: i32) {
         let scale = 2;
         let (cx, cy) = (scale * 8 + 2, scale * 8 + 2);
         pge.draw_string(x, y, "REGISTERS", &pge::WHITE, scale);
@@ -95,13 +126,28 @@ impl Emulator {
 
         pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
 
+        pge.draw_string(x, y + 18 * cy, &format!("IE: {:08b}", self.cpu.memory.cpu_read(0xFFFF)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 20 * cy, &format!("IF: {:08b}", self.cpu.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
+
         let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
-        let start_y = y + 18 * cy;
+        let start_y = y + 22 * cy;
         for (i, (addr, repr)) in instructions.iter().enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
             let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
             pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
         }
+    }
+
+    fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
+        let (width, height) = (LCD_WIDTH as usize, LCD_HEIGHT as usize);
+        let mut screen_sprite = pge::Sprite::new(width, height);
+        for (i, pixel) in self.ppu.screen.iter().enumerate() {
+            let (x, y) = (i % width, i / width);
+            screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+        }
+        pge.draw_sprite(x, y, &screen_sprite, scale);
+
+        (x + (width * scale) as i32, y + (height * scale) as i32)
     }
 }
 
@@ -130,6 +176,11 @@ impl pge::State for Emulator {
             }
         }
 
+        if !self.single_step_mode && NORMAL_SPEED {
+            // TODO: Make this accurate based on elapsed time
+            std::thread::sleep(std::time::Duration::from_millis(9));
+        }
+
         if DEBUG {
             println!("CYCLE: {}", now.elapsed().as_nanos());
         }
@@ -138,8 +189,12 @@ impl pge::State for Emulator {
 
         pge.clear(&pge::BLACK);
 
-        self.draw_background_map(pge, 0, 0, 2);
-        self.draw_cpu_state(pge, (32 * NUM_PIXELS_IN_LINE * 2) as i32, 0);
+        let screen_scale = 3;
+
+        let (screen_end_x, screen_end_y) = self.draw_screen(pge, 10, 10, screen_scale);
+        let (maps_end_x, _) = self.draw_maps(pge, 10, screen_end_y + 150, 1);
+        self.draw_cpu_state(pge, screen_end_x + 10, 10);
+        self.draw_tileset(pge, maps_end_x + 100, screen_end_y + 150, 1);
 
         if DEBUG {
             println!("DRAW: {}", now.elapsed().as_nanos());
