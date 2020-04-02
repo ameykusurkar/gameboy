@@ -120,8 +120,8 @@ impl Ppu {
     }
 
     fn get_tile_pixel(memory: &Memory, tile: &[u8], line_x: u8, line_y: u8) -> u8 {
-        let upper_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
-        let lower_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
+        let lower_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
+        let upper_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
 
         let background_palette = memory.ppu_read(BGP_ADDR);
         pixel_map(upper_bit << 1 | lower_bit, background_palette)

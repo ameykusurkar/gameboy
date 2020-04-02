@@ -38,8 +38,8 @@ impl Emulator {
     fn color(pixel: u8) -> pge::Pixel {
         match pixel {
             0x0 => pge::Pixel::rgb(0xFF, 0xFF, 0xFF),
-            0x1 => pge::Pixel::rgb(0x80, 0x80, 0x80),
-            0x2 => pge::Pixel::rgb(0x40, 0x40, 0x40),
+            0x1 => pge::Pixel::rgb(0xC0, 0xC0, 0xC0),
+            0x2 => pge::Pixel::rgb(0x60, 0x60, 0x60),
             0x3 => pge::Pixel::rgb(0x00, 0x00, 0x00),
             _ => panic!("Unknown pixel value {:02x}", pixel),
         }
