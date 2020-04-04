@@ -127,10 +127,14 @@ impl Emulator {
         pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
 
         pge.draw_string(x, y + 18 * cy, &format!("IE: {:08b}", self.cpu.memory.cpu_read(0xFFFF)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 20 * cy, &format!("IF: {:08b}", self.cpu.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 19 * cy, &format!("IF: {:08b}", self.cpu.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
 
+        pge.draw_string(x, y + 21 * cy, &format!("LCDC: {:08b}", self.cpu.memory.cpu_read(0xFF40)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 22 * cy, &format!("STAT: {:08b}", self.cpu.memory.cpu_read(0xFF41)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 23 * cy, &format!("LY: {}", self.cpu.memory.cpu_read(0xFF44)), &pge::WHITE, scale);
+
+        let start_y = y + 25 * cy;
         let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
-        let start_y = y + 22 * cy;
         for (i, (addr, repr)) in instructions.iter().enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
             let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
@@ -140,12 +144,17 @@ impl Emulator {
 
     fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (LCD_WIDTH as usize, LCD_HEIGHT as usize);
-        let mut screen_sprite = pge::Sprite::new(width, height);
-        for (i, pixel) in self.ppu.screen.iter().enumerate() {
-            let (x, y) = (i % width, i / width);
-            screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+
+        if self.cpu.memory.lcd_enabled() {
+            let mut screen_sprite = pge::Sprite::new(width, height);
+            for (i, pixel) in self.ppu.screen.iter().enumerate() {
+                let (x, y) = (i % width, i / width);
+                screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+            }
+            pge.draw_sprite(x, y, &screen_sprite, scale);
+        } else {
+            pge.fill_rect(x, y, (width * scale) as i32, (height * scale) as i32, &pge::WHITE);
         }
-        pge.draw_sprite(x, y, &screen_sprite, scale);
 
         (x + (width * scale) as i32, y + (height * scale) as i32)
     }

@@ -85,13 +85,13 @@ impl Ppu {
 
             memory.ppu_write(LY_ADDR, self.scanline as u8);
 
+            let line_is_match = memory.ppu_read(LY_ADDR) == memory.ppu_read(LYC_ADDR);
+            let status = memory.ppu_read(STAT_ADDR);
+            memory.ppu_write(STAT_ADDR, set_bit(status, 2, line_is_match));
+
             // Request interrupt if scanline matches the requested one
-            if memory.ppu_read(LY_ADDR) == memory.ppu_read(LYC_ADDR) {
-                let status = memory.ppu_read(STAT_ADDR);
-                memory.ppu_write(STAT_ADDR, set_bit(status, 2, true));
-                if read_bit(status, 6) {
-                    Self::set_status_interrupt(memory);
-                }
+            if line_is_match && read_bit(status, 6) {
+                Self::set_status_interrupt(memory);
             }
         }
 

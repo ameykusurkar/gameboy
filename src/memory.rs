@@ -45,6 +45,12 @@ impl Memory {
     }
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
+        // TODO: Change this when implementing MBC1
+        if addr < 0x8000 {
+            // There is no memory bank controller right now, so ignore writes
+            return;
+        }
+
         // Hard-coded because test roms write results to serial port
         if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
             println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
@@ -76,7 +82,7 @@ impl Memory {
         self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer && lcd_mode == LcdMode::OAMSearch)
     }
 
-    fn lcd_enabled(&self) -> bool {
+    pub fn lcd_enabled(&self) -> bool {
         read_bit(self.memory[0xFF40], 7)
     }
 
