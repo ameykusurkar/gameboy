@@ -149,10 +149,12 @@ impl Emulator {
         pge.draw_string(x, y + 23 * cy, &format!("LY: {}", self.cpu.memory.cpu_read(0xFF44)), &pge::WHITE, scale);
 
         let start_y = y + 25 * cy;
-        let instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
-        for (i, (addr, repr)) in instructions.iter().enumerate() {
+        let mut instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
+        let num_instructions = std::cmp::min(instructions.len(), 5);
+        let instructions = instructions.drain(..num_instructions);
+        for (i, (addr, repr)) in instructions.enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
-            let color = if *addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
+            let color = if addr == self.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
             pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
         }
     }
