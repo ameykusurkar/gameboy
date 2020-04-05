@@ -21,6 +21,8 @@ const V_BLANK_LINES: u32 = 10;
 const LINES_PER_FRAME: u32 = LCD_HEIGHT + V_BLANK_LINES;
 const FRAME_CYCLES: u32 = SCANLINE_CYCLES * LINES_PER_FRAME;
 
+const SPRITES_PER_LINE: usize = 10;
+
 // Video I/O Register addresses
 const LCDC_ADDR: u16 = 0xFF40;
 const STAT_ADDR: u16 = 0xFF41;
@@ -29,8 +31,8 @@ const SCX_ADDR: u16  = 0xFF43;
 const LY_ADDR: u16   = 0xFF44;
 const LYC_ADDR: u16  = 0xFF45;
 const BGP_ADDR: u16  = 0xFF47;
-const OBP1_ADDR: u16 = 0xFF48;
-const OBP2_ADDR: u16 = 0xFF49;
+const OBP0_ADDR: u16 = 0xFF48;
+const OBP1_ADDR: u16 = 0xFF49;
 const WX_ADDR: u16   = 0xFF4A;
 const WY_ADDR: u16   = 0xFF4B;
 
@@ -46,6 +48,7 @@ pub struct Ppu {
     pub screen: [u8; (LCD_WIDTH * LCD_HEIGHT) as usize],
     cycles: u32,
     scanline: u32,
+    visible_sprites: Vec<Sprite>,
 }
 
 impl Ppu {
@@ -54,6 +57,7 @@ impl Ppu {
             screen: [0; (LCD_WIDTH * LCD_HEIGHT) as usize],
             cycles: 0,
             scanline: 0,
+            visible_sprites: Vec::new(),
         }
     }
 
@@ -70,10 +74,18 @@ impl Ppu {
             let map = Self::get_background_map_memory(memory);
 
             for x in start_x..(start_x + 4) {
-                let pixel = Self::get_pixel(
+                // TODO: Only show background/sprites when enabled
+                // TODO: Implement windows
+                let mut pixel = Self::get_background_pixel(
                     // Since we are using u8, x and y should automatically wrap around 256
                     memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
                 );
+
+                // TODO: Check sprite priority, and account for transparent pixels
+                if let Some(p) = self.get_sprite_pixel(memory, x as u8, self.scanline as u8) {
+                    pixel = p;
+                }
+
                 let index = self.scanline * LCD_WIDTH + x;
                 self.screen[index as usize] = pixel;
             }
@@ -100,8 +112,14 @@ impl Ppu {
         if mode != old_mode {
             Self::set_lcd_mode(memory, mode);
 
-            if mode == LcdMode::VBlank {
-                Self::set_vblank_interrupt(memory);
+            match mode {
+                LcdMode::VBlank => {
+                    Self::set_vblank_interrupt(memory);
+                },
+                LcdMode::PixelTransfer => {
+                    self.visible_sprites = Self::compute_sprites_for_line(memory, self.scanline);
+                },
+                _ => (),
             }
 
             if Self::status_interrupt_enabled(memory, mode) {
@@ -110,21 +128,57 @@ impl Ppu {
         }
     }
 
-    fn get_pixel(memory: &Memory, x: u8, y: u8, map: &[u8]) -> u8 {
+    fn get_sprite_pixel(&self, memory: &Memory, x: u8, y: u8) -> Option<u8> {
+        let sprite = self.visible_sprites.iter().find(|sprite| {
+            let x_start = sprite.x as i32 - 8;
+            (x_start..x_start+(NUM_PIXELS_IN_LINE as i32)).contains(&(x as i32))
+        });
+
+        sprite.map(|sprite| {
+            let tile = Self::get_sprite_tile(memory, sprite.tile_no);
+            let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
+            // TODO: Account for tiles being flipped
+            let (line_x, line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
+            let palette = match sprite.palette_no {
+                0 => memory.ppu_read(OBP0_ADDR),
+                1 => memory.ppu_read(OBP1_ADDR),
+                _ => panic!("Invalid palette_no: {}", sprite.palette_no),
+            };
+
+            Self::get_tile_pixel(tile, line_x, line_y, palette)
+        })
+    }
+
+    fn compute_sprites_for_line(memory: &Memory, line_no: u32) -> Vec<Sprite> {
+        let sprites = memory.ppu_read_range(0xFE00..0xFEA0).chunks(4)
+            .map(|bytes| Sprite::from(bytes));
+
+        let mut sprites_on_line_enumerated: Vec<_> = sprites.filter(|sprite| {
+            let y_start = sprite.y as i32 - 16;
+            // TODO: Account for varying sprite height
+            sprite.x != 0 && (y_start..y_start+8).contains(&(line_no as i32))
+        }).enumerate().collect();
+
+        sprites_on_line_enumerated.sort_by_key(|(i, sprite)| (sprite.x, *i));
+
+        let num_sprites = std::cmp::min(SPRITES_PER_LINE, sprites_on_line_enumerated.len());
+        sprites_on_line_enumerated.drain(0..num_sprites).map(|(_, s)| s).collect()
+    }
+
+    fn get_background_pixel(memory: &Memory, x: u8, y: u8, map: &[u8]) -> u8 {
         let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
         let tileset_index = map[tile_y * 32 + tile_x];
         let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
 
         let tile = Self::get_tile(memory, tileset_index);
-        Self::get_tile_pixel(memory, tile, line_x, line_y)
+        let background_palette = memory.ppu_read(BGP_ADDR);
+        Self::get_tile_pixel(tile, line_x, line_y, background_palette)
     }
 
-    fn get_tile_pixel(memory: &Memory, tile: &[u8], line_x: u8, line_y: u8) -> u8 {
+    fn get_tile_pixel(tile: &[u8], line_x: u8, line_y: u8, palette: u8) -> u8 {
         let lower_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
         let upper_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
-
-        let background_palette = memory.ppu_read(BGP_ADDR);
-        pixel_map(upper_bit << 1 | lower_bit, background_palette)
+        pixel_map(upper_bit << 1 | lower_bit, palette)
     }
 
     fn get_sprite_tile(memory: &Memory, tile_index: u8) -> &[u8] {
@@ -219,7 +273,7 @@ impl Ppu {
         (0..MAP_WIDTH * MAP_HEIGHT).map(|i| {
             let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
             // Since we are using u8, x and y should automatically wrap around 256
-            Self::get_pixel(memory, x as u8, y as u8, map)
+            Self::get_background_pixel(memory, x as u8, y as u8, map)
         }).collect()
     }
 
@@ -228,13 +282,14 @@ impl Ppu {
         let num_pixels_in_tile = NUM_LINES_IN_TILE * NUM_PIXELS_IN_LINE;
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
+        let palette = memory.ppu_read(BGP_ADDR);
         for (tile_index, tile) in memory.ppu_read_range(0x8000..0x9800).chunks(TILE_NUM_BYTES).enumerate() {
             for p in 0..num_pixels_in_tile {
                 let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
                 let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
                 let y = (tile_index / 16) * NUM_PIXELS_IN_LINE + line_y;
                 pixels[y * NUM_PIXELS_IN_LINE * 16 + x] =
-                    Self::get_tile_pixel(memory, tile, line_x as u8, line_y as u8);
+                    Self::get_tile_pixel(tile, line_x as u8, line_y as u8, palette);
             }
         }
 
@@ -247,6 +302,9 @@ impl Ppu {
         let num_pixels_in_tile = NUM_LINES_IN_TILE * NUM_PIXELS_IN_LINE;
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
+        // TODO: Use sprite palette!
+        let palette = memory.ppu_read(BGP_ADDR);
+
         for (sprite_index, sprite) in sprite_data.chunks(4).enumerate() {
             let tileset_index = sprite[2];
             let tile = Self::get_sprite_tile(memory, tileset_index);
@@ -256,11 +314,35 @@ impl Ppu {
                 let x = (sprite_index % 10) * NUM_PIXELS_IN_LINE + line_x;
                 let y = (sprite_index / 10) * NUM_PIXELS_IN_LINE + line_y;
                 pixels[y * NUM_PIXELS_IN_LINE * 10 + x] =
-                    Self::get_tile_pixel(memory, tile, line_x as u8, line_y as u8);
+                    Self::get_tile_pixel(tile, line_x as u8, line_y as u8, palette);
             }
         }
 
         pixels
+    }
+}
+
+struct Sprite {
+    y: u8,
+    x: u8,
+    tile_no: u8,
+    priority: bool,
+    y_flip: bool,
+    x_flip: bool,
+    palette_no: u8,
+}
+
+impl std::convert::From<&[u8]> for Sprite {
+    fn from(bytes: &[u8]) -> Self {
+        Sprite {
+            y: bytes[0],
+            x: bytes[1],
+            tile_no: bytes[2],
+            priority: read_bit(bytes[3], 7),
+            y_flip: read_bit(bytes[3], 6),
+            x_flip: read_bit(bytes[3], 5),
+            palette_no: read_bit(bytes[3], 4) as u8,
+        }
     }
 }
 
