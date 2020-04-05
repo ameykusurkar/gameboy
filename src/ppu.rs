@@ -81,10 +81,10 @@ impl Ppu {
                     memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
                 );
 
-                // TODO: Check sprite priority, and account for transparent pixels
-                if let Some(p) = self.get_sprite_pixel(memory, x as u8, self.scanline as u8) {
-                    pixel = p;
-                }
+                // TODO: Account for sprite priority
+                self.get_sprite(x as u8)
+                    .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
+                    .map(|sprite_pixel| pixel = sprite_pixel);
 
                 let index = self.scanline * LCD_WIDTH + x;
                 self.screen[index as usize] = pixel;
@@ -128,25 +128,32 @@ impl Ppu {
         }
     }
 
-    fn get_sprite_pixel(&self, memory: &Memory, x: u8, y: u8) -> Option<u8> {
-        let sprite = self.visible_sprites.iter().find(|sprite| {
+    fn get_sprite(&self, x: u8) -> Option<&Sprite> {
+        self.visible_sprites.iter().find(|sprite| {
             let x_start = sprite.x as i32 - 8;
             (x_start..x_start+(NUM_PIXELS_IN_LINE as i32)).contains(&(x as i32))
-        });
-
-        sprite.map(|sprite| {
-            let tile = Self::get_sprite_tile(memory, sprite.tile_no);
-            let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
-            // TODO: Account for tiles being flipped
-            let (line_x, line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
-            let palette = match sprite.palette_no {
-                0 => memory.ppu_read(OBP0_ADDR),
-                1 => memory.ppu_read(OBP1_ADDR),
-                _ => panic!("Invalid palette_no: {}", sprite.palette_no),
-            };
-
-            Self::get_tile_pixel(tile, line_x, line_y, palette)
         })
+    }
+
+    fn get_sprite_pixel(sprite: &Sprite, memory: &Memory, x: u8, y: u8) -> Option<u8> {
+        let tile = Self::get_sprite_tile(memory, sprite.tile_no);
+        let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
+        // TODO: Account for tiles being flipped
+        let (line_x, line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
+        let pixel_data = get_tile_pixel_data(tile, line_x, line_y);
+
+        if pixel_data == 0x00 {
+            // 0 maps to transparency, so background color is used
+            return None;
+        }
+
+        let palette = match sprite.palette_no {
+            0 => memory.ppu_read(OBP0_ADDR),
+            1 => memory.ppu_read(OBP1_ADDR),
+            _ => panic!("Invalid palette_no: {}", sprite.palette_no),
+        };
+
+        Some(pixel_map(pixel_data, palette))
     }
 
     fn compute_sprites_for_line(memory: &Memory, line_no: u32) -> Vec<Sprite> {
@@ -176,9 +183,8 @@ impl Ppu {
     }
 
     fn get_tile_pixel(tile: &[u8], line_x: u8, line_y: u8, palette: u8) -> u8 {
-        let lower_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
-        let upper_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
-        pixel_map(upper_bit << 1 | lower_bit, palette)
+        let pixel_data = get_tile_pixel_data(tile, line_x, line_y);
+        pixel_map(pixel_data, palette)
     }
 
     fn get_sprite_tile(memory: &Memory, tile_index: u8) -> &[u8] {
@@ -344,6 +350,12 @@ impl std::convert::From<&[u8]> for Sprite {
             palette_no: read_bit(bytes[3], 4) as u8,
         }
     }
+}
+
+fn get_tile_pixel_data(tile: &[u8], line_x: u8, line_y: u8) -> u8 {
+    let lower_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
+    let upper_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
+    upper_bit << 1 | lower_bit
 }
 
 fn pixel_map(color_number: u8, palette: u8) -> u8 {
