@@ -1,6 +1,9 @@
 from bs4 import BeautifulSoup
 import re
 import json
+import requests
+
+OPCODES_URL = "https://www.pastraiser.com/cpu/gameboy/gameboy_opcodes.html"
 
 def get_table_content(table):
     rows = [row.find_all("td")[1:] for row in table.find_all("tr")[1:]]
@@ -73,7 +76,7 @@ def generate_prefixed_opcode_json(opcodes_content):
         })
     return opcodes
 
-html_doc = open("opcodes.html")
+html_doc = requests.get(OPCODES_URL).content.decode("utf-8")
 soup = BeautifulSoup(html_doc, 'html.parser')
 
 tables = soup.body.find_all("table")
