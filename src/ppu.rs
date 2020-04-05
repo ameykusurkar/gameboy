@@ -112,21 +112,29 @@ impl Ppu {
 
         let map = Self::get_background_map_memory(memory);
 
+        let background_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 0);
+        let sprites_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 1);
+
         // We are drawing 4 pixels per cycle
         let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
 
         for x in start_x..(start_x + 4) {
-            // TODO: Only show background/sprites when enabled
             // TODO: Implement windows
-            let mut pixel = Self::get_background_pixel(
-                // Since we are using u8, x and y should automatically wrap around 256
-                memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
-                );
+            let mut pixel = 0;
 
-            // TODO: Account for sprite priority
-            self.get_sprite(x as u8)
-                .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
-                .map(|sprite_pixel| pixel = sprite_pixel);
+            if background_enabled {
+                pixel = Self::get_background_pixel(
+                    // Since we are using u8, x and y should automatically wrap around 256
+                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
+                );
+            }
+
+            if sprites_enabled {
+                // TODO: Account for sprite priority
+                self.get_sprite(x as u8)
+                    .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
+                    .map(|sprite_pixel| pixel = sprite_pixel);
+            }
 
             let index = self.scanline * LCD_WIDTH + x;
             self.screen[index as usize] = pixel;
