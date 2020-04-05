@@ -218,7 +218,7 @@ impl pge::State for Emulator {
         let (screen_end_x, screen_end_y) = self.draw_screen(pge, 10, 10, screen_scale);
         let (maps_end_x, _) = self.draw_maps(pge, 10, screen_end_y + 150, 1);
         self.draw_cpu_state(pge, screen_end_x + 10, 10);
-        let (tiles_end_x, tiles_end_y) = self.draw_tileset(pge, maps_end_x + 100, screen_end_y + 150, 1);
+        let (_, tiles_end_y) = self.draw_tileset(pge, maps_end_x + 100, screen_end_y + 150, 1);
         self.draw_sprites_map(pge, maps_end_x + 100, tiles_end_y + 10, 1);
 
         if DEBUG {

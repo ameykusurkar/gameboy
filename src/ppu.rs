@@ -64,31 +64,9 @@ impl Ppu {
     pub fn clock(&mut self, memory: &mut Memory) {
         let old_mode = Self::get_lcd_mode(self.cycles, self.scanline);
 
+        // Pixel transfer lasts 43 machine cycles, but we will be done in 40
         if old_mode == LcdMode::PixelTransfer && (self.cycles - OAM_SEARCH_CYCLES) < 40 {
-            // We are drawing 4 pixels per cycle
-            let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
-
-            let scroll_x = memory.ppu_read(SCX_ADDR);
-            let scroll_y = memory.ppu_read(SCY_ADDR);
-
-            let map = Self::get_background_map_memory(memory);
-
-            for x in start_x..(start_x + 4) {
-                // TODO: Only show background/sprites when enabled
-                // TODO: Implement windows
-                let mut pixel = Self::get_background_pixel(
-                    // Since we are using u8, x and y should automatically wrap around 256
-                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
-                );
-
-                // TODO: Account for sprite priority
-                self.get_sprite(x as u8)
-                    .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
-                    .map(|sprite_pixel| pixel = sprite_pixel);
-
-                let index = self.scanline * LCD_WIDTH + x;
-                self.screen[index as usize] = pixel;
-            }
+            self.update_screen(memory);
         }
 
         self.cycles = (self.cycles + 1) % SCANLINE_CYCLES;
@@ -125,6 +103,33 @@ impl Ppu {
             if Self::status_interrupt_enabled(memory, mode) {
                 Self::set_status_interrupt(memory);
             }
+        }
+    }
+
+    fn update_screen(&mut self, memory: &Memory) {
+        let scroll_x = memory.ppu_read(SCX_ADDR);
+        let scroll_y = memory.ppu_read(SCY_ADDR);
+
+        let map = Self::get_background_map_memory(memory);
+
+        // We are drawing 4 pixels per cycle
+        let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
+
+        for x in start_x..(start_x + 4) {
+            // TODO: Only show background/sprites when enabled
+            // TODO: Implement windows
+            let mut pixel = Self::get_background_pixel(
+                // Since we are using u8, x and y should automatically wrap around 256
+                memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
+                );
+
+            // TODO: Account for sprite priority
+            self.get_sprite(x as u8)
+                .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
+                .map(|sprite_pixel| pixel = sprite_pixel);
+
+            let index = self.scanline * LCD_WIDTH + x;
+            self.screen[index as usize] = pixel;
         }
     }
 
