@@ -127,6 +127,11 @@ impl Ppu {
         pixel_map(upper_bit << 1 | lower_bit, background_palette)
     }
 
+    fn get_sprite_tile(memory: &Memory, tile_index: u8) -> &[u8] {
+        let start_index = 0x8000 + (tile_index as usize * TILE_NUM_BYTES);
+        memory.ppu_read_range(start_index..start_index+TILE_NUM_BYTES)
+    }
+
     fn get_tile(memory: &Memory, tile_index: u8) -> &[u8] {
         let start_index = if read_bit(memory.ppu_read(LCDC_ADDR), 4) {
             0x8000 + (tile_index as usize * TILE_NUM_BYTES)
@@ -229,6 +234,28 @@ impl Ppu {
                 let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
                 let y = (tile_index / 16) * NUM_PIXELS_IN_LINE + line_y;
                 pixels[y * NUM_PIXELS_IN_LINE * 16 + x] =
+                    Self::get_tile_pixel(memory, tile, line_x as u8, line_y as u8);
+            }
+        }
+
+        pixels
+    }
+
+    pub fn get_sprites(memory: &Memory) -> Vec<u8> {
+        let sprite_data = memory.ppu_read_range(0xFE00..0xFEA0);
+        let num_tiles = 10 * 4;
+        let num_pixels_in_tile = NUM_LINES_IN_TILE * NUM_PIXELS_IN_LINE;
+        let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
+
+        for (sprite_index, sprite) in sprite_data.chunks(4).enumerate() {
+            let tileset_index = sprite[2];
+            let tile = Self::get_sprite_tile(memory, tileset_index);
+
+            for p in 0..num_pixels_in_tile {
+                let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
+                let x = (sprite_index % 10) * NUM_PIXELS_IN_LINE + line_x;
+                let y = (sprite_index / 10) * NUM_PIXELS_IN_LINE + line_y;
+                pixels[y * NUM_PIXELS_IN_LINE * 10 + x] =
                     Self::get_tile_pixel(memory, tile, line_x as u8, line_y as u8);
             }
         }
