@@ -5,8 +5,8 @@ pub struct Memory {
     bootrom: [u8; 256],
 }
 
-const VRAM_RANGE: std::ops::Range<u16> = 0x8000..0xA000;
-const OAM_RANGE: std::ops::Range<u16>  = 0xFE00..0xFEA0;
+const VRAM_RANGE: std::ops::Range<usize> = 0x8000..0xA000;
+const OAM_RANGE: std::ops::Range<usize>  = 0xFE00..0xFEA0;
 
 impl Memory {
     pub fn new() -> Memory {
@@ -30,8 +30,10 @@ impl Memory {
     }
 
     pub fn cpu_read(&self, addr: u16) -> u8 {
+        let addr = addr as usize;
+
         if addr < 0x100 && self.is_bootrom_active() {
-            self.bootrom[addr as usize]
+            self.bootrom[addr]
         } else if VRAM_RANGE.contains(&addr) && self.vram_blocked() {
             0xFF
         } else if OAM_RANGE.contains(&addr) && self.oam_blocked() {
@@ -40,23 +42,24 @@ impl Memory {
             // Hardcode joypad register to have all buttons unpressed for now
             0x0F
         } else {
-            self.memory[addr as usize]
+            self.memory[addr]
         }
     }
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
-        // TODO: Change this when implementing MBC1
-        if addr < 0x8000 {
-            // There is no memory bank controller right now, so ignore writes
-            return;
-        }
-
         // Hard-coded because test roms write results to serial port
         if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
             println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
         }
 
         match addr {
+            // Cartridge
+            0x0000..=0x7FFF => {
+                // TODO: Change this when implementing MBC1
+                // Writes to cartridge happen when it has a memory bank controller
+                // allowing us to access a larger ROM address space. We ignore
+                // these writes for now
+            },
             // VRAM
             0x8000..=0x9FFF => {
                 if !self.vram_blocked() {
@@ -67,6 +70,16 @@ impl Memory {
             0xFE00..=0xFE9F => {
                 if !self.oam_blocked() {
                     self.memory[addr as usize] = val;
+                }
+            },
+            // DMA Transfer
+            0xFF46 => {
+                // A write to this address indicates a request to copy memory to
+                // the OAM. Technically this takes 40 machine cycles, but for now
+                // we will do it instantly.
+                let start = (val as usize) * 0x100;
+                for i in 0..0xA0 {
+                    self.memory[0xFE00 + i] = self.memory[start + i];
                 }
             },
             _ => self.memory[addr as usize] = val,

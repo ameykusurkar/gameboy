@@ -87,6 +87,21 @@ impl Emulator {
         (x + (width * scale) as i32, y + (height * scale) as i32)
     }
 
+    fn draw_sprites_map(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
+        let (width, height) = (10 * 8, 4 * 8);
+        let pixel_buffer = Ppu::get_sprites(&self.cpu.memory);
+
+        let mut sprites_sprite = pge::Sprite::new(width, height);
+        for (i, pixel) in pixel_buffer.iter().enumerate() {
+            let x = i % width;
+            let y = i / width;
+            sprites_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+        }
+
+        pge.draw_sprite(x, y, &sprites_sprite, scale);
+        (x + (width * scale) as i32, y + (height * scale) as i32)
+    }
+
     fn draw_cpu_state(&self, pge: &mut pge::PGE, x: i32, y: i32) {
         let scale = 2;
         let (cx, cy) = (scale * 8 + 2, scale * 8 + 2);
@@ -203,7 +218,8 @@ impl pge::State for Emulator {
         let (screen_end_x, screen_end_y) = self.draw_screen(pge, 10, 10, screen_scale);
         let (maps_end_x, _) = self.draw_maps(pge, 10, screen_end_y + 150, 1);
         self.draw_cpu_state(pge, screen_end_x + 10, 10);
-        self.draw_tileset(pge, maps_end_x + 100, screen_end_y + 150, 1);
+        let (_, tiles_end_y) = self.draw_tileset(pge, maps_end_x + 100, screen_end_y + 150, 1);
+        self.draw_sprites_map(pge, maps_end_x + 100, tiles_end_y + 10, 1);
 
         if DEBUG {
             println!("DRAW: {}", now.elapsed().as_nanos());
