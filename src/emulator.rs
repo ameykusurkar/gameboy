@@ -4,6 +4,7 @@ use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex::HL;
 
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
+use crate::memory::Joypad;
 
 pub const DEBUG: bool = false;
 const NORMAL_SPEED: bool = true;
@@ -185,12 +186,12 @@ impl pge::State for Emulator {
     fn on_user_update(&mut self, pge: &mut pge::PGE, _elapsed_time: f32) -> bool {
         let now = std::time::Instant::now();
 
-        let step_pressed = pge.get_key(minifb::Key::S).pressed;
+        let step_pressed = pge.get_key(minifb::Key::T).pressed;
         if step_pressed {
             self.single_step_mode = true;
         }
 
-        if pge.get_key(minifb::Key::N).pressed {
+        if pge.get_key(minifb::Key::Y).pressed {
             self.single_step_mode = false;
         }
 
@@ -201,6 +202,19 @@ impl pge::State for Emulator {
                 self.clock();
             }
         }
+
+        self.cpu.memory.update_joypad(Joypad {
+            button_selected: false,
+            direction_selected: false,
+            down: pge.get_key(minifb::Key::J).pressed,
+            up: pge.get_key(minifb::Key::K).pressed,
+            left: pge.get_key(minifb::Key::H).pressed,
+            right: pge.get_key(minifb::Key::L).pressed,
+            start: pge.get_key(minifb::Key::V).pressed,
+            select: pge.get_key(minifb::Key::N).pressed,
+            b: pge.get_key(minifb::Key::F).pressed,
+            a: pge.get_key(minifb::Key::S).pressed,
+        });
 
         if !self.single_step_mode && NORMAL_SPEED {
             // TODO: Make this accurate based on elapsed time

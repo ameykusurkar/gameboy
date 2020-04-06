@@ -3,7 +3,6 @@
 Still a work in progress, the end goal is to be a fully-functional Gameboy emulator. Currently the emulator supports simple games such as Tetris and Dr. Mario.
 
 TODO:
- - Joypad support
  - Memory bank controller support
  - Implement sound system
  

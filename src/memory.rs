@@ -3,16 +3,68 @@ use crate::ppu::LcdMode;
 pub struct Memory {
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
+    joypad: Joypad,
 }
 
 const VRAM_RANGE: std::ops::Range<usize> = 0x8000..0xA000;
 const OAM_RANGE: std::ops::Range<usize>  = 0xFE00..0xFEA0;
+
+#[derive(Default)]
+pub struct Joypad {
+    pub button_selected: bool,
+    pub direction_selected: bool,
+    pub down: bool,
+    pub up: bool,
+    pub left: bool,
+    pub right: bool,
+    pub start: bool,
+    pub select: bool,
+    pub b: bool,
+    pub a: bool,
+}
+
+impl Joypad {
+    fn read(&self) -> u8 {
+        let keys = if self.button_selected {
+            self.read_buttons()
+        } else if self.direction_selected {
+            self.read_directions()
+        } else {
+            0x0F
+        };
+
+        0xC0
+            | (!self.button_selected as u8) << 5
+            | (!self.direction_selected as u8) << 4
+            | keys
+    }
+
+    fn read_buttons(&self) -> u8 {
+        (!self.start as u8) << 3
+            | (!self.select as u8) << 2
+            | (!self.b as u8) << 1
+            | (!self.a as u8) << 0
+    }
+
+    fn read_directions(&self) -> u8 {
+        (!self.down as u8) << 3
+            | (!self.up as u8) << 2
+            | (!self.left as u8) << 1
+            | (!self.right as u8) << 0
+    }
+
+    fn write(&mut self, byte: u8) {
+        self.button_selected = !read_bit(byte, 5);
+        self.direction_selected = !read_bit(byte, 4);
+    }
+}
 
 impl Memory {
     pub fn new() -> Memory {
         Memory {
             memory: [0; 1 << 16],
             bootrom: [0; 256],
+            joypad: Joypad::default(),
         }
     }
 
@@ -23,6 +75,15 @@ impl Memory {
     pub fn load_rom(&mut self, buffer: &[u8]) {
         let rom_segment = &mut self.memory[0..buffer.len()];
         rom_segment.copy_from_slice(buffer);
+    }
+
+    pub fn update_joypad(&mut self, joypad: Joypad) {
+        // TODO: Trigger joypad interrupt
+        self.joypad = Joypad {
+            button_selected: self.joypad.button_selected,
+            direction_selected: self.joypad.direction_selected,
+            ..joypad
+        };
     }
 
     fn is_bootrom_active(&self) -> bool {
@@ -39,8 +100,7 @@ impl Memory {
         } else if OAM_RANGE.contains(&addr) && self.oam_blocked() {
             0xFF
         } else if addr == 0xFF00 {
-            // Hardcode joypad register to have all buttons unpressed for now
-            0x0F
+            self.joypad.read()
         } else {
             self.memory[addr]
         }
@@ -71,6 +131,10 @@ impl Memory {
                 if !self.oam_blocked() {
                     self.memory[addr as usize] = val;
                 }
+            },
+            // Joypad
+            0xFF00 => {
+                self.joypad.write(val);
             },
             // DMA Transfer
             0xFF46 => {
