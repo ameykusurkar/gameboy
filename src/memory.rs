@@ -142,9 +142,7 @@ impl Memory {
                 // the OAM. Technically this takes 40 machine cycles, but for now
                 // we will do it instantly.
                 let start = (val as usize) * 0x100;
-                for i in 0..0xA0 {
-                    self.memory[0xFE00 + i] = self.memory[start + i];
-                }
+                self.memory.copy_within(start..start+0xA0, 0xFE00);
             },
             _ => self.memory[addr as usize] = val,
         }
