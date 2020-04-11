@@ -534,24 +534,60 @@ impl Cpu {
             0x8E => self.execute_adc(RegisterHL),
             0x8F => self.execute_adc(A),
 
-            0x90..=0x97 => {
-                self.execute_sub_reg(opcode);
-            },
-            0x98..=0x9F => {
-                self.execute_sbc_reg(opcode);
-            },
-            0xA0..=0xA7 => {
-                self.execute_and_reg(opcode);
-            },
-            0xA8..=0xAF => {
-                self.execute_xor_reg(opcode);
-            },
-            0xB0..=0xB7 => {
-                self.execute_or_reg(opcode);
-            },
-            0xB8..=0xBF => {
-                self.execute_cp_reg(opcode);
-            },
+            0x90 => self.execute_sub(B),
+            0x91 => self.execute_sub(C),
+            0x92 => self.execute_sub(D),
+            0x93 => self.execute_sub(E),
+            0x94 => self.execute_sub(H),
+            0x95 => self.execute_sub(L),
+            0x96 => self.execute_sub(RegisterHL),
+            0x97 => self.execute_sub(A),
+
+            0x98 => self.execute_sbc(B),
+            0x99 => self.execute_sbc(C),
+            0x9A => self.execute_sbc(D),
+            0x9B => self.execute_sbc(E),
+            0x9C => self.execute_sbc(H),
+            0x9D => self.execute_sbc(L),
+            0x9E => self.execute_sbc(RegisterHL),
+            0x9F => self.execute_sbc(A),
+
+            0xA0 => self.execute_and(B),
+            0xA1 => self.execute_and(C),
+            0xA2 => self.execute_and(D),
+            0xA3 => self.execute_and(E),
+            0xA4 => self.execute_and(H),
+            0xA5 => self.execute_and(L),
+            0xA6 => self.execute_and(RegisterHL),
+            0xA7 => self.execute_and(A),
+
+            0xA8 => self.execute_xor(B),
+            0xA9 => self.execute_xor(C),
+            0xAA => self.execute_xor(D),
+            0xAB => self.execute_xor(E),
+            0xAC => self.execute_xor(H),
+            0xAD => self.execute_xor(L),
+            0xAE => self.execute_xor(RegisterHL),
+            0xAF => self.execute_xor(A),
+
+            0xB0 => self.execute_or(B),
+            0xB1 => self.execute_or(C),
+            0xB2 => self.execute_or(D),
+            0xB3 => self.execute_or(E),
+            0xB4 => self.execute_or(H),
+            0xB5 => self.execute_or(L),
+            0xB6 => self.execute_or(RegisterHL),
+            0xB7 => self.execute_or(A),
+
+            0xB8 => self.execute_cp(B),
+            0xB9 => self.execute_cp(C),
+            0xBA => self.execute_cp(D),
+            0xBB => self.execute_cp(E),
+            0xBC => self.execute_cp(H),
+            0xBD => self.execute_cp(L),
+            0xBE => self.execute_cp(RegisterHL),
+            0xBF => self.execute_cp(A),
+
             0xC0 => {
                 // RET NZ
                 let condition = !read_bit(self.regs[F], ZERO_FLAG);
@@ -667,11 +703,8 @@ impl Cpu {
                 self.push(DE);
             },
             0xD6 => {
-                // SUB n
-                let n = self.read_imm();
-                let (result, flags) = sub_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_sub(Immediate8);
+                self.pc += 1;
             },
             0xD8 => {
                 // RET C
@@ -703,12 +736,8 @@ impl Cpu {
                 self.call_condition(condition);
             },
             0xDE => {
-                // SBC n
-                let n = self.read_imm();
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_sbc(Immediate8);
+                self.pc += 1;
             },
             0xE0 => {
                 // LDH (n),A
@@ -740,11 +769,8 @@ impl Cpu {
                 self.push(HL);
             },
             0xE6 => {
-                // AND n
-                let n = self.read_imm();
-                let (result, flags) = and_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_and(Immediate8);
+                self.pc += 1;
             },
             0xE8 => {
                 // ADD SP,n
@@ -757,11 +783,8 @@ impl Cpu {
                 self.nop();
             },
             0xEE => {
-                // XOR n
-                let n = self.read_imm();
-                let (result, flags) = xor_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_xor(Immediate8);
+                self.pc += 1;
             },
             0xF0 => {
                 // LDH A,(n)
@@ -787,11 +810,8 @@ impl Cpu {
                 self.push(AF);
             },
             0xF6 => {
-                // OR n
-                let n = self.read_imm();
-                let (result, flags) = or_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_or(Immediate8);
+                self.pc += 1;
             },
             0xF8 => {
                 // LD HL, SP + n
@@ -818,10 +838,8 @@ impl Cpu {
                 self.ime = true;
             },
             0xFE => {
-                // CP n
-                let n = self.read_imm();
-                let (_, flags) = sub_u8(self.regs[A], n);
-                self.regs.write_flags(flags);
+                self.execute_cp(Immediate8);
+                self.pc += 1;
             },
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
@@ -1113,19 +1131,6 @@ impl Cpu {
         }
     }
 
-    fn execute_or_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = or_u8(self.regs[A], src);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
-    }
-
-    fn execute_cp_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (_, flags) = sub_u8(self.regs[A], src);
-        self.regs.write_flags(flags);
-    }
-
     fn execute_add<T>(&mut self, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(&self.memory, src);
@@ -1143,32 +1148,51 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_sub_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = sub_u8(self.regs[A], src);
+    fn execute_sub<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = sub_u8(self.regs[A], val);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_sbc_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
+    fn execute_sbc<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (result, flags) = sbc_u8(self.regs[A], src, old_carry);
+        let (result, flags) = sbc_u8(self.regs[A], val, old_carry);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_and_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = and_u8(self.regs[A], src);
+    fn execute_and<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = and_u8(self.regs[A], val);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_xor_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = xor_u8(self.regs[A], src);
+    fn execute_xor<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = xor_u8(self.regs[A], val);
         self.regs[A] = result;
+        self.regs.write_flags(flags);
+    }
+
+    fn execute_or<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = or_u8(self.regs[A], val);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+    }
+
+    fn execute_cp<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (_, flags) = sub_u8(self.regs[A], val);
         self.regs.write_flags(flags);
     }
 
