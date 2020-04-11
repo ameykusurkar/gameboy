@@ -515,6 +515,7 @@ impl Cpu {
                 // HALT
                 self.halted = true;
             },
+
             0x80 => self.execute_add(B),
             0x81 => self.execute_add(C),
             0x82 => self.execute_add(D),
@@ -523,9 +524,16 @@ impl Cpu {
             0x85 => self.execute_add(L),
             0x86 => self.execute_add(RegisterHL),
             0x87 => self.execute_add(A),
-            0x88..=0x8F => {
-                self.execute_adc_reg(opcode);
-            },
+
+            0x88 => self.execute_adc(B),
+            0x89 => self.execute_adc(C),
+            0x8A => self.execute_adc(D),
+            0x8B => self.execute_adc(E),
+            0x8C => self.execute_adc(H),
+            0x8D => self.execute_adc(L),
+            0x8E => self.execute_adc(RegisterHL),
+            0x8F => self.execute_adc(A),
+
             0x90..=0x97 => {
                 self.execute_sub_reg(opcode);
             },
@@ -623,12 +631,8 @@ impl Cpu {
                 self.call_condition(true);
             },
             0xCE => {
-                // ADC n
-                let n = self.read_imm();
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = adc_u8(self.regs[A], n, old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_adc(Immediate8);
+                self.pc += 1;
             },
             0xD0 => {
                 // RET NC
@@ -1130,10 +1134,11 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_adc_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
+    fn execute_adc<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (result, flags) = adc_u8(self.regs[A], src, old_carry);
+        let (result, flags) = adc_u8(self.regs[A], val, old_carry);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
