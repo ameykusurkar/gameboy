@@ -47,12 +47,12 @@ struct RegisterHL;
 struct Immediate8;
 
 trait Operand8<T> {
-    fn read_oper(&self, memory: &Memory, src: T) -> u8;
+    fn read_oper(&mut self, memory: &Memory, src: T) -> u8;
     fn write_oper(&mut self, memory: &mut Memory, src: T, val: u8);
 }
 
 impl Operand8<RegisterIndex> for Cpu {
-    fn read_oper(&self, _memory: &Memory, src: RegisterIndex) -> u8 {
+    fn read_oper(&mut self, _memory: &Memory, src: RegisterIndex) -> u8 {
         self.regs[src]
     }
 
@@ -62,7 +62,7 @@ impl Operand8<RegisterIndex> for Cpu {
 }
 
 impl Operand8<RegisterHL> for Cpu {
-    fn read_oper(&self, memory: &Memory, _src: RegisterHL) -> u8 {
+    fn read_oper(&mut self, memory: &Memory, _src: RegisterHL) -> u8 {
         let addr = self.regs.read(HL);
         memory.cpu_read(addr)
     }
@@ -74,8 +74,10 @@ impl Operand8<RegisterHL> for Cpu {
 }
 
 impl Operand8<Immediate8> for Cpu {
-    fn read_oper(&self, memory: &Memory, _src: Immediate8) -> u8 {
-        memory.cpu_read(self.pc)
+    fn read_oper(&mut self, memory: &Memory, _src: Immediate8) -> u8 {
+        let val = memory.cpu_read(self.pc);
+        self.pc += 1;
+        val
     }
 
     fn write_oper(&mut self, _memory: &mut Memory, _src: Immediate8, _val: u8) {
@@ -456,7 +458,7 @@ impl Cpu {
             },
             0x36 => {
                 // LD (HL),n
-                let n = self.read_imm(memory);
+                let n = self.read_oper(memory, Immediate8);
                 memory.cpu_write(self.regs.read(HL), n);
             },
             0x37 => {
@@ -500,7 +502,7 @@ impl Cpu {
             },
             0x3E => {
                 // LD A,n
-                let n = self.read_imm(memory);
+                let n = self.read_oper(memory, Immediate8);
                 self.regs[A] = n;
             },
             0x3F => {
@@ -628,7 +630,6 @@ impl Cpu {
             },
             0xC6 => {
                 self.execute_add(memory, Immediate8);
-                self.pc += 1;
             },
             0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
                 self.execute_rst(memory, opcode);
@@ -670,7 +671,6 @@ impl Cpu {
             },
             0xCE => {
                 self.execute_adc(memory, Immediate8);
-                self.pc += 1;
             },
             0xD0 => {
                 // RET NC
@@ -706,7 +706,6 @@ impl Cpu {
             },
             0xD6 => {
                 self.execute_sub(memory, Immediate8);
-                self.pc += 1;
             },
             0xD8 => {
                 // RET C
@@ -739,11 +738,10 @@ impl Cpu {
             },
             0xDE => {
                 self.execute_sbc(memory, Immediate8);
-                self.pc += 1;
             },
             0xE0 => {
                 // LDH (n),A
-                let offset = self.read_imm(memory);
+                let offset = self.read_oper(memory, Immediate8);
                 let addr = 0xFF00 + (offset as u16);
                 memory.cpu_write(addr, self.regs[A]);
             },
@@ -772,22 +770,20 @@ impl Cpu {
             },
             0xE6 => {
                 self.execute_and(memory, Immediate8);
-                self.pc += 1;
             },
             0xE8 => {
                 // ADD SP,n
-                let n = self.read_imm(memory);
+                let n = self.read_oper(memory, Immediate8);
                 let (result, flags) = self.sum_sp_n(n);
                 self.sp = result;
                 self.regs.write_flags(flags);
             },
             0xEE => {
                 self.execute_xor(memory, Immediate8);
-                self.pc += 1;
             },
             0xF0 => {
                 // LDH A,(n)
-                let offset = self.read_imm(memory);
+                let offset = self.read_oper(memory, Immediate8);
                 let addr = 0xFF00 + (offset as u16);
                 self.regs[A] = memory.cpu_read(addr);
             },
@@ -810,11 +806,10 @@ impl Cpu {
             },
             0xF6 => {
                 self.execute_or(memory, Immediate8);
-                self.pc += 1;
             },
             0xF8 => {
                 // LD HL, SP + n
-                let n = self.read_imm(memory);
+                let n = self.read_oper(memory, Immediate8);
                 let (result, flags) = self.sum_sp_n(n);
                 self.regs.write(HL, result);
                 self.regs.write_flags(flags);
@@ -834,7 +829,6 @@ impl Cpu {
             },
             0xFE => {
                 self.execute_cp(memory, Immediate8);
-                self.pc += 1;
             },
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
@@ -965,15 +959,9 @@ impl Cpu {
         self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
     }
 
-    fn read_imm(&mut self, memory: &Memory) -> u8 {
-        let n = memory.cpu_read(self.pc);
-        self.pc += 1;
-        n
-    }
-
     fn read_imm_u16(&mut self, memory: &Memory) -> u16 {
-        let lsb = self.read_imm(memory) as u16;
-        let msb = self.read_imm(memory) as u16;
+        let lsb = self.read_oper(memory, Immediate8) as u16;
+        let msb = self.read_oper(memory, Immediate8) as u16;
         (msb << 8) | lsb
     }
 
@@ -991,7 +979,7 @@ impl Cpu {
     }
 
     fn execute_prefixed_instruction(&mut self, memory: &mut Memory) {
-        let opcode = self.read_imm(memory);
+        let opcode = self.read_oper(memory, Immediate8);
 
         match opcode {
             0x00 => self.execute_rlc(memory, B),
@@ -1380,7 +1368,7 @@ impl Cpu {
 
     fn load_reg_byte(&mut self, memory: &Memory, index: RegisterIndex) -> u8 {
         // LD r, n
-        let n = self.read_imm(memory);
+        let n = self.read_oper(memory, Immediate8);
         self.regs[index] = n;
 
         n
@@ -1429,7 +1417,7 @@ impl Cpu {
     fn jump_rel_condition(&mut self, memory: &Memory, condition: bool) -> i8 {
         // JR cc, n
         // Offset is signed
-        let offset = self.read_imm(memory) as i8;
+        let offset = self.read_oper(memory, Immediate8) as i8;
 
         if condition {
             self.pc = ((self.pc as i32) + (offset as i32)) as u16;
