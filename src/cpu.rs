@@ -43,6 +43,32 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
 }
 
+struct RegisterHL;
+struct Immediate8;
+
+trait Operand8<T> {
+    fn read_oper(&self, memory: &Memory, src: T) -> u8;
+}
+
+impl Operand8<RegisterIndex> for Cpu {
+    fn read_oper(&self, _memory: &Memory, src: RegisterIndex) -> u8 {
+        self.regs[src]
+    }
+}
+
+impl Operand8<RegisterHL> for Cpu {
+    fn read_oper(&self, memory: &Memory, _src: RegisterHL) -> u8 {
+        let addr = self.regs.read(HL);
+        memory.cpu_read(addr)
+    }
+}
+
+impl Operand8<Immediate8> for Cpu {
+    fn read_oper(&self, memory: &Memory, _src: Immediate8) -> u8 {
+        memory.cpu_read(self.pc)
+    }
+}
+
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
@@ -489,30 +515,79 @@ impl Cpu {
                 // HALT
                 self.halted = true;
             },
-            0x80..=0x87 => {
-                self.execute_add_reg(opcode);
-            }
-            0x88..=0x8F => {
-                self.execute_adc_reg(opcode);
-            },
-            0x90..=0x97 => {
-                self.execute_sub_reg(opcode);
-            },
-            0x98..=0x9F => {
-                self.execute_sbc_reg(opcode);
-            },
-            0xA0..=0xA7 => {
-                self.execute_and_reg(opcode);
-            },
-            0xA8..=0xAF => {
-                self.execute_xor_reg(opcode);
-            },
-            0xB0..=0xB7 => {
-                self.execute_or_reg(opcode);
-            },
-            0xB8..=0xBF => {
-                self.execute_cp_reg(opcode);
-            },
+
+            0x80 => self.execute_add(B),
+            0x81 => self.execute_add(C),
+            0x82 => self.execute_add(D),
+            0x83 => self.execute_add(E),
+            0x84 => self.execute_add(H),
+            0x85 => self.execute_add(L),
+            0x86 => self.execute_add(RegisterHL),
+            0x87 => self.execute_add(A),
+
+            0x88 => self.execute_adc(B),
+            0x89 => self.execute_adc(C),
+            0x8A => self.execute_adc(D),
+            0x8B => self.execute_adc(E),
+            0x8C => self.execute_adc(H),
+            0x8D => self.execute_adc(L),
+            0x8E => self.execute_adc(RegisterHL),
+            0x8F => self.execute_adc(A),
+
+            0x90 => self.execute_sub(B),
+            0x91 => self.execute_sub(C),
+            0x92 => self.execute_sub(D),
+            0x93 => self.execute_sub(E),
+            0x94 => self.execute_sub(H),
+            0x95 => self.execute_sub(L),
+            0x96 => self.execute_sub(RegisterHL),
+            0x97 => self.execute_sub(A),
+
+            0x98 => self.execute_sbc(B),
+            0x99 => self.execute_sbc(C),
+            0x9A => self.execute_sbc(D),
+            0x9B => self.execute_sbc(E),
+            0x9C => self.execute_sbc(H),
+            0x9D => self.execute_sbc(L),
+            0x9E => self.execute_sbc(RegisterHL),
+            0x9F => self.execute_sbc(A),
+
+            0xA0 => self.execute_and(B),
+            0xA1 => self.execute_and(C),
+            0xA2 => self.execute_and(D),
+            0xA3 => self.execute_and(E),
+            0xA4 => self.execute_and(H),
+            0xA5 => self.execute_and(L),
+            0xA6 => self.execute_and(RegisterHL),
+            0xA7 => self.execute_and(A),
+
+            0xA8 => self.execute_xor(B),
+            0xA9 => self.execute_xor(C),
+            0xAA => self.execute_xor(D),
+            0xAB => self.execute_xor(E),
+            0xAC => self.execute_xor(H),
+            0xAD => self.execute_xor(L),
+            0xAE => self.execute_xor(RegisterHL),
+            0xAF => self.execute_xor(A),
+
+            0xB0 => self.execute_or(B),
+            0xB1 => self.execute_or(C),
+            0xB2 => self.execute_or(D),
+            0xB3 => self.execute_or(E),
+            0xB4 => self.execute_or(H),
+            0xB5 => self.execute_or(L),
+            0xB6 => self.execute_or(RegisterHL),
+            0xB7 => self.execute_or(A),
+
+            0xB8 => self.execute_cp(B),
+            0xB9 => self.execute_cp(C),
+            0xBA => self.execute_cp(D),
+            0xBB => self.execute_cp(E),
+            0xBC => self.execute_cp(H),
+            0xBD => self.execute_cp(L),
+            0xBE => self.execute_cp(RegisterHL),
+            0xBF => self.execute_cp(A),
+
             0xC0 => {
                 // RET NZ
                 let condition = !read_bit(self.regs[F], ZERO_FLAG);
@@ -550,11 +625,8 @@ impl Cpu {
                 self.push(BC);
             },
             0xC6 => {
-                // ADD n
-                let n = self.read_imm();
-                let (result, flags) = add_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_add(Immediate8);
+                self.pc += 1;
             },
             0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
                 self.execute_rst(opcode);
@@ -595,12 +667,8 @@ impl Cpu {
                 self.call_condition(true);
             },
             0xCE => {
-                // ADC n
-                let n = self.read_imm();
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = adc_u8(self.regs[A], n, old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_adc(Immediate8);
+                self.pc += 1;
             },
             0xD0 => {
                 // RET NC
@@ -635,11 +703,8 @@ impl Cpu {
                 self.push(DE);
             },
             0xD6 => {
-                // SUB n
-                let n = self.read_imm();
-                let (result, flags) = sub_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_sub(Immediate8);
+                self.pc += 1;
             },
             0xD8 => {
                 // RET C
@@ -671,12 +736,8 @@ impl Cpu {
                 self.call_condition(condition);
             },
             0xDE => {
-                // SBC n
-                let n = self.read_imm();
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, flags) = sbc_u8(self.regs[A], n, old_carry);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_sbc(Immediate8);
+                self.pc += 1;
             },
             0xE0 => {
                 // LDH (n),A
@@ -708,11 +769,8 @@ impl Cpu {
                 self.push(HL);
             },
             0xE6 => {
-                // AND n
-                let n = self.read_imm();
-                let (result, flags) = and_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_and(Immediate8);
+                self.pc += 1;
             },
             0xE8 => {
                 // ADD SP,n
@@ -725,11 +783,8 @@ impl Cpu {
                 self.nop();
             },
             0xEE => {
-                // XOR n
-                let n = self.read_imm();
-                let (result, flags) = xor_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_xor(Immediate8);
+                self.pc += 1;
             },
             0xF0 => {
                 // LDH A,(n)
@@ -755,11 +810,8 @@ impl Cpu {
                 self.push(AF);
             },
             0xF6 => {
-                // OR n
-                let n = self.read_imm();
-                let (result, flags) = or_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_or(Immediate8);
+                self.pc += 1;
             },
             0xF8 => {
                 // LD HL, SP + n
@@ -786,10 +838,8 @@ impl Cpu {
                 self.ime = true;
             },
             0xFE => {
-                // CP n
-                let n = self.read_imm();
-                let (_, flags) = sub_u8(self.regs[A], n);
-                self.regs.write_flags(flags);
+                self.execute_cp(Immediate8);
+                self.pc += 1;
             },
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
@@ -1081,60 +1131,68 @@ impl Cpu {
         }
     }
 
-    fn execute_or_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = or_u8(self.regs[A], src);
+    fn execute_add<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = add_u8(self.regs[A], val);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_cp_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (_, flags) = sub_u8(self.regs[A], src);
-        self.regs.write_flags(flags);
-    }
-
-    fn execute_add_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = add_u8(self.regs[A], src);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
-    }
-
-    fn execute_adc_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
+    fn execute_adc<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (result, flags) = adc_u8(self.regs[A], src, old_carry);
+        let (result, flags) = adc_u8(self.regs[A], val, old_carry);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_sub_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = sub_u8(self.regs[A], src);
+    fn execute_sub<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = sub_u8(self.regs[A], val);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_sbc_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
+    fn execute_sbc<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
         let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (result, flags) = sbc_u8(self.regs[A], src, old_carry);
+        let (result, flags) = sbc_u8(self.regs[A], val, old_carry);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_and_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = and_u8(self.regs[A], src);
+    fn execute_and<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = and_u8(self.regs[A], val);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
 
-    fn execute_xor_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = xor_u8(self.regs[A], src);
+    fn execute_xor<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = xor_u8(self.regs[A], val);
         self.regs[A] = result;
+        self.regs.write_flags(flags);
+    }
+
+    fn execute_or<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = or_u8(self.regs[A], val);
+        self.regs[A] = result;
+        self.regs.write_flags(flags);
+    }
+
+    fn execute_cp<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (_, flags) = sub_u8(self.regs[A], val);
         self.regs.write_flags(flags);
     }
 
@@ -1508,13 +1566,13 @@ fn sbc_u8(x: u8, y: u8, carry: bool) -> (u8, Flags) {
 }
 
 fn add_u8(x: u8, y: u8) -> (u8, Flags) {
-    let result = x + y;
+    let (result, carry) = x.overflowing_add(y);
 
     let flags = Flags {
         zero: result == 0,
         subtract: false,
         half_carry: (x & 0xF) + (y & 0xF) > 0xF,
-        carry: (x as u32) + (y as u32) > 0xFF,
+        carry,
     };
 
     (result, flags)
