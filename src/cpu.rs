@@ -35,7 +35,6 @@ pub struct Cpu {
     pub sp: u16,
     pub pc: u16,
     ime: bool,
-    clock_cycles: u32,
     remaining_cycles: u32,
     total_clock_cycles: u32,
     halted: bool,
@@ -75,7 +74,6 @@ impl Cpu {
             sp: 0,
             pc: 0,
             ime: false,
-            clock_cycles: 0,
             remaining_cycles: 0,
             total_clock_cycles: 0,
             halted: false,
@@ -421,8 +419,6 @@ impl Cpu {
             0x33 => {
                 // INC SP
                 self.sp += 1;
-                // 16-bit operation
-                self.nop();
             },
             0x34 => {
                 // INC (HL)
@@ -467,8 +463,6 @@ impl Cpu {
                 let (result, flags) = add_u16(self.regs.read(HL), self.sp);
                 self.regs.write(HL, result);
                 self.regs.write_flags(Flags { zero: old_zero, ..flags });
-                // 16-bit operation
-                self.nop();
             },
             0x3A => {
                 // LD A, (HL-)
@@ -479,8 +473,6 @@ impl Cpu {
             0x3B => {
                 // DEC SP
                 self.sp -= 1;
-                // 16-bit operation
-                self.nop();
             },
             0x3C => {
                 // INC A
@@ -772,9 +764,6 @@ impl Cpu {
                 let (result, flags) = self.sum_sp_n(n);
                 self.sp = result;
                 self.regs.write_flags(flags);
-                // Extra IO for 16-bit operation
-                self.nop();
-                self.nop();
             },
             0xEE => {
                 self.execute_xor(memory, Immediate8);
@@ -813,14 +802,10 @@ impl Cpu {
                 let (result, flags) = self.sum_sp_n(n);
                 self.regs.write(HL, result);
                 self.regs.write_flags(flags);
-                // 16-bit operation
-                self.nop();
             },
             0xF9 => {
                 // LD SP,HL
                 self.sp = self.regs.read(HL);
-                // 16-bit operation
-                self.nop();
             },
             0xFA => {
                 // LD A,(nn)
@@ -958,16 +943,10 @@ impl Cpu {
     fn handle_interrupt(&mut self, memory: &mut Memory, interrupt_no: u8) {
         // This routine should take 5 machine cycles
         self.ime = false;
-        self.nop();
-        self.nop();
         memory.cpu_write(IF_ADDR, set_bit(memory.cpu_read(IF_ADDR), interrupt_no, false));
         self.sp -= 2;
         Self::write_mem_u16(memory, self.sp, self.pc);
         self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
-    }
-
-    fn nop(&mut self) {
-        self.clock_cycles += 1;
     }
 
     fn read_imm(&mut self, memory: &Memory) -> u8 {
@@ -1040,8 +1019,6 @@ impl Cpu {
         let reg = order[(opcode / 0x10) as usize];
 
         self.regs.write(reg, self.regs.read(reg) - 1);
-        // Because it is a 16-bit register operation
-        self.nop();
     }
 
     fn execute_inc_rr(&mut self, opcode: u8) {
@@ -1049,8 +1026,6 @@ impl Cpu {
         let reg = order[(opcode / 0x10) as usize];
 
         self.regs.write(reg, self.regs.read(reg) + 1);
-        // Because it is a 16-bit register operation
-        self.nop();
     }
 
     fn execute_load_rr_nn(&mut self, memory: &Memory, opcode: u8) {
@@ -1069,8 +1044,6 @@ impl Cpu {
         let (result, flags) = add_u16(self.regs.read(HL), self.regs.read(reg));
         self.regs.write(HL, result);
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
-        // Because it is a 16-bit register operation
-        self.nop();
     }
 
     fn execute_load_r_r(&mut self, memory: &mut Memory, opcode: u8) {
@@ -1389,7 +1362,6 @@ impl Cpu {
     fn jump(&mut self, memory: &Memory) -> u16 {
         let addr = self.read_imm_u16(memory);
         self.pc = addr;
-        self.nop();
         addr
     }
 
@@ -1398,7 +1370,6 @@ impl Cpu {
         let addr = self.read_imm_u16(memory);
         if condition {
             self.pc = addr;
-            self.nop();
         }
         addr
     }
@@ -1408,7 +1379,6 @@ impl Cpu {
         let addr = self.read_imm_u16(memory);
 
         if condition {
-            self.nop(); // To decrement sp
             self.sp -= 2;
             Self::write_mem_u16(memory, self.sp, self.pc);
             self.pc = addr;
@@ -1421,22 +1391,18 @@ impl Cpu {
         // RET
         self.pc = Self::read_mem_u16(memory, self.sp);
         self.sp += 2;
-        self.nop();
     }
 
     fn ret_condition(&mut self, memory: &Memory, condition: bool) {
         // RET cc
-        self.nop();
         if condition {
             self.pc = Self::read_mem_u16(memory, self.sp);
             self.sp += 2;
-            self.nop();
         }
     }
 
     fn execute_rst(&mut self, memory: &mut Memory, opcode: u8) {
         let addr = (opcode - 0xC7) as u16;
-        self.nop(); // To decrement sp
         self.sp -= 2;
         Self::write_mem_u16(memory, self.sp, self.pc);
         self.pc = addr;
