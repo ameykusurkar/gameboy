@@ -41,16 +41,23 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
 }
 
+#[derive(Copy, Clone)]
 struct RegisterHL;
+
 struct Immediate8;
 
 trait Operand8<T> {
     fn read_oper(&self, memory: &Memory, src: T) -> u8;
+    fn write_oper(&mut self, memory: &mut Memory, src: T, val: u8);
 }
 
 impl Operand8<RegisterIndex> for Cpu {
     fn read_oper(&self, _memory: &Memory, src: RegisterIndex) -> u8 {
         self.regs[src]
+    }
+
+    fn write_oper(&mut self, _memory: &mut Memory, src: RegisterIndex, val: u8) {
+        self.regs[src] = val;
     }
 }
 
@@ -59,11 +66,20 @@ impl Operand8<RegisterHL> for Cpu {
         let addr = self.regs.read(HL);
         memory.cpu_read(addr)
     }
+
+    fn write_oper(&mut self, memory: &mut Memory, _src: RegisterHL, val: u8) {
+        let addr = self.regs.read(HL);
+        memory.cpu_write(addr, val);
+    }
 }
 
 impl Operand8<Immediate8> for Cpu {
     fn read_oper(&self, memory: &Memory, _src: Immediate8) -> u8 {
         memory.cpu_read(self.pc)
+    }
+
+    fn write_oper(&mut self, _memory: &mut Memory, _src: Immediate8, _val: u8) {
+        // Do nothing for now
     }
 }
 
@@ -978,38 +994,119 @@ impl Cpu {
         let opcode = self.read_imm(memory);
 
         match opcode {
-            0x00..=0x07 => {
-                self.execute_rlc_reg(memory, opcode);
-            },
-            0x08..=0x0F => {
-                self.execute_rrc_reg(memory, opcode);
-            },
-            0x10..=0x17 => {
-                self.execute_rl_reg(memory, opcode);
-            },
-            0x18..=0x1F => {
-                self.execute_rr_reg(memory, opcode);
-            },
-            0x20..=0x27 => {
-                self.execute_sla_reg(memory, opcode);
-            },
-            0x28..=0x2F => {
-                self.execute_sra_reg(memory, opcode);
-            },
-            0x30..=0x37 => {
-                self.execute_swap_reg(memory, opcode);
-            },
-            0x38..=0x3F => {
-                self.execute_srl_reg(memory, opcode);
-            },
+            0x00 => self.execute_rlc(memory, B),
+            0x01 => self.execute_rlc(memory, C),
+            0x02 => self.execute_rlc(memory, D),
+            0x03 => self.execute_rlc(memory, E),
+            0x04 => self.execute_rlc(memory, H),
+            0x05 => self.execute_rlc(memory, L),
+            0x06 => self.execute_rlc(memory, RegisterHL),
+            0x07 => self.execute_rlc(memory, A),
+
+            0x08 => self.execute_rrc(memory, B),
+            0x09 => self.execute_rrc(memory, C),
+            0x0A => self.execute_rrc(memory, D),
+            0x0B => self.execute_rrc(memory, E),
+            0x0C => self.execute_rrc(memory, H),
+            0x0D => self.execute_rrc(memory, L),
+            0x0E => self.execute_rrc(memory, RegisterHL),
+            0x0F => self.execute_rrc(memory, A),
+
+            0x10 => self.execute_rl(memory, B),
+            0x11 => self.execute_rl(memory, C),
+            0x12 => self.execute_rl(memory, D),
+            0x13 => self.execute_rl(memory, E),
+            0x14 => self.execute_rl(memory, H),
+            0x15 => self.execute_rl(memory, L),
+            0x16 => self.execute_rl(memory, RegisterHL),
+            0x17 => self.execute_rl(memory, A),
+
+            0x18 => self.execute_rr(memory, B),
+            0x19 => self.execute_rr(memory, C),
+            0x1A => self.execute_rr(memory, D),
+            0x1B => self.execute_rr(memory, E),
+            0x1C => self.execute_rr(memory, H),
+            0x1D => self.execute_rr(memory, L),
+            0x1E => self.execute_rr(memory, RegisterHL),
+            0x1F => self.execute_rr(memory, A),
+
+            0x20 => self.execute_sla(memory, B),
+            0x21 => self.execute_sla(memory, C),
+            0x22 => self.execute_sla(memory, D),
+            0x23 => self.execute_sla(memory, E),
+            0x24 => self.execute_sla(memory, H),
+            0x25 => self.execute_sla(memory, L),
+            0x26 => self.execute_sla(memory, RegisterHL),
+            0x27 => self.execute_sla(memory, A),
+
+            0x28 => self.execute_sra(memory, B),
+            0x29 => self.execute_sra(memory, C),
+            0x2A => self.execute_sra(memory, D),
+            0x2B => self.execute_sra(memory, E),
+            0x2C => self.execute_sra(memory, H),
+            0x2D => self.execute_sra(memory, L),
+            0x2E => self.execute_sra(memory, RegisterHL),
+            0x2F => self.execute_sra(memory, A),
+
+            0x30 => self.execute_swap(memory, B),
+            0x31 => self.execute_swap(memory, C),
+            0x32 => self.execute_swap(memory, D),
+            0x33 => self.execute_swap(memory, E),
+            0x34 => self.execute_swap(memory, H),
+            0x35 => self.execute_swap(memory, L),
+            0x36 => self.execute_swap(memory, RegisterHL),
+            0x37 => self.execute_swap(memory, A),
+
+            0x38 => self.execute_srl(memory, B),
+            0x39 => self.execute_srl(memory, C),
+            0x3A => self.execute_srl(memory, D),
+            0x3B => self.execute_srl(memory, E),
+            0x3C => self.execute_srl(memory, H),
+            0x3D => self.execute_srl(memory, L),
+            0x3E => self.execute_srl(memory, RegisterHL),
+            0x3F => self.execute_srl(memory, A),
+
             0x40..=0x7F => {
-                self.execute_test_bit_reg(memory, opcode);
+                let bit = (opcode - 0x40) / 0x08;
+                match opcode % 0x08 {
+                    0x00 => self.execute_tst(memory, bit, B),
+                    0x01 => self.execute_tst(memory, bit, C),
+                    0x02 => self.execute_tst(memory, bit, D),
+                    0x03 => self.execute_tst(memory, bit, E),
+                    0x04 => self.execute_tst(memory, bit, H),
+                    0x05 => self.execute_tst(memory, bit, L),
+                    0x06 => self.execute_tst(memory, bit, RegisterHL),
+                    0x07 => self.execute_tst(memory, bit, A),
+                    _    => unreachable!(),
+                }
             },
             0x80..=0xBF => {
-                self.execute_reset_bit_reg(memory, opcode);
+                let bit = (opcode - 0x80) / 0x08;
+                match opcode % 0x08 {
+                    0x00 => self.execute_res(memory, bit, B),
+                    0x01 => self.execute_res(memory, bit, C),
+                    0x02 => self.execute_res(memory, bit, D),
+                    0x03 => self.execute_res(memory, bit, E),
+                    0x04 => self.execute_res(memory, bit, H),
+                    0x05 => self.execute_res(memory, bit, L),
+                    0x06 => self.execute_res(memory, bit, RegisterHL),
+                    0x07 => self.execute_res(memory, bit, A),
+                    _    => unreachable!(),
+                }
             },
             0xC0..=0xFF => {
-                self.execute_set_bit_reg(memory, opcode);
+                let bit = (opcode - 0xC0) / 0x08;
+                match opcode % 0x08 {
+                    0x00 => self.execute_set(memory, bit, B),
+                    0x01 => self.execute_set(memory, bit, C),
+                    0x02 => self.execute_set(memory, bit, D),
+                    0x03 => self.execute_set(memory, bit, E),
+                    0x04 => self.execute_set(memory, bit, H),
+                    0x05 => self.execute_set(memory, bit, L),
+                    0x06 => self.execute_set(memory, bit, RegisterHL),
+                    0x07 => self.execute_set(memory, bit, A),
+                    _    => unreachable!(),
+                }
             },
         }
     }
@@ -1136,10 +1233,11 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_rlc_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = rotate_left(src);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_rlc<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let (result, carry) = rotate_left(val);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1147,10 +1245,11 @@ impl Cpu {
         });
     }
 
-    fn execute_rrc_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = rotate_right(src);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_rrc<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let (result, carry) = rotate_right(val);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1158,11 +1257,12 @@ impl Cpu {
         });
     }
 
-    fn execute_rl_reg(&mut self, memory: &mut Memory, opcode: u8) {
+    fn execute_rl<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
         let carry = read_bit(self.regs[F], CARRY_FLAG);
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = rotate_left_through_carry(src, carry);
-        self.set_dst_reg(memory, opcode, result);
+        let val = self.read_oper(memory, src);
+        let (result, carry) = rotate_left_through_carry(val, carry);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1170,11 +1270,12 @@ impl Cpu {
         });
     }
 
-    fn execute_rr_reg(&mut self, memory: &mut Memory, opcode: u8) {
+    fn execute_rr<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
         let carry = read_bit(self.regs[F], CARRY_FLAG);
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = rotate_right_through_carry(src, carry);
-        self.set_dst_reg(memory, opcode, result);
+        let val = self.read_oper(memory, src);
+        let (result, carry) = rotate_right_through_carry(val, carry);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1182,10 +1283,11 @@ impl Cpu {
         });
     }
 
-    fn execute_sla_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = shift_left(src);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_sla<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let (result, carry) = shift_left(val);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1193,10 +1295,11 @@ impl Cpu {
         });
     }
 
-    fn execute_sra_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = shift_right_arithmetic(src);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_sra<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let (result, carry) = shift_right_arithmetic(val);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1204,17 +1307,19 @@ impl Cpu {
         });
     }
 
-    fn execute_swap_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let src = self.get_source_val(memory, opcode);
-        let (result, flags) = swap_u8(src);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_swap<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let (result, flags) = swap_u8(val);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(flags);
     }
 
-    fn execute_srl_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let src = self.get_source_val(memory, opcode);
-        let (result, carry) = shift_right_logical(src);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_srl<T: Copy>(&mut self, memory: &mut Memory, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let (result, carry) = shift_right_logical(val);
+        self.write_oper(memory, src, result);
         self.regs.write_flags(Flags {
             zero: result == 0,
             carry,
@@ -1222,63 +1327,27 @@ impl Cpu {
         });
     }
 
-    fn execute_test_bit_reg(&mut self, memory: &Memory, opcode: u8) {
-        let bit_position = (opcode - 0x40) / 0x08;
-        let src = self.get_source_val(memory, opcode);
-        let result = read_bit(src, bit_position);
+    fn execute_tst<T: Copy>(&mut self, memory: &Memory, bit: u8, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let result = read_bit(val, bit);
         self.set_flag(ZERO_FLAG, !result);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, true);
     }
 
-    fn execute_reset_bit_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let bit_position = (opcode - 0x40) / 0x08;
-        let src = self.get_source_val(memory, opcode);
-        let result = set_bit(src, bit_position, false);
-        self.set_dst_reg(memory, opcode, result);
+    fn execute_res<T: Copy>(&mut self, memory: &mut Memory, bit: u8, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let result = set_bit(val, bit, false);
+        self.write_oper(memory, src, result);
     }
 
-    fn execute_set_bit_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let bit_position = (opcode - 0x40) / 0x08;
-        let src = self.get_source_val(memory, opcode);
-        let result = set_bit(src, bit_position, true);
-        self.set_dst_reg(memory, opcode, result);
-    }
-
-    // Many arithmetic/logical opcodes are arranged a particular order,
-    // eg. ADD r, where consecutive opcodes iterate through the different
-    // registers (r). There is one caveat to this: these operations treat
-    // the memory address pointed to by HL like a register as well, even
-    // though it is not really a register, but memory. This method hides
-    // that detail so that register operations can't tell the difference.
-    fn get_source_val(&mut self, memory: &Memory, opcode: u8) -> u8 {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
-
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => self.regs[reg],
-            None => {
-                let addr = self.regs.read(HL);
-                memory.cpu_read(addr)
-            }
-        }
-    }
-
-    fn set_dst_reg(&mut self, memory: &mut Memory, opcode: u8, val: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
-
-        match order[(opcode % 0x08) as usize] {
-            Some(reg) => {
-                self.regs[reg] = val;
-            },
-            None => {
-                let addr = self.regs.read(HL);
-                memory.cpu_write(addr, val);
-            }
-        }
+    fn execute_set<T: Copy>(&mut self, memory: &mut Memory, bit: u8, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(memory, src);
+        let result = set_bit(val, bit, true);
+        self.write_oper(memory, src, result);
     }
 
     fn inc_reg(&mut self, index: RegisterIndex) {
