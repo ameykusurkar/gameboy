@@ -43,6 +43,32 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
 }
 
+struct RegisterHL;
+struct Immediate8;
+
+trait Operand8<T> {
+    fn read_oper(&self, memory: &Memory, src: T) -> u8;
+}
+
+impl Operand8<RegisterIndex> for Cpu {
+    fn read_oper(&self, _memory: &Memory, src: RegisterIndex) -> u8 {
+        self.regs[src]
+    }
+}
+
+impl Operand8<RegisterHL> for Cpu {
+    fn read_oper(&self, memory: &Memory, _src: RegisterHL) -> u8 {
+        let addr = self.regs.read(HL);
+        memory.cpu_read(addr)
+    }
+}
+
+impl Operand8<Immediate8> for Cpu {
+    fn read_oper(&self, memory: &Memory, _src: Immediate8) -> u8 {
+        memory.cpu_read(self.pc)
+    }
+}
+
 impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
@@ -489,9 +515,14 @@ impl Cpu {
                 // HALT
                 self.halted = true;
             },
-            0x80..=0x87 => {
-                self.execute_add_reg(opcode);
-            }
+            0x80 => self.execute_add(B),
+            0x81 => self.execute_add(C),
+            0x82 => self.execute_add(D),
+            0x83 => self.execute_add(E),
+            0x84 => self.execute_add(H),
+            0x85 => self.execute_add(L),
+            0x86 => self.execute_add(RegisterHL),
+            0x87 => self.execute_add(A),
             0x88..=0x8F => {
                 self.execute_adc_reg(opcode);
             },
@@ -550,11 +581,8 @@ impl Cpu {
                 self.push(BC);
             },
             0xC6 => {
-                // ADD n
-                let n = self.read_imm();
-                let (result, flags) = add_u8(self.regs[A], n);
-                self.regs[A] = result;
-                self.regs.write_flags(flags);
+                self.execute_add(Immediate8);
+                self.pc += 1;
             },
             0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
                 self.execute_rst(opcode);
@@ -1094,9 +1122,10 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_add_reg(&mut self, opcode: u8) {
-        let src = self.get_source_val(opcode);
-        let (result, flags) = add_u8(self.regs[A], src);
+    fn execute_add<T>(&mut self, src: T) where
+        Self: Operand8<T> {
+        let val = self.read_oper(&self.memory, src);
+        let (result, flags) = add_u8(self.regs[A], val);
         self.regs[A] = result;
         self.regs.write_flags(flags);
     }
@@ -1508,13 +1537,13 @@ fn sbc_u8(x: u8, y: u8, carry: bool) -> (u8, Flags) {
 }
 
 fn add_u8(x: u8, y: u8) -> (u8, Flags) {
-    let result = x + y;
+    let (result, carry) = x.overflowing_add(y);
 
     let flags = Flags {
         zero: result == 0,
         subtract: false,
         half_carry: (x & 0xF) + (y & 0xF) > 0xF,
-        carry: (x as u32) + (y as u32) > 0xFF,
+        carry,
     };
 
     (result, flags)
