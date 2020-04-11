@@ -2,6 +2,7 @@ use crate::cpu::Cpu;
 use crate::ppu::Ppu;
 use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex::HL;
+use crate::memory::Memory;
 
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
 use crate::memory::Joypad;
@@ -12,27 +13,29 @@ const NORMAL_SPEED: bool = true;
 pub struct Emulator {
     cpu: Cpu,
     ppu: Ppu,
+    memory: Memory,
     cycles: u32,
     single_step_mode: bool,
 }
 
 impl Emulator {
     pub fn new(bootrom: &[u8], rom: &[u8]) -> Emulator {
-        let mut cpu = Cpu::new();
-        cpu.load_bootrom(bootrom);
-        cpu.load_rom(rom);
+        let mut memory = Memory::new();
+        memory.load_bootrom(bootrom);
+        memory.load_rom(rom);
 
         Emulator {
-            cpu,
+            cpu: Cpu::new(),
             ppu: Ppu::new(),
+            memory,
             cycles: 0,
             single_step_mode: false,
         }
     }
 
     fn clock(&mut self) {
-        self.cpu.step();
-        self.ppu.clock(self.cpu.get_memory_mut());
+        self.cpu.step(&mut self.memory);
+        self.ppu.clock(&mut self.memory);
         self.cycles += 1;
     }
 
@@ -49,7 +52,7 @@ impl Emulator {
     fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let width = MAP_WIDTH;
         let height = MAP_HEIGHT;
-        let pixel_buffer = Ppu::get_background_map(&self.cpu.memory);
+        let pixel_buffer = Ppu::get_background_map(&self.memory);
 
         let mut background_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -58,7 +61,7 @@ impl Emulator {
             background_map_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
         }
 
-        let pixel_buffer = Ppu::get_window_map(&self.cpu.memory);
+        let pixel_buffer = Ppu::get_window_map(&self.memory);
         let mut window_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
             let x = i % width;
@@ -75,7 +78,7 @@ impl Emulator {
 
     fn draw_tileset(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (16 * 8, 24 * 8);
-        let pixel_buffer = Ppu::get_tileset(&self.cpu.memory);
+        let pixel_buffer = Ppu::get_tileset(&self.memory);
 
         let mut tileset_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -90,7 +93,7 @@ impl Emulator {
 
     fn draw_sprites_map(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (10 * 8, 4 * 8);
-        let pixel_buffer = Ppu::get_sprites(&self.cpu.memory);
+        let pixel_buffer = Ppu::get_sprites(&self.memory);
 
         let mut sprites_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -109,7 +112,7 @@ impl Emulator {
         pge.draw_string(x, y, "REGISTERS", &pge::WHITE, scale);
 
         pge.draw_string(x, y + cy, &format!("A: {:02X}", self.cpu.regs[A]), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + cy, &format!("(HL): {:02X}", self.cpu.memory.cpu_read(self.cpu.regs.read(HL))), &pge::WHITE, scale);
+        pge.draw_string(x + 6 * cx, y + cy, &format!("(HL): {:02X}", self.memory.cpu_read(self.cpu.regs.read(HL))), &pge::WHITE, scale);
 
         pge.draw_string(x, y + 2 * cy, &format!("B: {:02X}", self.cpu.regs[B]), &pge::WHITE, scale);
         pge.draw_string(x + 6 * cx, y + 2 * cy, &format!("C:    {:02X}", self.cpu.regs[C]), &pge::WHITE, scale);
@@ -140,17 +143,17 @@ impl Emulator {
         let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };
         pge.draw_string(x, y + 14 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.cpu.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 18 * cy, &format!("IE: {:08b}", self.cpu.memory.cpu_read(0xFFFF)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 19 * cy, &format!("IF: {:08b}", self.cpu.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 18 * cy, &format!("IE: {:08b}", self.memory.cpu_read(0xFFFF)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 19 * cy, &format!("IF: {:08b}", self.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 21 * cy, &format!("LCDC: {:08b}", self.cpu.memory.cpu_read(0xFF40)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 22 * cy, &format!("STAT: {:08b}", self.cpu.memory.cpu_read(0xFF41)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 23 * cy, &format!("LY: {}", self.cpu.memory.cpu_read(0xFF44)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 21 * cy, &format!("LCDC: {:08b}", self.memory.cpu_read(0xFF40)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 22 * cy, &format!("STAT: {:08b}", self.memory.cpu_read(0xFF41)), &pge::WHITE, scale);
+        pge.draw_string(x, y + 23 * cy, &format!("LY: {}", self.memory.cpu_read(0xFF44)), &pge::WHITE, scale);
 
         let start_y = y + 25 * cy;
-        let mut instructions = self.cpu.disassemble(self.cpu.pc, self.cpu.pc + 10);
+        let mut instructions = self.cpu.disassemble(&self.memory, self.cpu.pc, self.cpu.pc + 10);
         let num_instructions = std::cmp::min(instructions.len(), 5);
         let instructions = instructions.drain(..num_instructions);
         for (i, (addr, repr)) in instructions.enumerate() {
@@ -163,7 +166,7 @@ impl Emulator {
     fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (LCD_WIDTH as usize, LCD_HEIGHT as usize);
 
-        if self.cpu.memory.lcd_enabled() {
+        if self.memory.lcd_enabled() {
             let mut screen_sprite = pge::Sprite::new(width, height);
             for (i, pixel) in self.ppu.screen.iter().enumerate() {
                 let (x, y) = (i % width, i / width);
@@ -203,7 +206,7 @@ impl pge::State for Emulator {
             }
         }
 
-        self.cpu.memory.update_joypad(Joypad {
+        self.memory.update_joypad(Joypad {
             button_selected: false,
             direction_selected: false,
             down: pge.get_key(minifb::Key::J).pressed,
