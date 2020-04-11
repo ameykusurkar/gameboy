@@ -1205,25 +1205,32 @@ impl Cpu {
     fn execute_and<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (result, flags) = and_u8(self.regs[A], val);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
+        self.regs[A] &= val;
+        self.regs.write_flags(Flags {
+            zero: self.regs[A] == 0,
+            half_carry: true,
+            ..Flags::default()
+        });
     }
 
     fn execute_xor<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (result, flags) = xor_u8(self.regs[A], val);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
+        self.regs[A] ^= val;
+        self.regs.write_flags(Flags {
+            zero: self.regs[A] == 0,
+            ..Flags::default()
+        });
     }
 
     fn execute_or<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (result, flags) = or_u8(self.regs[A], val);
-        self.regs[A] = result;
-        self.regs.write_flags(flags);
+        self.regs[A] |= val;
+        self.regs.write_flags(Flags {
+            zero: self.regs[A] == 0,
+            ..Flags::default()
+        });
     }
 
     fn execute_cp<T>(&mut self, memory: &Memory, src: T) where
@@ -1310,9 +1317,12 @@ impl Cpu {
     fn execute_swap<T: Copy>(&mut self, memory: &mut Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (result, flags) = swap_u8(val);
+        let result = (val & 0x0F) << 4 | (val & 0xF0) >> 4;
         self.write_oper(memory, src, result);
-        self.regs.write_flags(flags);
+        self.regs.write_flags(Flags {
+            zero: result == 0,
+            ..Flags::default()
+        });
     }
 
     fn execute_srl<T: Copy>(&mut self, memory: &mut Memory, src: T) where
@@ -1546,13 +1556,13 @@ fn shift_right_logical(val: u8) -> (u8, bool) {
 }
 
 fn sub_u8(x: u8, y: u8) -> (u8, Flags) {
-    let result = x - y;
+    let (result, carry) = x.overflowing_sub(y);
 
     let flags = Flags {
         zero: result == 0,
         subtract: true,
         half_carry: (x & 0xF) < (y & 0xF),
-        carry: x < y,
+        carry,
     };
 
     (result, flags)
@@ -1597,51 +1607,6 @@ fn add_u16(x: u16, y: u16) -> (u16, Flags) {
         subtract: false,
         half_carry: (x & 0x0FFF) + (y & 0x0FFF) > 0x0FFF,
         carry: (x as u32) + (y as u32) > 0xFFFF,
-    };
-
-    (result, flags)
-}
-
-fn or_u8(x: u8, y: u8) -> (u8, Flags) {
-    let result = x | y;
-
-    let flags = Flags {
-        zero: result == 0,
-        ..Flags::default()
-    };
-
-    (result, flags)
-}
-
-fn and_u8(x: u8, y: u8) -> (u8, Flags) {
-    let result = x & y;
-
-    let flags = Flags {
-        zero: result == 0,
-        half_carry: true,
-        ..Flags::default()
-    };
-
-    (result, flags)
-}
-
-fn xor_u8(x: u8, y: u8) -> (u8, Flags) {
-    let result = x ^ y;
-
-    let flags = Flags {
-        zero: result == 0,
-        ..Flags::default()
-    };
-
-    (result, flags)
-}
-
-fn swap_u8(x: u8) -> (u8, Flags) {
-    let result = (x & 0x0F) << 4 | (x & 0xF0) >> 4;
-
-    let flags = Flags {
-        zero: result == 0,
-        ..Flags::default()
     };
 
     (result, flags)
