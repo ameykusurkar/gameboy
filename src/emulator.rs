@@ -5,7 +5,7 @@ use crate::registers::TwoRegisterIndex::HL;
 use crate::memory::Memory;
 
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
-use crate::memory::Joypad;
+use crate::joypad::Joypad;
 
 pub const DEBUG: bool = false;
 const NORMAL_SPEED: bool = true;

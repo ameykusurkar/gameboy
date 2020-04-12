@@ -12,6 +12,7 @@ use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 
 use crate::emulator::DEBUG;
+use crate::utils::{read_bit, set_bit};
 
 // Address of the interrupt enable register
 const IE_ADDR: u16 = 0xFFFF;
@@ -1270,16 +1271,6 @@ impl Cpu {
     fn set_flag(&mut self, flag_bit: u8, val: bool) {
         self.regs[F] = set_bit(self.regs[F], flag_bit, val);
     }
-}
-
-// Writes `x` to the nth bit in `byte`
-fn set_bit(byte: u8, n: u8, x: bool) -> u8 {
-    (byte & !(1 << n)) | ((x as u8) << n)
-}
-
-// Reads the nth bit in `byte`
-fn read_bit(byte: u8, n: u8) -> bool {
-    (byte & (1 << n)) > 0
 }
 
 fn rotate_left(val: u8) -> (u8, bool) {

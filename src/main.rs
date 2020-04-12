@@ -7,6 +7,8 @@ mod registers;
 mod memory;
 mod instruction;
 mod emulator;
+mod joypad;
+mod utils;
 
 use emulator::Emulator;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};

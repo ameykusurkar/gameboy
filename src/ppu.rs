@@ -1,4 +1,5 @@
 use crate::memory::Memory;
+use crate::utils::{read_bit, set_bit};
 
 use crate::cpu::IF_ADDR;
 
@@ -375,12 +376,4 @@ fn pixel_map(color_number: u8, palette: u8) -> u8 {
     let high_bit = read_bit(palette, color_number * 2 + 1) as u8;
     let low_bit = read_bit(palette, color_number * 2) as u8;
     high_bit << 1 | low_bit
-}
-
-fn read_bit(byte: u8, n: u8) -> bool {
-    (byte & (1 << n)) > 0
-}
-
-fn set_bit(byte: u8, n: u8, x: bool) -> u8 {
-    (byte & !(1 << n)) | ((x as u8) << n)
 }
