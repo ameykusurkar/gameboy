@@ -41,6 +41,22 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
 }
 
+enum Condition { NZ, Z, NC, C }
+trait ConditionEvaluate {
+    fn eval_condition(&self, condition: Condition) -> bool;
+}
+
+impl ConditionEvaluate for Cpu {
+    fn eval_condition(&self, condition: Condition) -> bool {
+        match condition {
+            Condition::NZ => !read_bit(self.regs[F], ZERO_FLAG),
+            Condition::Z => read_bit(self.regs[F], ZERO_FLAG),
+            Condition::NC => !read_bit(self.regs[F], CARRY_FLAG),
+            Condition::C => read_bit(self.regs[F], CARRY_FLAG),
+        }
+    }
+}
+
 #[derive(Copy, Clone)]
 struct RegisterHL;
 
@@ -378,66 +394,46 @@ impl Cpu {
                 self.execute_inc_rr(opcode);
             },
 
-            0x07 => {
-                // RLCA
-                let (result, carry) = rotate_left(self.regs[A]);
-                self.regs[A] = result;
-                // Unlike RLC X, zero flag is RESET
-                self.regs.write_flags(Flags {
-                    carry,
-                    ..Flags::default()
-                });
-            },
             0x09 | 0x19 | 0x29 => {
                 self.execute_add_rr(opcode);
             },
             0x0B | 0x1B | 0x2B => {
                 self.execute_dec_rr(opcode);
             },
-            0x0F => {
-                // RRCA
-                let (result, carry) = rotate_right(self.regs[A]);
-                self.regs[A] = result;
-                // Unlike RRC X, zero flag is RESET
-                self.regs.write_flags(Flags {
-                    carry,
-                    ..Flags::default()
-                });
+
+            0x18 => self.execute_jr(memory),
+            0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
+            0x28 => extra_cycles = self.execute_jr_cc(memory, Condition::Z),
+            0x30 => extra_cycles = self.execute_jr_cc(memory, Condition::NC),
+            0x38 => extra_cycles = self.execute_jr_cc(memory, Condition::C),
+
+            0xC3 => self.execute_jp(memory),
+            0xC2 => extra_cycles = self.execute_jp_cc(memory, Condition::NZ),
+            0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
+            0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
+            0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
+
+            0xC9 => self.execute_ret(memory),
+            0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
+            0xC8 => extra_cycles = self.execute_ret_cc(memory, Condition::Z),
+            0xD0 => extra_cycles = self.execute_ret_cc(memory, Condition::NC),
+            0xD8 => extra_cycles = self.execute_ret_cc(memory, Condition::C),
+            0xD9 => {
+                self.ime = true;
+                self.execute_ret(memory);
             },
-            0x17 => {
-                // RLA
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, carry) = rotate_left_through_carry(self.regs[A], carry);
-                self.regs[A] = result;
-                // Unlike RL X, zero flag is RESET
-                self.regs.write_flags(Flags {
-                    carry,
-                    ..Flags::default()
-                });
+
+            0xCD => self.execute_call(memory),
+            0xC4 => extra_cycles = self.execute_call_cc(memory, Condition::NZ),
+            0xCC => extra_cycles = self.execute_call_cc(memory, Condition::Z),
+            0xD4 => extra_cycles = self.execute_call_cc(memory, Condition::NC),
+            0xDC => extra_cycles = self.execute_call_cc(memory, Condition::C),
+
+            0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
+                let addr = (opcode - 0xC7) as u16;
+                self.execute_rst(memory, addr);
             },
-            0x18 => {
-                // JR n
-                self.jump_rel(memory);
-            },
-            0x1F => {
-                // RRA
-                let carry = read_bit(self.regs[F], CARRY_FLAG);
-                let (result, carry) = rotate_right_through_carry(self.regs[A], carry);
-                self.regs[A] = result;
-                // Unlike RR X, zero flag is RESET
-                self.regs.write_flags(Flags {
-                    carry,
-                    ..Flags::default()
-                });
-            },
-            0x20 => {
-                // JR NZ,n
-                let condition = !read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_rel_condition(memory, condition);
-            },
+
             0x27 => {
                 // DAA
                 let val = self.regs[A];
@@ -462,27 +458,11 @@ impl Cpu {
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, carry);
             },
-            0x28 => {
-                // JR Z,n
-                let condition = read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_rel_condition(memory, condition);
-            },
             0x2F => {
                 // CPL
                 self.regs[A] ^= 0xFF;
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, true);
-            },
-            0x30 => {
-                // JR NC,n
-                let condition = !read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_rel_condition(memory, condition);
             },
             0x33 => {
                 // INC SP
@@ -493,14 +473,6 @@ impl Cpu {
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, true);
-            },
-            0x38 => {
-                // JR C,n
-                let condition = read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_rel_condition(memory, condition);
             },
             0x39 => {
                 // ADD HL,SP
@@ -523,6 +495,23 @@ impl Cpu {
             0x76 => {
                 // HALT
                 self.halted = true;
+            },
+
+            0x07 => {
+                self.execute_rlc(memory, A);
+                self.set_flag(ZERO_FLAG, false);
+            },
+            0x0F => {
+                self.execute_rrc(memory, A);
+                self.set_flag(ZERO_FLAG, false);
+            },
+            0x17 => {
+                self.execute_rl(memory, A);
+                self.set_flag(ZERO_FLAG, false);
+            },
+            0x1F => {
+                self.execute_rr(memory, A);
+                self.set_flag(ZERO_FLAG, false);
             },
 
             0x04 => self.execute_inc(memory, B),
@@ -623,140 +612,24 @@ impl Cpu {
             0xBF => self.execute_cp(memory, A),
             0xFE => self.execute_cp(memory, Immediate8),
 
-            0xC0 => {
-                // RET NZ
-                let condition = !read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.ret_condition(memory, condition);
-            },
             0xC1 => {
                 // POP BC
                 self.pop(memory, BC);
-            },
-            0xC2 => {
-                // JP NZ,nn
-                let condition = !read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_condition(memory, condition);
-            },
-            0xC3 => {
-                // JP nn
-                self.jump(memory);
-            },
-            0xC4 => {
-                // CALL NZ,nn
-                let condition = !read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.call_condition(memory, condition);
             },
             0xC5 => {
                 // PUSH BC
                 self.push(memory, BC);
             },
-            0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
-                self.execute_rst(memory, opcode);
-            },
-            0xC8 => {
-                // RET Z
-                let condition = read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.ret_condition(memory, condition);
-            },
-            0xC9 => {
-                // RET
-                self.ret(memory);
-            },
-            0xCA => {
-                // JP Z,nn
-                let condition = read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_condition(memory, condition);
-            },
             0xCB => {
                 self.execute_prefixed_instruction(memory);
-            },
-            0xCC => {
-                // CALL Z,nn
-                let condition = read_bit(self.regs[F], ZERO_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.call_condition(memory, condition);
-            },
-            0xCD => {
-                // CALL nn
-                self.call_condition(memory, true);
-            },
-            0xD0 => {
-                // RET NC
-                let condition = !read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.ret_condition(memory, condition);
             },
             0xD1 => {
                 // POP DE
                 self.pop(memory, DE);
             },
-            0xD2 => {
-                // JP NC,nn
-                let condition = !read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_condition(memory, condition);
-            },
-            0xD4 => {
-                // CALL NC,nn
-                let condition = !read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.call_condition(memory, condition);
-            },
             0xD5 => {
                 // PUSH DE
                 self.push(memory, DE);
-            },
-            0xD8 => {
-                // RET C
-                let condition = read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.ret_condition(memory, condition);
-            },
-            0xD9 => {
-                // RETI
-                self.ime = true;
-                self.ret(memory);
-            },
-            0xDA => {
-                // JP C,nn
-                let condition = read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.jump_condition(memory, condition);
-            },
-            0xDC => {
-                // CALL C,nn
-                let condition = read_bit(self.regs[F], CARRY_FLAG);
-                if condition {
-                    extra_cycles = self.current_instruction.cycles.get_extra_cycles();
-                }
-                self.call_condition(memory, condition);
             },
             0xE1 => {
                 // POP HL
@@ -1351,67 +1224,75 @@ impl Cpu {
         (result as u16, Flags { half_carry, carry, ..Flags::default() })
     }
 
-    fn jump_rel(&mut self, memory: &Memory) -> i8 {
-        // JR n
-        self.jump_rel_condition(memory, true)
+    fn execute_jr(&mut self, memory: &Memory) {
+        let offset = self.read_oper(memory, Immediate8) as i8;
+        self.pc = ((self.pc as i32) + (offset as i32)) as u16;
     }
 
-    fn jump_rel_condition(&mut self, memory: &Memory, condition: bool) -> i8 {
-        // JR cc, n
+    fn execute_jr_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         // Offset is signed
         let offset = self.read_oper(memory, Immediate8) as i8;
 
-        if condition {
+        if self.eval_condition(condition) {
             self.pc = ((self.pc as i32) + (offset as i32)) as u16;
+            self.current_instruction.cycles.get_extra_cycles()
+        } else {
+            0
         }
-
-        offset
     }
 
-    fn jump(&mut self, memory: &Memory) -> u16 {
+    fn execute_jp(&mut self, memory: &Memory) {
         let addr = self.read16(memory, Immediate16);
         self.pc = addr;
-        addr
     }
 
-    fn jump_condition(&mut self, memory: &Memory, condition: bool) -> u16 {
-        // JP cc, nn
+    fn execute_jp_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         let addr = self.read16(memory, Immediate16);
-        if condition {
+
+        if self.eval_condition(condition) {
             self.pc = addr;
+            self.current_instruction.cycles.get_extra_cycles()
+        } else {
+            0
         }
-        addr
     }
 
-    fn call_condition(&mut self, memory: &mut Memory, condition: bool) -> u16 {
-        // CALL cc, nn
+    fn execute_call(&mut self, memory: &mut Memory) {
+        let addr = self.read16(memory, Immediate16);
+        self.sp -= 2;
+        Self::write_mem_u16(memory, self.sp, self.pc);
+        self.pc = addr;
+    }
+
+    fn execute_call_cc(&mut self, memory: &mut Memory, condition: Condition) -> u32 {
         let addr = self.read16(memory, Immediate16);
 
-        if condition {
+        if self.eval_condition(condition) {
             self.sp -= 2;
             Self::write_mem_u16(memory, self.sp, self.pc);
             self.pc = addr;
+            self.current_instruction.cycles.get_extra_cycles()
+        } else {
+            0
         }
-
-        addr
     }
 
-    fn ret(&mut self, memory: &Memory) {
-        // RET
+    fn execute_ret(&mut self, memory: &Memory) {
         self.pc = Self::read_mem_u16(memory, self.sp);
         self.sp += 2;
     }
 
-    fn ret_condition(&mut self, memory: &Memory, condition: bool) {
-        // RET cc
-        if condition {
+    fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
+        if self.eval_condition(condition) {
             self.pc = Self::read_mem_u16(memory, self.sp);
             self.sp += 2;
+            self.current_instruction.cycles.get_extra_cycles()
+        } else {
+            0
         }
     }
 
-    fn execute_rst(&mut self, memory: &mut Memory, opcode: u8) {
-        let addr = (opcode - 0xC7) as u16;
+    fn execute_rst(&mut self, memory: &mut Memory, addr: u16) {
         self.sp -= 2;
         Self::write_mem_u16(memory, self.sp, self.pc);
         self.pc = addr;
