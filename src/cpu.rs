@@ -44,9 +44,14 @@ pub struct Cpu {
 #[derive(Copy, Clone)]
 struct RegisterHL;
 
+struct RegisterHLI;
+struct RegisterHLD;
+
 struct Immediate8;
 struct Immediate16;
 struct Addr16;
+struct HighPageAddr;
+struct HighPageC;
 
 struct AddrReg16(TwoRegisterIndex);
 
@@ -82,6 +87,34 @@ impl Operand8<RegisterHL> for Cpu {
     }
 }
 
+impl Operand8<RegisterHLI> for Cpu {
+    fn read_oper(&mut self, memory: &Memory, _src: RegisterHLI) -> u8 {
+        let addr = self.regs.read(HL);
+        self.regs.write(HL, addr + 1);
+        memory.cpu_read(addr)
+    }
+
+    fn write_oper(&mut self, memory: &mut Memory, _src: RegisterHLI, val: u8) {
+        let addr = self.regs.read(HL);
+        self.regs.write(HL, addr + 1);
+        memory.cpu_write(addr, val);
+    }
+}
+
+impl Operand8<RegisterHLD> for Cpu {
+    fn read_oper(&mut self, memory: &Memory, _src: RegisterHLD) -> u8 {
+        let addr = self.regs.read(HL);
+        self.regs.write(HL, addr - 1);
+        memory.cpu_read(addr)
+    }
+
+    fn write_oper(&mut self, memory: &mut Memory, _src: RegisterHLD, val: u8) {
+        let addr = self.regs.read(HL);
+        self.regs.write(HL, addr - 1);
+        memory.cpu_write(addr, val);
+    }
+}
+
 impl Operand8<AddrReg16> for Cpu {
     fn read_oper(&mut self, memory: &Memory, src: AddrReg16) -> u8 {
         let AddrReg16(reg) = src;
@@ -92,6 +125,34 @@ impl Operand8<AddrReg16> for Cpu {
     fn write_oper(&mut self, memory: &mut Memory, src: AddrReg16, val: u8) {
         let AddrReg16(reg) = src;
         let addr = self.regs.read(reg);
+        memory.cpu_write(addr, val);
+    }
+}
+
+impl Operand8<HighPageAddr> for Cpu {
+    fn read_oper(&mut self, memory: &Memory, _src: HighPageAddr) -> u8 {
+        let offset = self.read_oper(memory, Immediate8);
+        let addr = 0xFF00 | (offset as u16);
+        memory.cpu_read(addr)
+    }
+
+    fn write_oper(&mut self, memory: &mut Memory, _src: HighPageAddr, val: u8) {
+        let offset = self.read_oper(memory, Immediate8);
+        let addr = 0xFF00 | (offset as u16);
+        memory.cpu_write(addr, val);
+    }
+}
+
+impl Operand8<HighPageC> for Cpu {
+    fn read_oper(&mut self, memory: &Memory, _src: HighPageC) -> u8 {
+        let offset = self.read_oper(memory, C);
+        let addr = 0xFF00 | (offset as u16);
+        memory.cpu_read(addr)
+    }
+
+    fn write_oper(&mut self, memory: &mut Memory, _src: HighPageC, val: u8) {
+        let offset = self.read_oper(memory, C);
+        let addr = 0xFF00 | (offset as u16);
         memory.cpu_write(addr, val);
     }
 }
@@ -293,8 +354,25 @@ impl Cpu {
 
             0x08 => self.write16(memory, Addr16, self.sp),
 
+            0xE0 => self.execute_load(memory, HighPageAddr, A),
+            0xF0 => self.execute_load(memory, A, HighPageAddr),
+
+            0xE2 => self.execute_load(memory, HighPageC, A),
+            0xF2 => self.execute_load(memory, A, HighPageC),
+
             0xEA => self.execute_load(memory, Addr16, A),
             0xFA => self.execute_load(memory, A, Addr16),
+
+            0x22 => self.execute_load(memory, RegisterHLI, A),
+            0x2A => self.execute_load(memory, A, RegisterHLI),
+            0x32 => self.execute_load(memory, RegisterHLD, A),
+            0x3A => self.execute_load(memory, A, RegisterHLD),
+
+            0xF9 => self.sp = self.regs.read(HL),
+
+            0x40..=0x75 | 0x77..=0x7F => {
+                self.execute_load_reg_reg(memory, opcode);
+            },
 
             0x03 | 0x13 | 0x23 => {
                 self.execute_inc_rr(opcode);
@@ -391,12 +469,6 @@ impl Cpu {
                 }
                 self.jump_rel_condition(memory, condition);
             },
-            0x22 => {
-                // LD (HL+),A
-                let addr = self.regs.read(HL);
-                memory.cpu_write(addr, self.regs[A]);
-                self.regs.write(HL, addr + 1);
-            },
             0x24 => {
                 // INC H
                 self.inc_reg(H);
@@ -437,12 +509,6 @@ impl Cpu {
                 }
                 self.jump_rel_condition(memory, condition);
             },
-            0x2A => {
-                // LD A, (HL+)
-                let addr = self.regs.read(HL);
-                self.regs[A] = memory.cpu_read(addr);
-                self.regs.write(HL, addr + 1);
-            },
             0x2C => {
                 // INC L
                 self.inc_reg(L);
@@ -464,12 +530,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.jump_rel_condition(memory, condition);
-            },
-            0x32 => {
-                // LD (HL-), A
-                let addr = self.regs.read(HL);
-                memory.cpu_write(addr, self.regs[A]);
-                self.regs.write(HL, addr - 1);
             },
             0x33 => {
                 // INC SP
@@ -514,12 +574,6 @@ impl Cpu {
                 self.regs.write(HL, result);
                 self.regs.write_flags(Flags { zero: old_zero, ..flags });
             },
-            0x3A => {
-                // LD A, (HL-)
-                let addr = self.regs.read(HL);
-                self.regs[A] = memory.cpu_read(addr);
-                self.regs.write(HL, addr - 1);
-            },
             0x3B => {
                 // DEC SP
                 self.sp -= 1;
@@ -538,9 +592,6 @@ impl Cpu {
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, old_carry ^ true);
-            },
-            0x40..=0x75 | 0x77..=0x7F => {
-                self.execute_load_reg_reg(memory, opcode);
             },
             0x76 => {
                 // HALT
@@ -766,20 +817,9 @@ impl Cpu {
             0xDE => {
                 self.execute_sbc(memory, Immediate8);
             },
-            0xE0 => {
-                // LDH (n),A
-                let offset = self.read_oper(memory, Immediate8);
-                let addr = 0xFF00 + (offset as u16);
-                memory.cpu_write(addr, self.regs[A]);
-            },
             0xE1 => {
                 // POP HL
                 self.pop(memory, HL);
-            },
-            0xE2 => {
-                // LDH (C),A
-                let addr = 0xFF00 + (self.regs[C] as u16);
-                memory.cpu_write(addr, self.regs[A]);
             },
             0xE9 => {
                 // JP (HL)
@@ -803,20 +843,9 @@ impl Cpu {
             0xEE => {
                 self.execute_xor(memory, Immediate8);
             },
-            0xF0 => {
-                // LDH A,(n)
-                let offset = self.read_oper(memory, Immediate8);
-                let addr = 0xFF00 + (offset as u16);
-                self.regs[A] = memory.cpu_read(addr);
-            },
             0xF1 => {
                 // POP AF
                 self.pop(memory, AF);
-            },
-            0xF2 => {
-                // LDH A,(C)
-                let addr = 0xFF00 + (self.regs[C] as u16);
-                self.regs[A] = memory.cpu_read(addr);
             },
             0xF3 => {
                 // DI
@@ -835,10 +864,6 @@ impl Cpu {
                 let (result, flags) = self.sum_sp_n(n);
                 self.regs.write(HL, result);
                 self.regs.write_flags(flags);
-            },
-            0xF9 => {
-                // LD SP,HL
-                self.sp = self.regs.read(HL);
             },
             0xFB => {
                 // EI
