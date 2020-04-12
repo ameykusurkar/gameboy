@@ -377,14 +377,7 @@ impl Cpu {
             0x03 | 0x13 | 0x23 => {
                 self.execute_inc_rr(opcode);
             },
-            0x04 => {
-                // INC B
-                self.inc_reg(B);
-            },
-            0x05 => {
-                // DEC B
-                self.dec_reg(B);
-            },
+
             0x07 => {
                 // RLCA
                 let (result, carry) = rotate_left(self.regs[A]);
@@ -401,14 +394,6 @@ impl Cpu {
             0x0B | 0x1B | 0x2B => {
                 self.execute_dec_rr(opcode);
             },
-            0x0C => {
-                // INC C
-                self.inc_reg(C);
-            },
-            0x0D => {
-                // DEC C
-                self.dec_reg(C);
-            },
             0x0F => {
                 // RRCA
                 let (result, carry) = rotate_right(self.regs[A]);
@@ -418,14 +403,6 @@ impl Cpu {
                     carry,
                     ..Flags::default()
                 });
-            },
-            0x14 => {
-                // INC D
-                self.inc_reg(D);
-            },
-            0x15 => {
-                // DEC D
-                self.dec_reg(D);
             },
             0x17 => {
                 // RLA
@@ -441,14 +418,6 @@ impl Cpu {
             0x18 => {
                 // JR n
                 self.jump_rel(memory);
-            },
-            0x1C => {
-                // INC E
-                self.inc_reg(E);
-            },
-            0x1D => {
-                // DEC E
-                self.dec_reg(E);
             },
             0x1F => {
                 // RRA
@@ -468,14 +437,6 @@ impl Cpu {
                     extra_cycles = self.current_instruction.cycles.get_extra_cycles();
                 }
                 self.jump_rel_condition(memory, condition);
-            },
-            0x24 => {
-                // INC H
-                self.inc_reg(H);
-            },
-            0x25 => {
-                // DEC H
-                self.dec_reg(H);
             },
             0x27 => {
                 // DAA
@@ -509,14 +470,6 @@ impl Cpu {
                 }
                 self.jump_rel_condition(memory, condition);
             },
-            0x2C => {
-                // INC L
-                self.inc_reg(L);
-            },
-            0x2D => {
-                // DEC L
-                self.dec_reg(L);
-            },
             0x2F => {
                 // CPL
                 self.regs[A] ^= 0xFF;
@@ -534,24 +487,6 @@ impl Cpu {
             0x33 => {
                 // INC SP
                 self.sp += 1;
-            },
-            0x34 => {
-                // INC (HL)
-                let addr = self.regs.read(HL);
-                let old = memory.cpu_read(addr);
-                memory.cpu_write(addr, old + 1);
-                self.set_flag(ZERO_FLAG, (old + 1) == 0);
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0xF);
-            },
-            0x35 => {
-                // DEC (HL)
-                let addr = self.regs.read(HL);
-                let old = memory.cpu_read(addr);
-                memory.cpu_write(addr, old - 1);
-                self.set_flag(ZERO_FLAG, (old - 1) == 0);
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
             },
             0x37 => {
                 // SCF
@@ -578,14 +513,6 @@ impl Cpu {
                 // DEC SP
                 self.sp -= 1;
             },
-            0x3C => {
-                // INC A
-                self.inc_reg(A);
-            },
-            0x3D => {
-                // DEC A
-                self.dec_reg(A);
-            },
             0x3F => {
                 // CCF
                 let old_carry = read_bit(self.regs[F], CARRY_FLAG);
@@ -598,6 +525,24 @@ impl Cpu {
                 self.halted = true;
             },
 
+            0x04 => self.execute_inc(memory, B),
+            0x0C => self.execute_inc(memory, C),
+            0x14 => self.execute_inc(memory, D),
+            0x1C => self.execute_inc(memory, E),
+            0x24 => self.execute_inc(memory, H),
+            0x2C => self.execute_inc(memory, L),
+            0x34 => self.execute_inc(memory, RegisterHL),
+            0x3C => self.execute_inc(memory, A),
+
+            0x05 => self.execute_dec(memory, B),
+            0x0D => self.execute_dec(memory, C),
+            0x15 => self.execute_dec(memory, D),
+            0x1D => self.execute_dec(memory, E),
+            0x25 => self.execute_dec(memory, H),
+            0x2D => self.execute_dec(memory, L),
+            0x35 => self.execute_dec(memory, RegisterHL),
+            0x3D => self.execute_dec(memory, A),
+
             0x80 => self.execute_add(memory, B),
             0x81 => self.execute_add(memory, C),
             0x82 => self.execute_add(memory, D),
@@ -606,6 +551,7 @@ impl Cpu {
             0x85 => self.execute_add(memory, L),
             0x86 => self.execute_add(memory, RegisterHL),
             0x87 => self.execute_add(memory, A),
+            0xC6 => self.execute_add(memory, Immediate8),
 
             0x88 => self.execute_adc(memory, B),
             0x89 => self.execute_adc(memory, C),
@@ -615,6 +561,7 @@ impl Cpu {
             0x8D => self.execute_adc(memory, L),
             0x8E => self.execute_adc(memory, RegisterHL),
             0x8F => self.execute_adc(memory, A),
+            0xCE => self.execute_adc(memory, Immediate8),
 
             0x90 => self.execute_sub(memory, B),
             0x91 => self.execute_sub(memory, C),
@@ -624,6 +571,7 @@ impl Cpu {
             0x95 => self.execute_sub(memory, L),
             0x96 => self.execute_sub(memory, RegisterHL),
             0x97 => self.execute_sub(memory, A),
+            0xD6 => self.execute_sub(memory, Immediate8),
 
             0x98 => self.execute_sbc(memory, B),
             0x99 => self.execute_sbc(memory, C),
@@ -633,6 +581,7 @@ impl Cpu {
             0x9D => self.execute_sbc(memory, L),
             0x9E => self.execute_sbc(memory, RegisterHL),
             0x9F => self.execute_sbc(memory, A),
+            0xDE => self.execute_sbc(memory, Immediate8),
 
             0xA0 => self.execute_and(memory, B),
             0xA1 => self.execute_and(memory, C),
@@ -642,6 +591,7 @@ impl Cpu {
             0xA5 => self.execute_and(memory, L),
             0xA6 => self.execute_and(memory, RegisterHL),
             0xA7 => self.execute_and(memory, A),
+            0xE6 => self.execute_and(memory, Immediate8),
 
             0xA8 => self.execute_xor(memory, B),
             0xA9 => self.execute_xor(memory, C),
@@ -651,6 +601,7 @@ impl Cpu {
             0xAD => self.execute_xor(memory, L),
             0xAE => self.execute_xor(memory, RegisterHL),
             0xAF => self.execute_xor(memory, A),
+            0xEE => self.execute_xor(memory, Immediate8),
 
             0xB0 => self.execute_or(memory, B),
             0xB1 => self.execute_or(memory, C),
@@ -660,6 +611,7 @@ impl Cpu {
             0xB5 => self.execute_or(memory, L),
             0xB6 => self.execute_or(memory, RegisterHL),
             0xB7 => self.execute_or(memory, A),
+            0xF6 => self.execute_or(memory, Immediate8),
 
             0xB8 => self.execute_cp(memory, B),
             0xB9 => self.execute_cp(memory, C),
@@ -669,6 +621,7 @@ impl Cpu {
             0xBD => self.execute_cp(memory, L),
             0xBE => self.execute_cp(memory, RegisterHL),
             0xBF => self.execute_cp(memory, A),
+            0xFE => self.execute_cp(memory, Immediate8),
 
             0xC0 => {
                 // RET NZ
@@ -705,9 +658,6 @@ impl Cpu {
             0xC5 => {
                 // PUSH BC
                 self.push(memory, BC);
-            },
-            0xC6 => {
-                self.execute_add(memory, Immediate8);
             },
             0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
                 self.execute_rst(memory, opcode);
@@ -747,9 +697,6 @@ impl Cpu {
                 // CALL nn
                 self.call_condition(memory, true);
             },
-            0xCE => {
-                self.execute_adc(memory, Immediate8);
-            },
             0xD0 => {
                 // RET NC
                 let condition = !read_bit(self.regs[F], CARRY_FLAG);
@@ -782,9 +729,6 @@ impl Cpu {
                 // PUSH DE
                 self.push(memory, DE);
             },
-            0xD6 => {
-                self.execute_sub(memory, Immediate8);
-            },
             0xD8 => {
                 // RET C
                 let condition = read_bit(self.regs[F], CARRY_FLAG);
@@ -814,9 +758,6 @@ impl Cpu {
                 }
                 self.call_condition(memory, condition);
             },
-            0xDE => {
-                self.execute_sbc(memory, Immediate8);
-            },
             0xE1 => {
                 // POP HL
                 self.pop(memory, HL);
@@ -830,18 +771,12 @@ impl Cpu {
                 // PUSH HL
                 self.push(memory, HL);
             },
-            0xE6 => {
-                self.execute_and(memory, Immediate8);
-            },
             0xE8 => {
                 // ADD SP,n
                 let n = self.read_oper(memory, Immediate8);
                 let (result, flags) = self.sum_sp_n(n);
                 self.sp = result;
                 self.regs.write_flags(flags);
-            },
-            0xEE => {
-                self.execute_xor(memory, Immediate8);
             },
             0xF1 => {
                 // POP AF
@@ -855,9 +790,6 @@ impl Cpu {
                 // PUSH AF
                 self.push(memory, AF);
             },
-            0xF6 => {
-                self.execute_or(memory, Immediate8);
-            },
             0xF8 => {
                 // LD HL, SP + n
                 let n = self.read_oper(memory, Immediate8);
@@ -868,9 +800,6 @@ impl Cpu {
             0xFB => {
                 // EI
                 self.ime = true;
-            },
-            0xFE => {
-                self.execute_cp(memory, Immediate8);
             },
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
@@ -1368,20 +1297,22 @@ impl Cpu {
         self.write_oper(memory, src, result);
     }
 
-    fn inc_reg(&mut self, index: RegisterIndex) {
-        // INC r
-        let old = self.regs[index];
-        self.regs[index] += 1;
-        self.set_flag(ZERO_FLAG, self.regs[index] == 0);
+    fn execute_inc<T: Copy>(&mut self, memory: &mut Memory, src: T)
+        where Self: Operand8<T> {
+        let old = self.read_oper(memory, src);
+        let result = old + 1;
+        self.write_oper(memory, src, result);
+        self.set_flag(ZERO_FLAG, result == 0);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, ((old & 0xF) + 1) > 0xF);
     }
 
-    fn dec_reg(&mut self, index: RegisterIndex) {
-        // DEC r
-        let old = self.regs[index];
-        self.regs[index] -= 1;
-        self.set_flag(ZERO_FLAG, self.regs[index] == 0);
+    fn execute_dec<T: Copy>(&mut self, memory: &mut Memory, src: T)
+        where Self: Operand8<T> {
+        let old = self.read_oper(memory, src);
+        let result = old - 1;
+        self.write_oper(memory, src, result);
+        self.set_flag(ZERO_FLAG, result == 0);
         self.set_flag(SUBTRACT_FLAG, true);
         self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
     }
