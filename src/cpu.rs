@@ -434,6 +434,16 @@ impl Cpu {
                 self.execute_rst(memory, addr);
             },
 
+            0xC1 => self.execute_pop(memory, BC),
+            0xD1 => self.execute_pop(memory, DE),
+            0xE1 => self.execute_pop(memory, HL),
+            0xF1 => self.execute_pop(memory, AF),
+
+            0xC5 => self.execute_push(memory, BC),
+            0xD5 => self.execute_push(memory, DE),
+            0xE5 => self.execute_push(memory, HL),
+            0xF5 => self.execute_push(memory, AF),
+
             0x27 => {
                 // DAA
                 let val = self.regs[A];
@@ -612,37 +622,13 @@ impl Cpu {
             0xBF => self.execute_cp(memory, A),
             0xFE => self.execute_cp(memory, Immediate8),
 
-            0xC1 => {
-                // POP BC
-                self.pop(memory, BC);
-            },
-            0xC5 => {
-                // PUSH BC
-                self.push(memory, BC);
-            },
             0xCB => {
                 self.execute_prefixed_instruction(memory);
-            },
-            0xD1 => {
-                // POP DE
-                self.pop(memory, DE);
-            },
-            0xD5 => {
-                // PUSH DE
-                self.push(memory, DE);
-            },
-            0xE1 => {
-                // POP HL
-                self.pop(memory, HL);
             },
             0xE9 => {
                 // JP (HL)
                 let addr = self.regs.read(HL);
                 self.pc = addr;
-            },
-            0xE5 => {
-                // PUSH HL
-                self.push(memory, HL);
             },
             0xE8 => {
                 // ADD SP,n
@@ -651,17 +637,9 @@ impl Cpu {
                 self.sp = result;
                 self.regs.write_flags(flags);
             },
-            0xF1 => {
-                // POP AF
-                self.pop(memory, AF);
-            },
             0xF3 => {
                 // DI
                 self.ime = false;
-            },
-            0xF5 => {
-                // PUSH AF
-                self.push(memory, AF);
             },
             0xF8 => {
                 // LD HL, SP + n
@@ -1298,12 +1276,12 @@ impl Cpu {
         self.pc = addr;
     }
 
-    fn push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
+    fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
         self.sp -= 2;
         Self::write_mem_u16(memory, self.sp, self.regs.read(index));
     }
 
-    fn pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
+    fn execute_pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
         let nn = Self::read_mem_u16(memory, self.sp);
         self.regs.write(index, nn);
         self.sp += 2;
