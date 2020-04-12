@@ -445,54 +445,6 @@ impl Cpu {
             0xE5 => self.execute_push(memory, HL),
             0xF5 => self.execute_push(memory, AF),
 
-            0x27 => {
-                // DAA
-                let val = self.regs[A];
-                let mut correction = 0;
-                let mut carry = read_bit(self.regs[F], CARRY_FLAG);
-                if read_bit(self.regs[F], HALF_CARRY_FLAG) || (!read_bit(self.regs[F], SUBTRACT_FLAG) && ((val & 0x0F) > 0x09)) {
-                    correction |= 0x06;
-                }
-
-                if read_bit(self.regs[F], CARRY_FLAG) || (!read_bit(self.regs[F], SUBTRACT_FLAG) && (val > 0x99)) {
-                    correction |= 0x60;
-                    carry = true;
-                }
-
-                if read_bit(self.regs[F], SUBTRACT_FLAG) {
-                    self.regs[A] -= correction;
-                } else {
-                    self.regs[A] += correction;
-                }
-
-                self.set_flag(ZERO_FLAG, self.regs[A] == 0);
-                self.set_flag(HALF_CARRY_FLAG, false);
-                self.set_flag(CARRY_FLAG, carry);
-            },
-            0x2F => {
-                // CPL
-                self.regs[A] ^= 0xFF;
-                self.set_flag(SUBTRACT_FLAG, true);
-                self.set_flag(HALF_CARRY_FLAG, true);
-            },
-            0x37 => {
-                // SCF
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, false);
-                self.set_flag(CARRY_FLAG, true);
-            },
-            0x3F => {
-                // CCF
-                let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-                self.set_flag(SUBTRACT_FLAG, false);
-                self.set_flag(HALF_CARRY_FLAG, false);
-                self.set_flag(CARRY_FLAG, old_carry ^ true);
-            },
-            0x76 => {
-                // HALT
-                self.halted = true;
-            },
-
             0x07 => {
                 self.execute_rlc(memory, A);
                 self.set_flag(ZERO_FLAG, false);
@@ -608,6 +560,11 @@ impl Cpu {
             0xBF => self.execute_cp(memory, A),
             0xFE => self.execute_cp(memory, Immediate8),
 
+            0x27 => self.execute_daa(),
+            0x2F => self.execute_cpl(),
+            0x37 => self.execute_scf(),
+            0x3F => self.execute_ccf(),
+
             0x03 => self.execute_inc16(BC),
             0x13 => self.execute_inc16(DE),
             0x23 => self.execute_inc16(HL),
@@ -629,6 +586,7 @@ impl Cpu {
             0xCB => self.execute_prefixed_instruction(memory),
             0xF3 => self.ime = false,
             0xFB => self.ime = true,
+            0x76 => self.halted = true,
 
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
@@ -1004,6 +962,51 @@ impl Cpu {
         let val = self.read_oper(memory, src);
         let (_, flags) = sub_u8(self.regs[A], val);
         self.regs.write_flags(flags);
+    }
+
+    fn execute_daa(&mut self) {
+        let val = self.regs[A];
+        let mut correction = 0;
+        let mut carry = read_bit(self.regs[F], CARRY_FLAG);
+        if read_bit(self.regs[F], HALF_CARRY_FLAG)
+            || (!read_bit(self.regs[F], SUBTRACT_FLAG) && ((val & 0x0F) > 0x09)) {
+            correction |= 0x06;
+        }
+
+        if read_bit(self.regs[F], CARRY_FLAG)
+            || (!read_bit(self.regs[F], SUBTRACT_FLAG) && (val > 0x99)) {
+            correction |= 0x60;
+            carry = true;
+        }
+
+        if read_bit(self.regs[F], SUBTRACT_FLAG) {
+            self.regs[A] -= correction;
+        } else {
+            self.regs[A] += correction;
+        }
+
+        self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+        self.set_flag(HALF_CARRY_FLAG, false);
+        self.set_flag(CARRY_FLAG, carry);
+    }
+
+    fn execute_cpl(&mut self) {
+        self.regs[A] ^= 0xFF;
+        self.set_flag(SUBTRACT_FLAG, true);
+        self.set_flag(HALF_CARRY_FLAG, true);
+    }
+
+    fn execute_scf(&mut self) {
+        self.set_flag(SUBTRACT_FLAG, false);
+        self.set_flag(HALF_CARRY_FLAG, false);
+        self.set_flag(CARRY_FLAG, true);
+    }
+
+    fn execute_ccf(&mut self) {
+        let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+        self.set_flag(SUBTRACT_FLAG, false);
+        self.set_flag(HALF_CARRY_FLAG, false);
+        self.set_flag(CARRY_FLAG, old_carry ^ true);
     }
 
     fn execute_rlc<T: Copy>(&mut self, memory: &mut Memory, src: T) where
