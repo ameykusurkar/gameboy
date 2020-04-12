@@ -68,6 +68,7 @@ struct Immediate16;
 struct Addr16;
 struct HighPageAddr;
 struct HighPageC;
+struct SP;
 
 struct AddrReg16(TwoRegisterIndex);
 
@@ -202,6 +203,16 @@ impl Operand16<TwoRegisterIndex> for Cpu {
 
     fn write16(&mut self, _memory: &mut Memory, src: TwoRegisterIndex, val: u16) {
         self.regs.write(src, val);
+    }
+}
+
+impl Operand16<SP> for Cpu {
+    fn read16(&mut self, _memory: &Memory, _src: SP) -> u16 {
+        self.sp
+    }
+
+    fn write16(&mut self, _memory: &mut Memory, _src: SP, val: u16) {
+        self.sp = val;
     }
 }
 
@@ -390,17 +401,6 @@ impl Cpu {
                 self.execute_load_reg_reg(memory, opcode);
             },
 
-            0x03 | 0x13 | 0x23 => {
-                self.execute_inc_rr(opcode);
-            },
-
-            0x09 | 0x19 | 0x29 => {
-                self.execute_add_rr(opcode);
-            },
-            0x0B | 0x1B | 0x2B => {
-                self.execute_dec_rr(opcode);
-            },
-
             0x18 => self.execute_jr(memory),
             0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
             0x28 => extra_cycles = self.execute_jr_cc(memory, Condition::Z),
@@ -412,6 +412,7 @@ impl Cpu {
             0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
             0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
             0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
+            0xE9 => self.pc = self.regs.read(HL),
 
             0xC9 => self.execute_ret(memory),
             0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
@@ -474,26 +475,11 @@ impl Cpu {
                 self.set_flag(SUBTRACT_FLAG, true);
                 self.set_flag(HALF_CARRY_FLAG, true);
             },
-            0x33 => {
-                // INC SP
-                self.sp += 1;
-            },
             0x37 => {
                 // SCF
                 self.set_flag(SUBTRACT_FLAG, false);
                 self.set_flag(HALF_CARRY_FLAG, false);
                 self.set_flag(CARRY_FLAG, true);
-            },
-            0x39 => {
-                // ADD HL,SP
-                let old_zero = read_bit(self.regs[F], ZERO_FLAG);
-                let (result, flags) = add_u16(self.regs.read(HL), self.sp);
-                self.regs.write(HL, result);
-                self.regs.write_flags(Flags { zero: old_zero, ..flags });
-            },
-            0x3B => {
-                // DEC SP
-                self.sp -= 1;
             },
             0x3F => {
                 // CCF
@@ -622,36 +608,28 @@ impl Cpu {
             0xBF => self.execute_cp(memory, A),
             0xFE => self.execute_cp(memory, Immediate8),
 
-            0xCB => {
-                self.execute_prefixed_instruction(memory);
-            },
-            0xE9 => {
-                // JP (HL)
-                let addr = self.regs.read(HL);
-                self.pc = addr;
-            },
-            0xE8 => {
-                // ADD SP,n
-                let n = self.read_oper(memory, Immediate8);
-                let (result, flags) = self.sum_sp_n(n);
-                self.sp = result;
-                self.regs.write_flags(flags);
-            },
-            0xF3 => {
-                // DI
-                self.ime = false;
-            },
-            0xF8 => {
-                // LD HL, SP + n
-                let n = self.read_oper(memory, Immediate8);
-                let (result, flags) = self.sum_sp_n(n);
-                self.regs.write(HL, result);
-                self.regs.write_flags(flags);
-            },
-            0xFB => {
-                // EI
-                self.ime = true;
-            },
+            0x03 => self.execute_inc16(BC),
+            0x13 => self.execute_inc16(DE),
+            0x23 => self.execute_inc16(HL),
+            0x33 => self.sp += 1,
+
+            0x0B => self.execute_dec16(BC),
+            0x1B => self.execute_dec16(DE),
+            0x2B => self.execute_dec16(HL),
+            0x3B => self.sp -= 1,
+
+            0x09 => self.execute_add16(memory, BC),
+            0x19 => self.execute_add16(memory, DE),
+            0x29 => self.execute_add16(memory, HL),
+            0x39 => self.execute_add16(memory, SP),
+
+            0xE8 => self.execute_add_sp_imm8(memory, SP),
+            0xF8 => self.execute_add_sp_imm8(memory, HL),
+
+            0xCB => self.execute_prefixed_instruction(memory),
+            0xF3 => self.ime = false,
+            0xFB => self.ime = true,
+
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
 
@@ -915,28 +893,28 @@ impl Cpu {
         }
     }
 
-    fn execute_dec_rr(&mut self, opcode: u8) {
-        let order = [BC, DE, HL];
-        let reg = order[(opcode / 0x10) as usize];
-
-        self.regs.write(reg, self.regs.read(reg) - 1);
-    }
-
-    fn execute_inc_rr(&mut self, opcode: u8) {
-        let order = [BC, DE, HL];
-        let reg = order[(opcode / 0x10) as usize];
-
+    fn execute_inc16(&mut self, reg: TwoRegisterIndex) {
         self.regs.write(reg, self.regs.read(reg) + 1);
     }
 
-    fn execute_add_rr(&mut self, opcode: u8) {
-        let order = [BC, DE, HL];
-        let reg = order[(opcode / 0x10) as usize];
+    fn execute_dec16(&mut self, reg: TwoRegisterIndex) {
+        self.regs.write(reg, self.regs.read(reg) - 1);
+    }
 
+    fn execute_add16<T>(&mut self, memory: &Memory, src: T) where
+    Self: Operand16<T> {
         let old_zero = read_bit(self.regs[F], ZERO_FLAG);
-        let (result, flags) = add_u16(self.regs.read(HL), self.regs.read(reg));
+        let (result, flags) = add_u16(self.regs.read(HL), self.read16(memory, src));
         self.regs.write(HL, result);
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
+    }
+
+    fn execute_add_sp_imm8<T>(&mut self, memory: &mut Memory, dst: T) where
+    Self: Operand16<T> {
+        let n = self.read_oper(memory, Immediate8);
+        let (result, flags) = self.sum_sp_n(n);
+        self.write16(memory, dst, result);
+        self.regs.write_flags(flags);
     }
 
     fn execute_load_reg_reg(&mut self, memory: &mut Memory, opcode: u8) {
