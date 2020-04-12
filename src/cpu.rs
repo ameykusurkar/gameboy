@@ -717,19 +717,6 @@ impl Cpu {
         self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
     }
 
-    fn read_mem_u16(memory: &Memory, addr: u16) -> u16 {
-        let lsb = memory.cpu_read(addr) as u16;
-        let msb = memory.cpu_read(addr + 1) as u16;
-        (msb << 8) | lsb
-    }
-
-    fn write_mem_u16(memory: &mut Memory, addr: u16, val: u16) {
-        let lsb = (val & 0x00FF) as u8;
-        let msb = ((val & 0xFF00) >> 8) as u8;
-        memory.cpu_write(addr, lsb);
-        memory.cpu_write(addr + 1, msb);
-    }
-
     fn execute_prefixed_instruction(&mut self, memory: &mut Memory) {
         let opcode = self.read_oper(memory, Immediate8);
 
@@ -1161,28 +1148,6 @@ impl Cpu {
         self.write16(memory, dst, val);
     }
 
-
-    fn sum_sp_n(&mut self, n: u8) -> (u16, Flags) {
-        // n is a signed value
-        let n = n as i8;
-        let sp = self.sp as i32;
-
-        let result = sp + (n as i32);
-        let (half_carry, carry) = if n < 0 {
-            (
-                (result & 0x0F) <= (sp & 0x0F),
-                (result & 0xFF) <= (sp & 0xFF),
-            )
-        } else {
-            (
-                (sp & 0x0F) + (n as i32 & 0x0F) > 0x0F,
-                (sp & 0xFF) + (n as i32 & 0xFF) > 0xFF,
-            )
-        };
-
-        (result as u16, Flags { half_carry, carry, ..Flags::default() })
-    }
-
     fn execute_jr(&mut self, memory: &Memory) {
         let offset = self.read_oper(memory, Immediate8) as i8;
         self.pc = ((self.pc as i32) + (offset as i32)) as u16;
@@ -1266,6 +1231,40 @@ impl Cpu {
         let nn = Self::read_mem_u16(memory, self.sp);
         self.regs.write(index, nn);
         self.sp += 2;
+    }
+
+    fn sum_sp_n(&mut self, n: u8) -> (u16, Flags) {
+        // n is a signed value
+        let n = n as i8;
+        let sp = self.sp as i32;
+
+        let result = sp + (n as i32);
+        let (half_carry, carry) = if n < 0 {
+            (
+                (result & 0x0F) <= (sp & 0x0F),
+                (result & 0xFF) <= (sp & 0xFF),
+            )
+        } else {
+            (
+                (sp & 0x0F) + (n as i32 & 0x0F) > 0x0F,
+                (sp & 0xFF) + (n as i32 & 0xFF) > 0xFF,
+            )
+        };
+
+        (result as u16, Flags { half_carry, carry, ..Flags::default() })
+    }
+
+    fn read_mem_u16(memory: &Memory, addr: u16) -> u16 {
+        let lsb = memory.cpu_read(addr) as u16;
+        let msb = memory.cpu_read(addr + 1) as u16;
+        (msb << 8) | lsb
+    }
+
+    fn write_mem_u16(memory: &mut Memory, addr: u16, val: u16) {
+        let lsb = (val & 0x00FF) as u8;
+        let msb = ((val & 0xFF00) >> 8) as u8;
+        memory.cpu_write(addr, lsb);
+        memory.cpu_write(addr + 1, msb);
     }
 
     fn set_flag(&mut self, flag_bit: u8, val: bool) {
