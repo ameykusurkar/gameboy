@@ -19,10 +19,9 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(bootrom: &[u8], rom: &[u8]) -> Emulator {
-        let mut memory = Memory::new();
+    pub fn new(bootrom: &[u8], rom: Vec<u8>) -> Emulator {
+        let mut memory = Memory::new(rom);
         memory.load_bootrom(bootrom);
-        memory.load_rom(rom);
 
         Emulator {
             cpu: Cpu::new(),

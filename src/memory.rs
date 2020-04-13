@@ -1,25 +1,28 @@
 use crate::ppu::LcdMode;
 use crate::joypad::Joypad;
+use crate::cartridge::Cartridge;
 
 use crate::utils::read_bit;
 
 pub struct Memory {
+    cartridge: Cartridge,
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
     joypad: Joypad,
 }
 
 pub trait MemoryAccess {
-    fn read(&self) -> u8;
-    fn write(&mut self, byte: u8);
+    fn read(&self, addr: u16) -> u8;
+    fn write(&mut self, addr: u16, byte: u8);
 }
 
 const VRAM_RANGE: std::ops::Range<usize> = 0x8000..0xA000;
 const OAM_RANGE: std::ops::Range<usize>  = 0xFE00..0xFEA0;
 
 impl Memory {
-    pub fn new() -> Memory {
+    pub fn new(rom: Vec<u8>) -> Memory {
         Memory {
+            cartridge: Cartridge::new(rom),
             memory: [0; 1 << 16],
             bootrom: [0; 256],
             joypad: Joypad::default(),
@@ -28,11 +31,6 @@ impl Memory {
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
         self.bootrom.copy_from_slice(buffer);
-    }
-
-    pub fn load_rom(&mut self, buffer: &[u8]) {
-        let rom_segment = &mut self.memory[0..buffer.len()];
-        rom_segment.copy_from_slice(buffer);
     }
 
     pub fn update_joypad(&mut self, joypad: Joypad) {
@@ -51,14 +49,17 @@ impl Memory {
     pub fn cpu_read(&self, addr: u16) -> u8 {
         let addr = addr as usize;
 
+        // TODO: Refactor how memory access is delegated
         if addr < 0x100 && self.is_bootrom_active() {
             self.bootrom[addr]
+        } else if (0x0000..0x8000).contains(&addr) {
+            self.cartridge.read(addr as u16)
         } else if VRAM_RANGE.contains(&addr) && self.vram_blocked() {
             0xFF
         } else if OAM_RANGE.contains(&addr) && self.oam_blocked() {
             0xFF
         } else if addr == 0xFF00 {
-            self.joypad.read()
+            self.joypad.read(addr as u16)
         } else {
             self.memory[addr]
         }
@@ -73,10 +74,7 @@ impl Memory {
         match addr {
             // Cartridge
             0x0000..=0x7FFF => {
-                // TODO: Change this when implementing MBC1
-                // Writes to cartridge happen when it has a memory bank controller
-                // allowing us to access a larger ROM address space. We ignore
-                // these writes for now
+                self.cartridge.write(addr, val);
             },
             // VRAM
             0x8000..=0x9FFF => {
@@ -92,7 +90,7 @@ impl Memory {
             },
             // Joypad
             0xFF00 => {
-                self.joypad.write(val);
+                self.joypad.write(addr, val);
             },
             // DMA Transfer
             0xFF46 => {

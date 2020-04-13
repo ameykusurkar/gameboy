@@ -9,6 +9,7 @@ mod instruction;
 mod emulator;
 mod joypad;
 mod utils;
+mod cartridge;
 
 use emulator::Emulator;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
@@ -31,7 +32,7 @@ fn main() -> std::io::Result<()> {
     let mut rom_buffer = Vec::new();
     f.read_to_end(&mut rom_buffer)?;
 
-    let mut emulator = Emulator::new(&bootrom_buffer, &rom_buffer);
+    let mut emulator = Emulator::new(&bootrom_buffer, rom_buffer);
 
     let width = LCD_WIDTH * 6;
     let height = LCD_HEIGHT * 6;

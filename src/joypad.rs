@@ -32,7 +32,7 @@ impl Joypad {
 }
 
 impl MemoryAccess for Joypad {
-    fn read(&self) -> u8 {
+    fn read(&self, _addr: u16) -> u8 {
         let keys = if self.button_selected {
             self.read_buttons()
         } else if self.direction_selected {
@@ -47,7 +47,7 @@ impl MemoryAccess for Joypad {
             | keys
     }
 
-    fn write(&mut self, byte: u8) {
+    fn write(&mut self, _addr: u16, byte: u8) {
         self.button_selected = !read_bit(byte, 5);
         self.direction_selected = !read_bit(byte, 4);
     }
