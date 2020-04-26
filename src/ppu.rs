@@ -147,8 +147,8 @@ impl Ppu {
             }
 
             if sprites_enabled {
-                // TODO: Account for sprite priority
                 self.get_sprite(x as u8)
+                    .filter(|sprite| !(sprite.priority && (1..=3).contains(&pixel)))
                     .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
                     .map(|sprite_pixel| pixel = sprite_pixel);
             }
