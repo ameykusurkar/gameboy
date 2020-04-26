@@ -221,8 +221,8 @@ impl pge::State for Emulator {
             right: pge.get_key(minifb::Key::L).pressed,
             start: pge.get_key(minifb::Key::V).pressed,
             select: pge.get_key(minifb::Key::N).pressed,
-            b: pge.get_key(minifb::Key::F).pressed,
-            a: pge.get_key(minifb::Key::S).pressed,
+            b: pge.get_key(minifb::Key::D).pressed,
+            a: pge.get_key(minifb::Key::F).pressed,
         });
 
         if !self.single_step_mode && NORMAL_SPEED {

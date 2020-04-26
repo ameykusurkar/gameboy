@@ -152,8 +152,15 @@ impl Ppu {
     fn get_sprite_pixel(sprite: &Sprite, memory: &Memory, x: u8, y: u8) -> Option<u8> {
         let tile = Self::get_sprite_tile(memory, sprite.tile_no);
         let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
-        // TODO: Account for tiles being flipped
-        let (line_x, line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
+        let (mut line_x, mut line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
+
+        if sprite.x_flip {
+            line_x = 7 - line_x;
+        }
+        if sprite.y_flip {
+            line_y = 7 - line_y;
+        }
+
         let pixel_data = get_tile_pixel_data(tile, line_x, line_y);
 
         if pixel_data == 0x00 {
