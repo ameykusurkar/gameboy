@@ -204,7 +204,7 @@ impl pge::State for Emulator {
             self.single_step_mode = false;
         }
 
-        let num_steps = if self.single_step_mode { 1 } else { 17_556 };
+        let num_steps = if self.single_step_mode { 1 } else { FRAME_CYCLES };
 
         if !self.single_step_mode || step_pressed {
             for _ in 0..num_steps {
