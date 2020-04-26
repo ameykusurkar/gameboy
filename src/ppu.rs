@@ -34,8 +34,8 @@ const LYC_ADDR: u16  = 0xFF45;
 const BGP_ADDR: u16  = 0xFF47;
 const OBP0_ADDR: u16 = 0xFF48;
 const OBP1_ADDR: u16 = 0xFF49;
-const WX_ADDR: u16   = 0xFF4A;
-const WY_ADDR: u16   = 0xFF4B;
+const WY_ADDR: u16   = 0xFF4A;
+const WX_ADDR: u16   = 0xFF4B;
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum LcdMode {
@@ -111,23 +111,39 @@ impl Ppu {
         let scroll_x = memory.ppu_read(SCX_ADDR);
         let scroll_y = memory.ppu_read(SCY_ADDR);
 
-        let map = Self::get_background_map_memory(memory);
+        let window_x = memory.ppu_read(WX_ADDR) - 7;
+        let window_y = memory.ppu_read(WY_ADDR);
+
+        let bg_map = Self::get_background_map_memory(memory);
+        let window_map = Self::get_window_map_memory(memory);
 
         let background_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 0);
+        let window_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 5);
         let sprites_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 1);
 
         // We are drawing 4 pixels per cycle
         let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
 
         for x in start_x..(start_x + 4) {
-            // TODO: Implement windows
             let mut pixel = 0;
 
             if background_enabled {
                 pixel = Self::get_background_pixel(
                     // Since we are using u8, x and y should automatically wrap around 256
-                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, map,
+                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, bg_map,
                 );
+            }
+
+            if window_enabled {
+                let (x, y) = (x as u8, self.scanline as u8);
+                let should_draw = (window_x..LCD_WIDTH as u8).contains(&x)
+                    && (window_y..LCD_WIDTH as u8).contains(&y);
+
+                if should_draw {
+                    pixel = Self::get_background_pixel(
+                        memory, x - window_x, y - window_y, window_map,
+                    );
+                }
             }
 
             if sprites_enabled {

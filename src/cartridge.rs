@@ -23,6 +23,7 @@ impl Cartridge {
             _    => 1 << (10 + 5), // 32KB
         };
 
+        println!("CARTRIDGE TYPE: {}", rom[0x0147]);
         Cartridge {
             rom,
             ram: vec![0; ram_size],
