@@ -16,7 +16,6 @@ enum BankingMode {
 
 impl Cartridge {
     pub fn new(rom: Vec<u8>) -> Self {
-        println!("CARTRIDGE MODE: {}", rom[0x0147]);
         let ram_size = match rom[0x0149] {
             0x00 => 0,
             0x01 => 1 << (10 + 1), // 2KB

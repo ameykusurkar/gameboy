@@ -4,11 +4,16 @@ use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex::HL;
 use crate::memory::Memory;
 
-use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT};
+use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
 use crate::joypad::Joypad;
 
 pub const DEBUG: bool = false;
 const NORMAL_SPEED: bool = true;
+
+const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
+const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
+    (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64
+);
 
 pub struct Emulator {
     cpu: Cpu,
@@ -16,6 +21,7 @@ pub struct Emulator {
     memory: Memory,
     cycles: u32,
     single_step_mode: bool,
+    last_render_at: std::time::Instant,
 }
 
 impl Emulator {
@@ -29,6 +35,7 @@ impl Emulator {
             memory,
             cycles: 0,
             single_step_mode: false,
+            last_render_at: std::time::Instant::now(),
         }
     }
 
@@ -219,8 +226,14 @@ impl pge::State for Emulator {
         });
 
         if !self.single_step_mode && NORMAL_SPEED {
-            // TODO: Make this accurate based on elapsed time
-            std::thread::sleep(std::time::Duration::from_millis(9));
+            let now = std::time::Instant::now();
+            let next_render_at = self.last_render_at + FRAME_INTERVAL;
+
+            if now < next_render_at {
+                std::thread::sleep(next_render_at - now);
+            }
+
+            self.last_render_at = next_render_at;
         }
 
         if DEBUG {
