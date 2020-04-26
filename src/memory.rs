@@ -54,6 +54,8 @@ impl Memory {
             self.bootrom[addr]
         } else if (0x0000..0x8000).contains(&addr) {
             self.cartridge.read(addr as u16)
+        } else if (0xA000..0xC000).contains(&addr) {
+            self.cartridge.read(addr as u16)
         } else if VRAM_RANGE.contains(&addr) && self.vram_blocked() {
             0xFF
         } else if OAM_RANGE.contains(&addr) && self.oam_blocked() {
@@ -81,6 +83,10 @@ impl Memory {
                 if !self.vram_blocked() {
                     self.memory[addr as usize] = val;
                 }
+            },
+            // External RAM, also handled by cartridge
+            0xA000..=0xBFFF => {
+                self.cartridge.write(addr, val);
             },
             // OAM
             0xFE00..=0xFE9F => {
