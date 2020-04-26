@@ -628,40 +628,29 @@ impl Cpu {
         match &instruction.addressing_mode {
             AddressingMode::Implied => (),
             AddressingMode::Imm8 => {
-                let index = repr.find("d").unwrap_or(repr.len());
-                if index == repr.len() {
-                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
-                }
-                repr.replace_range(index..index+2, &format!("{:02x}", operand));
+                repr.find("d").map(|index| {
+                    repr.replace_range(index..index+2, &format!("{:02x}", operand));
+                });
             },
             AddressingMode::Imm16 => {
-                let index = repr.find("d").unwrap_or(repr.len());
-                if index == repr.len() {
-                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
-                }
-                repr.replace_range(index..index+3, &format!("{:04x}", operand));
+                repr.find("d").map(|index| {
+                    repr.replace_range(index..index+3, &format!("{:04x}", operand));
+                });
             },
             AddressingMode::Addr16 => {
-                let index = repr.find("a").unwrap_or(repr.len());
-                if index == repr.len() {
-                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
-                }
-                repr.replace_range(index..index+3, &format!("{:04x}", operand));
+                repr.find("a").map(|index| {
+                    repr.replace_range(index..index+3, &format!("{:04x}", operand));
+                });
             },
             AddressingMode::ZeroPageOffset => {
-                let index = repr.find("a").unwrap_or(repr.len());
-                if index == repr.len() {
-                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc, addr);
-                }
-                repr.replace_range(index..index+2, &format!("{:04x}", operand));
+                repr.find("a").map(|index| {
+                    repr.replace_range(index..index+2, &format!("{:04x}", operand));
+                });
             },
             AddressingMode::SignedAddrOffset => {
-                let index = repr.find("r").unwrap_or(repr.len());
-                if index == repr.len() {
-                    panic!("Cannot find in {:?}, PC: {:04x}, addr: {:04x}", instruction, self.pc,
-                           addr);
-                }
-                repr.replace_range(index..index+2, &format!("{:04x}", operand));
+                repr.find("r").map(|index| {
+                    repr.replace_range(index..index+2, &format!("{:04x}", operand));
+                });
             },
         };
 
