@@ -5,7 +5,6 @@ use crate::registers::TwoRegisterIndex::HL;
 use crate::memory::Memory;
 
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
-use crate::joypad::Joypad;
 
 pub const DEBUG: bool = false;
 const NORMAL_SPEED: bool = true;
@@ -204,26 +203,15 @@ impl pge::State for Emulator {
             self.single_step_mode = false;
         }
 
-        let num_steps = if self.single_step_mode { 1 } else { FRAME_CYCLES };
-
-        if !self.single_step_mode || step_pressed {
-            for _ in 0..num_steps {
-                self.clock();
-            }
-        }
-
-        self.memory.update_joypad(Joypad {
-            button_selected: false,
-            direction_selected: false,
-            down: pge.get_key(minifb::Key::J).pressed,
-            up: pge.get_key(minifb::Key::K).pressed,
-            left: pge.get_key(minifb::Key::H).pressed,
-            right: pge.get_key(minifb::Key::L).pressed,
-            start: pge.get_key(minifb::Key::V).pressed,
-            select: pge.get_key(minifb::Key::N).pressed,
-            b: pge.get_key(minifb::Key::D).pressed,
-            a: pge.get_key(minifb::Key::F).pressed,
-        });
+        // TODO: Trigger joypad interrupt
+        self.memory.joypad.down   |= pge.get_key(minifb::Key::J).pressed;
+        self.memory.joypad.up     |= pge.get_key(minifb::Key::K).pressed;
+        self.memory.joypad.left   |= pge.get_key(minifb::Key::H).pressed;
+        self.memory.joypad.right  |= pge.get_key(minifb::Key::L).pressed;
+        self.memory.joypad.start  |= pge.get_key(minifb::Key::V).pressed;
+        self.memory.joypad.select |= pge.get_key(minifb::Key::N).pressed;
+        self.memory.joypad.b      |= pge.get_key(minifb::Key::D).pressed;
+        self.memory.joypad.a      |= pge.get_key(minifb::Key::F).pressed;
 
         if !self.single_step_mode && NORMAL_SPEED {
             let now = std::time::Instant::now();
@@ -235,6 +223,15 @@ impl pge::State for Emulator {
 
             self.last_render_at = next_render_at;
         }
+
+        let num_steps = if self.single_step_mode { 1 } else { FRAME_CYCLES };
+
+        if !self.single_step_mode || step_pressed {
+            for _ in 0..num_steps {
+                self.clock();
+            }
+        }
+        self.memory.joypad.clear();
 
         if DEBUG {
             println!("CYCLE: {}", now.elapsed().as_nanos());

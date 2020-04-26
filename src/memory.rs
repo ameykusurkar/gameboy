@@ -8,7 +8,7 @@ pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
-    joypad: Joypad,
+    pub joypad: Joypad,
 }
 
 pub trait MemoryAccess {
@@ -31,15 +31,6 @@ impl Memory {
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
         self.bootrom.copy_from_slice(buffer);
-    }
-
-    pub fn update_joypad(&mut self, joypad: Joypad) {
-        // TODO: Trigger joypad interrupt
-        self.joypad = Joypad {
-            button_selected: self.joypad.button_selected,
-            direction_selected: self.joypad.direction_selected,
-            ..joypad
-        };
     }
 
     fn is_bootrom_active(&self) -> bool {

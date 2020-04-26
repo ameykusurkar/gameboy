@@ -16,6 +16,17 @@ pub struct Joypad {
 }
 
 impl Joypad {
+    pub fn clear(&mut self) {
+        self.down   = false;
+        self.up     = false;
+        self.left   = false;
+        self.right  = false;
+        self.start  = false;
+        self.select = false;
+        self.b      = false;
+        self.a      = false;
+    }
+
     fn read_buttons(&self) -> u8 {
         (!self.start as u8) << 3
             | (!self.select as u8) << 2
