@@ -2,7 +2,7 @@ use crate::memory::MemoryAccess;
 
 pub struct Cartridge {
     rom: Vec<u8>,
-    ram: [u8; 1 << 15],
+    ram: Vec<u8>,
     rom_bank_lower_bits: u8,
     upper_bits: u8,
     ram_enabled: bool,
@@ -17,9 +17,16 @@ enum BankingMode {
 impl Cartridge {
     pub fn new(rom: Vec<u8>) -> Self {
         println!("CARTRIDGE MODE: {}", rom[0x0147]);
+        let ram_size = match rom[0x0149] {
+            0x00 => 0,
+            0x01 => 1 << (10 + 1), // 2KB
+            0x02 => 1 << (10 + 3), // 8KB
+            _    => 1 << (10 + 5), // 32KB
+        };
+
         Cartridge {
             rom,
-            ram: [0; 1 << 15],
+            ram: vec![0; ram_size],
             rom_bank_lower_bits: 1,
             upper_bits: 0,
             ram_enabled: false,
@@ -27,13 +34,18 @@ impl Cartridge {
         }
     }
 
-    fn get_real_ram_addr(&self, addr: u16) -> usize {
+    fn get_real_ram_addr(&self, addr: u16) -> Option<usize> {
+        if self.ram.is_empty() {
+            return None;
+        }
+
         let ram_bank = match self.banking_mode {
             BankingMode::ROM => 0,
             BankingMode::RAM => self.upper_bits as usize,
         };
 
-        (ram_bank << 13 | (addr as usize) & 0x1FFF) % self.ram.len()
+        let real_addr = (ram_bank << 13 | (addr as usize) & 0x1FFF) % self.ram.len();
+        Some(real_addr)
     }
 
     fn get_bank0_rom_addr(&self, addr: u16) -> usize {
@@ -72,8 +84,10 @@ impl MemoryAccess for Cartridge {
                 self.rom[self.get_bank1_rom_addr(addr)]
             },
             0xA000..=0xBFFF => {
-                if self.ram_enabled {
-                    self.ram[self.get_real_ram_addr(addr)]
+                let real_addr = self.get_real_ram_addr(addr);
+
+                if self.ram_enabled && real_addr.is_some() {
+                    self.ram[real_addr.unwrap()]
                 } else {
                     0xFF
                 }
@@ -102,9 +116,10 @@ impl MemoryAccess for Cartridge {
                 }
             },
             0xA000..=0xBFFF => {
-                if self.ram_enabled {
-                    let real_addr = self.get_real_ram_addr(addr);
-                    self.ram[real_addr] = byte;
+                let real_addr = self.get_real_ram_addr(addr);
+
+                if self.ram_enabled && real_addr.is_some() {
+                    self.ram[real_addr.unwrap()] = byte;
                 }
             },
             _ => unreachable!("Invalid cartridge write address: {:04x}", addr),
