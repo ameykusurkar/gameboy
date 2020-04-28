@@ -50,6 +50,7 @@ pub struct Ppu {
     cycles: u32,
     scanline: u32,
     visible_sprites: Vec<Sprite>,
+    pub frame_complete: bool,
 }
 
 impl Ppu {
@@ -59,6 +60,7 @@ impl Ppu {
             cycles: 0,
             scanline: 0,
             visible_sprites: Vec::new(),
+            frame_complete: false,
         }
     }
 
@@ -94,6 +96,7 @@ impl Ppu {
             match mode {
                 LcdMode::VBlank => {
                     Self::set_vblank_interrupt(memory);
+                    self.frame_complete = true;
                 },
                 LcdMode::PixelTransfer => {
                     self.visible_sprites = Self::compute_sprites_for_line(memory, self.scanline);
@@ -365,6 +368,7 @@ impl Ppu {
     }
 }
 
+#[derive(Debug)]
 struct Sprite {
     y: u8,
     x: u8,

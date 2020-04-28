@@ -204,14 +204,14 @@ impl pge::State for Emulator {
         }
 
         // TODO: Trigger joypad interrupt
-        self.memory.joypad.down   |= pge.get_key(minifb::Key::J).pressed;
-        self.memory.joypad.up     |= pge.get_key(minifb::Key::K).pressed;
-        self.memory.joypad.left   |= pge.get_key(minifb::Key::H).pressed;
-        self.memory.joypad.right  |= pge.get_key(minifb::Key::L).pressed;
-        self.memory.joypad.start  |= pge.get_key(minifb::Key::V).pressed;
-        self.memory.joypad.select |= pge.get_key(minifb::Key::N).pressed;
-        self.memory.joypad.b      |= pge.get_key(minifb::Key::D).pressed;
-        self.memory.joypad.a      |= pge.get_key(minifb::Key::F).pressed;
+        self.memory.joypad.down   |= pge.get_key(minifb::Key::J).held;
+        self.memory.joypad.up     |= pge.get_key(minifb::Key::K).held;
+        self.memory.joypad.left   |= pge.get_key(minifb::Key::H).held;
+        self.memory.joypad.right  |= pge.get_key(minifb::Key::L).held;
+        self.memory.joypad.start  |= pge.get_key(minifb::Key::V).held;
+        self.memory.joypad.select |= pge.get_key(minifb::Key::N).held;
+        self.memory.joypad.b      |= pge.get_key(minifb::Key::D).held;
+        self.memory.joypad.a      |= pge.get_key(minifb::Key::F).held;
 
         if !self.single_step_mode && NORMAL_SPEED {
             let now = std::time::Instant::now();
@@ -224,13 +224,18 @@ impl pge::State for Emulator {
             self.last_render_at = next_render_at;
         }
 
-        let num_steps = if self.single_step_mode { 1 } else { FRAME_CYCLES };
-
-        if !self.single_step_mode || step_pressed {
-            for _ in 0..num_steps {
+        if !self.single_step_mode {
+            loop {
                 self.clock();
+                if self.ppu.frame_complete { break };
             }
+
+            self.ppu.frame_complete = false;
+        } else if step_pressed {
+            self.clock();
         }
+
+
         self.memory.joypad.clear();
 
         if DEBUG {
