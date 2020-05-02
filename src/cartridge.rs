@@ -3,15 +3,15 @@ use crate::memory::MemoryAccess;
 pub struct Cartridge {
     rom: Vec<u8>,
     ram: Vec<u8>,
-    rom_bank_lower_bits: u8,
-    upper_bits: u8,
-    ram_enabled: bool,
-    banking_mode: BankingMode,
+    mbc: Box<dyn Mbc>,
 }
 
-enum BankingMode {
-    ROM,
-    RAM,
+trait Mbc {
+    fn read_rom(&self, rom: &[u8], addr: u16) -> u8;
+    fn write_rom(&mut self, rom: &mut [u8], addr: u16, byte: u8);
+
+    fn read_ram(&self, ram: &[u8], addr: u16) -> u8;
+    fn write_ram(&mut self, ram: &mut [u8], addr: u16, byte: u8);
 }
 
 impl Cartridge {
@@ -24,9 +24,69 @@ impl Cartridge {
         };
 
         println!("CARTRIDGE TYPE: {}", rom[0x0147]);
+        let mbc: Box<dyn Mbc> = match rom[0x147] {
+            0x00 => Box::new(NoMbc::default()),
+            0x01..=0x03 => Box::new(Mbc1::new()),
+            _ => unimplemented!("Invalid cartridge type: {}", rom[0x147]),
+        };
+
         Cartridge {
             rom,
             ram: vec![0; ram_size],
+            mbc,
+        }
+    }
+}
+
+impl MemoryAccess for Cartridge {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            0x0000..=0x7FFF => {
+                self.mbc.read_rom(&self.rom, addr)
+            },
+            0xA000..=0xBFFF => {
+                self.mbc.read_ram(&self.ram, addr)
+            },
+            _ => unreachable!("Invalid cartridge read address: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8) {
+        match addr {
+            0x0000..=0x7FFF => {
+                self.mbc.write_rom(&mut self.rom, addr, byte)
+            },
+            0xA000..=0xBFFF => {
+                self.mbc.write_ram(&mut self.ram, addr, byte)
+            },
+            _ => unreachable!("Invalid cartridge write address: {:04x}", addr),
+        }
+    }
+}
+
+#[derive(Default)]
+struct NoMbc;
+
+impl Mbc for NoMbc {
+    fn read_rom(&self, rom: &[u8], addr: u16) -> u8 {
+        rom[addr as usize]
+    }
+
+    fn write_rom(&mut self, _rom: &mut [u8], _addr: u16, _byte: u8) {}
+    fn read_ram(&self, _ram: &[u8], _addr: u16) -> u8 { 0xFF }
+    fn write_ram(&mut self, _ram: &mut [u8], _addr: u16, _byte: u8) {}
+}
+
+struct Mbc1 {
+    rom_bank_lower_bits: u8,
+    upper_bits: u8,
+    ram_enabled: bool,
+    banking_mode: BankingMode,
+}
+
+impl Mbc1 {
+    fn new() -> Mbc1 {
+        Mbc1 {
             rom_bank_lower_bits: 1,
             upper_bits: 0,
             ram_enabled: false,
@@ -34,8 +94,8 @@ impl Cartridge {
         }
     }
 
-    fn get_real_ram_addr(&self, addr: u16) -> Option<usize> {
-        if self.ram.is_empty() {
+    fn get_real_ram_addr(&self, ram: &[u8], addr: u16) -> Option<usize> {
+        if ram.is_empty() {
             return None;
         }
 
@@ -44,59 +104,55 @@ impl Cartridge {
             BankingMode::RAM => self.upper_bits as usize,
         };
 
-        let real_addr = (ram_bank << 13 | (addr as usize) & 0x1FFF) % self.ram.len();
+        let real_addr = (ram_bank << 13 | (addr as usize) & 0x1FFF) % ram.len();
         Some(real_addr)
     }
 
-    fn get_bank0_rom_addr(&self, addr: u16) -> usize {
+    fn get_bank0_rom_addr(&self, rom: &[u8], addr: u16) -> usize {
         let upper_bits = match self.banking_mode {
             BankingMode::ROM => 0,
             BankingMode::RAM => self.upper_bits as usize,
         };
 
         let rom_bank = upper_bits << 5;
-        self.build_rom_addr(rom_bank, addr)
+        self.build_rom_addr(rom, rom_bank, addr)
     }
 
-    fn get_bank1_rom_addr(&self, addr: u16) -> usize {
+    fn get_bank1_rom_addr(&self, rom: &[u8], addr: u16) -> usize {
         let upper_bits = match self.banking_mode {
             BankingMode::ROM => self.upper_bits as usize,
             BankingMode::RAM => 0,
         };
 
         let rom_bank = upper_bits << 5 | (self.rom_bank_lower_bits as usize);
-        self.build_rom_addr(rom_bank, addr)
+        self.build_rom_addr(rom, rom_bank, addr)
     }
 
-    fn build_rom_addr(&self, rom_bank: usize, addr: u16) -> usize {
+    fn build_rom_addr(&self, rom: &[u8], rom_bank: usize, addr: u16) -> usize {
         let addr = addr as usize;
-        (rom_bank << 14 | addr & 0x3FFF) % self.rom.len()
+        (rom_bank << 14 | addr & 0x3FFF) % rom.len()
     }
 }
 
-impl MemoryAccess for Cartridge {
-    fn read(&self, addr: u16) -> u8 {
+enum BankingMode {
+    ROM,
+    RAM,
+}
+
+impl Mbc for Mbc1 {
+    fn read_rom(&self, rom: &[u8], addr: u16) -> u8 {
         match addr {
             0x0000..=0x3FFF => {
-                self.rom[self.get_bank0_rom_addr(addr)]
+                rom[self.get_bank0_rom_addr(rom, addr)]
             },
             0x4000..=0x7FFF => {
-                self.rom[self.get_bank1_rom_addr(addr)]
+                rom[self.get_bank1_rom_addr(rom, addr)]
             },
-            0xA000..=0xBFFF => {
-                let real_addr = self.get_real_ram_addr(addr);
-
-                if self.ram_enabled && real_addr.is_some() {
-                    self.ram[real_addr.unwrap()]
-                } else {
-                    0xFF
-                }
-            },
-            _ => unreachable!("Invalid cartridge read address: {:04x}", addr),
+            _ => unreachable!("Invalid rom read address: {:04x}", addr),
         }
     }
 
-    fn write(&mut self, addr: u16, byte: u8) {
+    fn write_rom(&mut self, _rom: &mut [u8], addr: u16, byte: u8) {
         match addr {
             0x0000..=0x1FFF => {
                 self.ram_enabled = (byte & 0x0F) == 0x0A;
@@ -115,14 +171,25 @@ impl MemoryAccess for Cartridge {
                     _ => unreachable!("Invalid cartridge banking mode: {:04x}", byte),
                 }
             },
-            0xA000..=0xBFFF => {
-                let real_addr = self.get_real_ram_addr(addr);
+            _ => unreachable!("Invalid rom write address: {:04x}", addr),
+        }
+    }
 
-                if self.ram_enabled && real_addr.is_some() {
-                    self.ram[real_addr.unwrap()] = byte;
-                }
-            },
-            _ => unreachable!("Invalid cartridge write address: {:04x}", addr),
+    fn read_ram(&self, ram: &[u8], addr: u16) -> u8 {
+        let real_addr = self.get_real_ram_addr(ram, addr);
+
+        if self.ram_enabled && real_addr.is_some() {
+            ram[real_addr.unwrap()]
+        } else {
+            0xFF
+        }
+    }
+
+    fn write_ram(&mut self, ram: &mut [u8], addr: u16, byte: u8) {
+        let real_addr = self.get_real_ram_addr(ram, addr);
+
+        if self.ram_enabled && real_addr.is_some() {
+            ram[real_addr.unwrap()] = byte;
         }
     }
 }
