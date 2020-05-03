@@ -1,5 +1,6 @@
 use std::fs::File;
 use std::io::Read;
+use std::path::Path;
 
 mod cpu;
 mod ppu;
@@ -32,7 +33,18 @@ fn main() -> std::io::Result<()> {
     let mut rom_buffer = Vec::new();
     f.read_to_end(&mut rom_buffer)?;
 
-    let mut emulator = Emulator::new(&bootrom_buffer, rom_buffer);
+    let save_path = Path::new(&path).with_extension("sav");
+
+    let save_buffer = if save_path.exists() {
+        let mut f = File::open(&save_path)?;
+        let mut buffer = Vec::new();
+        f.read_to_end(&mut buffer)?;
+        Some(buffer)
+    } else {
+        None
+    };
+
+    let mut emulator = Emulator::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
 
     let width = LCD_WIDTH * 6;
     let height = LCD_HEIGHT * 6;

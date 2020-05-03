@@ -115,4 +115,8 @@ impl Mbc for Mbc1 {
             ram[real_addr.unwrap()] = byte;
         }
     }
+
+    fn has_battery(&self) -> bool { false }
+    fn should_save_ram(&self) -> bool { false }
+    fn mark_ram_as_saved(&mut self) {}
 }

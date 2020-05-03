@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
+
 use crate::cpu::Cpu;
 use crate::ppu::Ppu;
 use crate::registers::RegisterIndex::*;
@@ -21,11 +25,14 @@ pub struct Emulator {
     cycles: u32,
     single_step_mode: bool,
     last_render_at: std::time::Instant,
+    save_path: PathBuf,
 }
 
 impl Emulator {
-    pub fn new(bootrom: &[u8], rom: Vec<u8>) -> Emulator {
-        let mut memory = Memory::new(rom);
+    pub fn new(bootrom: &[u8], rom: Vec<u8>,
+               external_ram: Option<Vec<u8>>,
+               save_path: PathBuf) -> Emulator {
+        let mut memory = Memory::new(rom, external_ram);
         memory.load_bootrom(bootrom);
 
         Emulator {
@@ -35,6 +42,7 @@ impl Emulator {
             cycles: 0,
             single_step_mode: false,
             last_render_at: std::time::Instant::now(),
+            save_path,
         }
     }
 
@@ -235,8 +243,14 @@ impl pge::State for Emulator {
             self.clock();
         }
 
-
         self.memory.joypad.clear();
+
+        self.memory.get_external_ram()
+            .and_then(|ram| {
+                File::create(&self.save_path)
+                    .and_then(|mut f| f.write_all(ram))
+                    .ok()
+            }).map(|_| self.memory.mark_external_ram_as_saved());
 
         if DEBUG {
             println!("CYCLE: {}", now.elapsed().as_nanos());
