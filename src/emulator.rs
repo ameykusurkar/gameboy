@@ -216,8 +216,8 @@ impl pge::State for Emulator {
         self.memory.joypad.up     = pge.get_key(minifb::Key::K).held;
         self.memory.joypad.left   = pge.get_key(minifb::Key::H).held;
         self.memory.joypad.right  = pge.get_key(minifb::Key::L).held;
-        self.memory.joypad.start  = pge.get_key(minifb::Key::V).held;
-        self.memory.joypad.select = pge.get_key(minifb::Key::N).held;
+        self.memory.joypad.select = pge.get_key(minifb::Key::V).held;
+        self.memory.joypad.start  = pge.get_key(minifb::Key::N).held;
         self.memory.joypad.b      = pge.get_key(minifb::Key::D).held;
         self.memory.joypad.a      = pge.get_key(minifb::Key::F).held;
 
