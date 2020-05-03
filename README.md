@@ -1,16 +1,17 @@
 # gameboy
 
-Still a work in progress, the end goal is to be a fully-functional Gameboy emulator. Currently the emulator supports simple games such as Tetris and Dr. Mario.
+The emulator is mostly functional, with some components yet to be implemented (eg. the sound system).
 
-TODO:
- - Memory bank controller support
- - Implement sound system
- 
+## Usage
+```shell
+cargo run --release path/to/rom/file.gb
+```
+If the game supports save files, the emulator will read from and write save data to the same filename as the rom, but with the extension `.sav` instead of `.gb`.
 ## Demo
- 
-To make it easier to debug, emulator displays important information about the CPU/memory in real-time, such as the values of the registers, flags, upcoming instructions, background maps and tilesets. It also supports a "step" mode, allowing the user to execute one machine cycle at a time.
- 
-![A demo gif of the emulator](example.gif)
+
+To make it easier to debug, the emulator displays important information about the CPU/memory in real-time, such as the values of the registers, flags, upcoming instructions, background maps and tilesets. It also supports a "step" mode, allowing the user to execute one machine cycle at a time.
+
+![A demo gif of the emulator](pokemon_example.gif)
 
 ## Dependencies
 
