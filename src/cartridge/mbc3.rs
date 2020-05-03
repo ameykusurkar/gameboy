@@ -5,14 +5,18 @@ pub struct Mbc3 {
     ram_bank: u8,
     // Also enables the Real Time Clock (RTC) register
     ram_enabled: bool,
+    has_battery: bool,
+    write_since_last_save: bool,
 }
 
 impl Mbc3 {
-    pub fn new() -> Self {
+    pub fn new(has_battery: bool) -> Self {
         Mbc3 {
             rom_bank: 1,
             ram_bank: 0,
             ram_enabled: false,
+            has_battery,
+            write_since_last_save: false,
         }
     }
 
@@ -83,5 +87,19 @@ impl Mbc for Mbc3 {
         if self.ram_enabled && real_addr.is_some() {
             ram[real_addr.unwrap()] = byte;
         }
+
+        self.write_since_last_save = true;
+    }
+
+    fn has_battery(&self) -> bool {
+        self.has_battery
+    }
+
+    fn should_save_ram(&self) -> bool {
+        self.has_battery && self.write_since_last_save
+    }
+
+    fn mark_ram_as_saved(&mut self) {
+        self.write_since_last_save = false;
     }
 }

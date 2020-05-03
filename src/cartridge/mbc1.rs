@@ -10,15 +10,19 @@ pub struct Mbc1 {
     upper_bits: u8,
     ram_enabled: bool,
     banking_mode: BankingMode,
+    has_battery: bool,
+    write_since_last_save: bool,
 }
 
 impl Mbc1 {
-    pub fn new() -> Self {
+    pub fn new(has_battery: bool) -> Self {
         Mbc1 {
             rom_bank_lower_bits: 1,
             upper_bits: 0,
             ram_enabled: false,
             banking_mode: BankingMode::ROM,
+            has_battery,
+            write_since_last_save: false,
         }
     }
 
@@ -114,5 +118,19 @@ impl Mbc for Mbc1 {
         if self.ram_enabled && real_addr.is_some() {
             ram[real_addr.unwrap()] = byte;
         }
+
+        self.write_since_last_save = true;
+    }
+
+    fn has_battery(&self) -> bool {
+        self.has_battery
+    }
+
+    fn should_save_ram(&self) -> bool {
+        self.has_battery && self.write_since_last_save
+    }
+
+    fn mark_ram_as_saved(&mut self) {
+        self.write_since_last_save = false;
     }
 }

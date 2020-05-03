@@ -20,9 +20,9 @@ const VRAM_RANGE: std::ops::Range<usize> = 0x8000..0xA000;
 const OAM_RANGE: std::ops::Range<usize>  = 0xFE00..0xFEA0;
 
 impl Memory {
-    pub fn new(rom: Vec<u8>) -> Memory {
+    pub fn new(rom: Vec<u8>, external_ram: Option<Vec<u8>>) -> Memory {
         Memory {
-            cartridge: Cartridge::new(rom),
+            cartridge: Cartridge::new(rom, external_ram),
             memory: [0; 1 << 16],
             bootrom: [0; 256],
             joypad: Joypad::default(),
@@ -134,5 +134,17 @@ impl Memory {
             3 => LcdMode::PixelTransfer,
             _ => panic!("Not a valid LCD mode!"),
         }
+    }
+
+    pub fn get_external_ram(&self) -> Option<&[u8]> {
+        if self.cartridge.mbc.should_save_ram() {
+            Some(&self.cartridge.ram)
+        } else {
+            None
+        }
+    }
+
+    pub fn mark_external_ram_as_saved(&mut self) {
+        self.cartridge.mbc.mark_ram_as_saved()
     }
 }
