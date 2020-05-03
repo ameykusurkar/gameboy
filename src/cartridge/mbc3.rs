@@ -58,6 +58,8 @@ impl Mbc for Mbc3 {
                 self.rom_bank = if byte == 0 { 1 } else { byte };
             },
             0x4000..=0x5FFF => {
+                // TODO: Until RTC registers are implemented, only look at last two bits
+                let byte = byte & 0b0000_0011;
                 match byte {
                     0x00..=0x03 => self.ram_bank = byte,
                     0x08..=0x0C => unimplemented!("Yet to implement RTC registers!"),
