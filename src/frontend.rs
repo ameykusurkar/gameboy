@@ -18,7 +18,7 @@ const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
     (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64
 );
 
-pub struct Emulator {
+pub struct Frontend {
     cpu: Cpu,
     ppu: Ppu,
     memory: Memory,
@@ -28,14 +28,14 @@ pub struct Emulator {
     save_path: PathBuf,
 }
 
-impl Emulator {
+impl Frontend {
     pub fn new(bootrom: &[u8], rom: Vec<u8>,
                external_ram: Option<Vec<u8>>,
-               save_path: PathBuf) -> Emulator {
+               save_path: PathBuf) -> Frontend {
         let mut memory = Memory::new(rom, external_ram);
         memory.load_bootrom(bootrom);
 
-        Emulator {
+        Frontend {
             cpu: Cpu::new(),
             ppu: Ppu::new(),
             memory,
@@ -194,7 +194,7 @@ impl Emulator {
     }
 }
 
-impl pge::State for Emulator {
+impl pge::State for Frontend {
     fn on_user_create(&mut self) -> bool {
         true
     }

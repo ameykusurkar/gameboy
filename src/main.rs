@@ -7,12 +7,12 @@ mod ppu;
 mod registers;
 mod memory;
 mod instruction;
-mod emulator;
+mod frontend;
 mod joypad;
 mod utils;
 mod cartridge;
 
-use emulator::Emulator;
+use frontend::Frontend;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
 
 use pge;
@@ -44,7 +44,7 @@ fn main() -> std::io::Result<()> {
         None
     };
 
-    let mut emulator = Emulator::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
+    let mut emulator = Frontend::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
 
     let width = LCD_WIDTH * 6;
     let height = LCD_HEIGHT * 6;
