@@ -11,7 +11,9 @@ mod frontend;
 mod joypad;
 mod utils;
 mod cartridge;
+mod emulator;
 
+use emulator::Emulator;
 use frontend::Frontend;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
 
@@ -44,14 +46,15 @@ fn main() -> std::io::Result<()> {
         None
     };
 
-    let mut emulator = Frontend::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
+    let emulator = Emulator::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
+    let mut frontend = Frontend::new(emulator);
 
     let width = LCD_WIDTH * 6;
     let height = LCD_HEIGHT * 6;
     let scale = 1;
 
     let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
-    pge.start(&mut emulator);
+    pge.start(&mut frontend);
 
     Ok(())
 }

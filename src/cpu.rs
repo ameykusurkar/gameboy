@@ -11,7 +11,7 @@ use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 
-use crate::frontend::DEBUG;
+use crate::emulator::DEBUG;
 use crate::utils::{read_bit, set_bit};
 
 // Address of the interrupt enable register
