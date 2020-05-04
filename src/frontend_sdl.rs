@@ -5,6 +5,8 @@ use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
+use sdl2::keyboard::Scancode;
+use sdl2::gfx::framerate::FPSManager;
 
 use crate::emulator::Emulator;
 use crate::ppu::{LCD_HEIGHT, LCD_WIDTH};
@@ -47,18 +49,34 @@ impl FrontendSdl {
 
         canvas.set_scale(SCALE as f32, SCALE as f32)?;
 
+        let mut fps_manager = FPSManager::new();
+        fps_manager.set_framerate(60)?;
+
         'running: loop {
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit {..} | Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
-                        break 'running
-                    },
-                    Event::KeyDown {..} => {},
+                    Event::Quit {..} => { break 'running },
+                    // Event::KeyDown {..} => {},
                     _ => {}
                 }
             }
 
+            let keyboard_state = event_pump.keyboard_state();
+
+            // TODO: Trigger joypad interrupt
+            self.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
+            self.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
+            self.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
+            self.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
+            self.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
+            self.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
+            self.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
+            self.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
+
             self.clock_frame();
+
+            self.emulator.memory.joypad.clear();
+            self.emulator.save_external_ram();
 
             if let Some(screen_buffer) = self.emulator.get_screen_buffer() {
                 let width = LCD_WIDTH as usize;
@@ -78,6 +96,7 @@ impl FrontendSdl {
 
             canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
             canvas.present();
+            fps_manager.delay();
         }
 
         Ok(())
