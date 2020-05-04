@@ -2,29 +2,26 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
-use sdl2;
-
 mod cpu;
 mod ppu;
 mod registers;
 mod memory;
 mod instruction;
-mod frontend;
 mod joypad;
 mod utils;
 mod cartridge;
 mod emulator;
+mod frontend;
+mod frontend_sdl;
 
 use emulator::Emulator;
 use frontend::Frontend;
+use frontend_sdl::FrontendSdl;
 use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
 
 use pge;
 
 fn main() -> std::io::Result<()> {
-    let _sdl = sdl2::init().unwrap();
-    return Ok(());
-
     if std::env::args().len() < 2 {
         println!("Please provide a rom file");
         return Ok(())
@@ -52,14 +49,17 @@ fn main() -> std::io::Result<()> {
     };
 
     let emulator = Emulator::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
-    let mut frontend = Frontend::new(emulator);
+    // let mut frontend = Frontend::new(emulator);
 
-    let width = LCD_WIDTH * 6;
-    let height = LCD_HEIGHT * 6;
-    let scale = 1;
+    // let width = LCD_WIDTH * 6;
+    // let height = LCD_HEIGHT * 6;
+    // let scale = 1;
 
-    let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
-    pge.start(&mut frontend);
+    // let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
+    // pge.start(&mut frontend);
+    let mut frontend = FrontendSdl::new(emulator);
+
+    frontend.start().expect("Error while running gameboy");
 
     Ok(())
 }
