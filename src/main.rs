@@ -2,6 +2,8 @@ use std::fs::File;
 use std::io::Read;
 use std::path::Path;
 
+use sdl2;
+
 mod cpu;
 mod ppu;
 mod registers;
@@ -20,6 +22,9 @@ use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
 use pge;
 
 fn main() -> std::io::Result<()> {
+    let _sdl = sdl2::init().unwrap();
+    return Ok(());
+
     if std::env::args().len() < 2 {
         println!("Please provide a rom file");
         return Ok(())
