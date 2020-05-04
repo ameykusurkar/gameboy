@@ -21,7 +21,7 @@ pub const IF_ADDR: u16 = 0xFF0F;
 // Address the cpu jumps to when the respective interrupts are triggered
 const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
 
-// Address for the divider register (DIV). The incremented at 16,384 Hx.
+// Address for the divider register (DIV). The incremented at 16,384 Hz.
 const DIV_ADDR: u16 = 0xFF04;
 // Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
 const TIMA_ADDR: u16 = 0xFF05;
