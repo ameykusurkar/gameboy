@@ -150,9 +150,10 @@ impl Ppu {
             }
 
             if sprites_enabled {
-                self.get_sprite(x as u8)
+                // Finds first non-transparent sprite pixel, if any
+                self.get_sprites_at_x(x as u8).iter()
                     .filter(|sprite| !(sprite.priority && (1..=3).contains(&pixel)))
-                    .and_then(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
+                    .find_map(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
                     .map(|sprite_pixel| pixel = sprite_pixel);
             }
 
@@ -161,11 +162,11 @@ impl Ppu {
         }
     }
 
-    fn get_sprite(&self, x: u8) -> Option<&Sprite> {
-        self.visible_sprites.iter().find(|sprite| {
+    fn get_sprites_at_x(&self, x: u8) -> Vec<&Sprite> {
+        self.visible_sprites.iter().filter(|sprite| {
             let x_start = sprite.x as i32 - 8;
             (x_start..x_start+(NUM_PIXELS_IN_LINE as i32)).contains(&(x as i32))
-        })
+        }).collect()
     }
 
     fn get_sprite_pixel(sprite: &Sprite, memory: &Memory, x: u8, y: u8) -> Option<u8> {
