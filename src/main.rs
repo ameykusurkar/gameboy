@@ -11,15 +11,12 @@ mod joypad;
 mod utils;
 mod cartridge;
 mod emulator;
-mod frontend;
 mod frontend_sdl;
+mod frontend_pge;
 
 use emulator::Emulator;
-use frontend::Frontend;
+use frontend_pge::FrontendPge;
 use frontend_sdl::FrontendSdl;
-use crate::ppu::{LCD_WIDTH, LCD_HEIGHT};
-
-use pge;
 
 fn main() -> std::io::Result<()> {
     if std::env::args().len() < 2 {
@@ -49,15 +46,9 @@ fn main() -> std::io::Result<()> {
     };
 
     let emulator = Emulator::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
-    // let mut frontend = Frontend::new(emulator);
 
-    // let width = LCD_WIDTH * 6;
-    // let height = LCD_HEIGHT * 6;
-    // let scale = 1;
-
-    // let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
-    // pge.start(&mut frontend);
-    let mut frontend = FrontendSdl::new(emulator);
+    // let mut frontend = FrontendSdl::new(emulator);
+    let mut frontend = FrontendPge::new(emulator);
 
     frontend.start().expect("Error while running gameboy");
 
