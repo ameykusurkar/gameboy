@@ -43,4 +43,12 @@ impl Emulator {
                     .ok()
             }).map(|_| self.memory.mark_external_ram_as_saved());
     }
+
+    pub fn get_screen_buffer(&self) -> Option<&[u8]> {
+        if self.memory.lcd_enabled() {
+            Some(&self.ppu.screen)
+        } else {
+            None
+        }
+    }
 }

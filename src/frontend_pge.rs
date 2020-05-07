@@ -13,16 +13,39 @@ const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
     (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64
 );
 
-pub struct Frontend {
+pub struct FrontendPge {
+    pge_state: PgeState,
+}
+
+impl FrontendPge {
+    pub fn new(emulator: Emulator) -> Self {
+        FrontendPge {
+            pge_state: PgeState::new(emulator),
+        }
+    }
+
+    pub fn start(&mut self) -> Result<(), String> {
+        let width = LCD_WIDTH * 6;
+        let height = LCD_HEIGHT * 6;
+        let scale = 1;
+
+        let mut pge = pge::PGE::construct("Gameboy", width as usize, height as usize, scale, scale);
+        pge.start(&mut self.pge_state);
+
+        Ok(())
+    }
+}
+
+pub struct PgeState {
     emulator: Emulator,
     cycles: u32,
     single_step_mode: bool,
     last_render_at: std::time::Instant,
 }
 
-impl Frontend {
+impl PgeState {
     pub fn new(emulator: Emulator) -> Self {
-        Frontend {
+        PgeState {
             emulator,
             cycles: 0,
             single_step_mode: false,
@@ -177,7 +200,7 @@ impl Frontend {
     }
 }
 
-impl pge::State for Frontend {
+impl pge::State for PgeState {
     fn on_user_create(&mut self) -> bool {
         true
     }
