@@ -3,7 +3,6 @@ use sdl2;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::event::Event;
-use sdl2::keyboard::Keycode;
 use sdl2::rect::Rect;
 use sdl2::keyboard::Scancode;
 use sdl2::gfx::framerate::FPSManager;
@@ -56,7 +55,6 @@ impl FrontendSdl {
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit {..} => { break 'running },
-                    // Event::KeyDown {..} => {},
                     _ => {}
                 }
             }
@@ -87,7 +85,7 @@ impl FrontendSdl {
                         let (r, g, b) = Self::color(*pixel);
 
                         let offset = y * pitch + x * 3;
-                        buffer[offset] = r;
+                        buffer[offset]     = r;
                         buffer[offset + 1] = g;
                         buffer[offset + 2] = b;
                     }
