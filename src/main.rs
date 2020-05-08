@@ -28,6 +28,12 @@ fn main() -> std::io::Result<()> {
              .value_name("TYPE")
              .help("Selects the frontend for the emulator")
              .takes_value(true))
+        .arg(Arg::with_name("save_file")
+             .short("s")
+             .long("save_file")
+             .value_name("PATH")
+             .help("Specify path to save file")
+             .takes_value(true))
         .arg(Arg::with_name("ROM")
              .required(true)
              .help("The game to run")
@@ -51,7 +57,10 @@ fn main() -> std::io::Result<()> {
     let mut rom_buffer = Vec::new();
     f.read_to_end(&mut rom_buffer)?;
 
-    let save_path = Path::new(&rom_path).with_extension("sav");
+    let save_path = match matches.value_of("save_file") {
+        Some(path) => Path::new(&path).to_owned(),
+        None       => Path::new(&rom_path).with_extension("sav"),
+    };
 
     let save_buffer = if save_path.exists() {
         let mut f = File::open(&save_path)?;
