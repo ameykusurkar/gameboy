@@ -8,7 +8,7 @@ use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
 
 const NORMAL_SPEED: bool = true;
 
-const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
+pub const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
 const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
     (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64
 );

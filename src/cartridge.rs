@@ -9,7 +9,7 @@ use crate::cartridge::mbc3::Mbc3;
 pub struct Cartridge {
     rom: Vec<u8>,
     pub ram: Vec<u8>,
-    pub mbc: Box<dyn Mbc>,
+    pub mbc: Box<dyn Mbc + Send>,
 }
 
 pub trait Mbc {
@@ -34,7 +34,7 @@ impl Cartridge {
         };
 
         println!("CARTRIDGE TYPE: {:02x}h", rom[0x0147]);
-        let mbc: Box<dyn Mbc> = match rom[0x147] {
+        let mbc: Box<dyn Mbc + Send> = match rom[0x147] {
             0x00        => Box::new(NoMbc::default()),
             0x01..=0x02 => Box::new(Mbc1::new(false)), // without battery
             0x03        => Box::new(Mbc1::new(true)),  // with battery

@@ -75,8 +75,8 @@ fn main() -> std::io::Result<()> {
 
     match frontend_arg {
         "frontend-sdl" => {
-            let mut frontend = FrontendSdl::new(emulator);
-            frontend.start().expect("Error while running gameboy");
+            // let mut frontend = FrontendSdl::new(emulator);
+            FrontendSdl::start(emulator).expect("Error while running gameboy");
         },
         "frontend-pge" => {
             let mut frontend = FrontendPge::new(emulator);
