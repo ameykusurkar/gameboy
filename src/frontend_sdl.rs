@@ -16,22 +16,49 @@ use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
 
 const SCALE: u32 = 3;
 
+const TIME_PER_CLOCK: f32 = 1.0 / MACHINE_CYCLES_PER_SECOND as f32;
+const TIME_PER_SAMPLE: f32 = 1.0 / 44100.0;
+
 pub struct FrontendSdl;
 
 impl AudioCallback for Emulator {
     type Channel = f32;
 
     fn callback(&mut self, out: &mut [f32]) {
-        let num_samples = out.len();
-        let time_taken = num_samples as f32 / 44_100.0;
-        let num_cycles = (MACHINE_CYCLES_PER_SECOND as f32 * time_taken) as u32;
+        // let num_samples = out.len();
 
-        for _ in 0..num_cycles {
-            self.clock();
-        }
+        // let time_taken = num_samples as f32 / 44_100.0;
+
+        // let num_cycles = (MACHINE_CYCLES_PER_SECOND as f32 * time_taken) as u32;
+
+        // let cycles_per_sample = num_cycles / num_samples as u32;
+
+        // let mut index = 0;
+        // for n in 0..num_cycles {
+        //     self.clock();
+
+        //     if n % cycles_per_sample == 0 && index < out.len() {
+        //         out[index] = self.memory.sound_controller.get_current_sample();
+        //         index += 1;
+        //     }
+        // }
+
+        // let sample = self.memory.sound_controller.get_current_sample();
+        // while index < out.len() {
+        //     out[index] = sample;
+        // }
+
+        let mut sample_elapsed = TIME_PER_SAMPLE;
+        let mut clock_elapsed = 0.0;
 
         for x in out.iter_mut() {
-            *x = 0.0;
+            while clock_elapsed < sample_elapsed {
+                self.clock();
+                clock_elapsed += TIME_PER_CLOCK;
+            }
+
+            *x = self.memory.sound_controller.get_current_sample();
+            sample_elapsed += TIME_PER_SAMPLE;
         }
     }
 }

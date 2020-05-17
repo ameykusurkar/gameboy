@@ -13,6 +13,7 @@ mod joypad;
 mod utils;
 mod cartridge;
 mod emulator;
+mod sound_controller;
 mod frontend_sdl;
 mod frontend_pge;
 
