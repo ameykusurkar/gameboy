@@ -21,43 +21,29 @@ const TIME_PER_SAMPLE: f32 = 1.0 / 44100.0;
 
 pub struct FrontendSdl;
 
-impl AudioCallback for Emulator {
+struct SdlState {
+    emulator: Emulator,
+    sound_on: bool,
+}
+
+impl AudioCallback for SdlState {
     type Channel = f32;
 
     fn callback(&mut self, out: &mut [f32]) {
-        // let num_samples = out.len();
-
-        // let time_taken = num_samples as f32 / 44_100.0;
-
-        // let num_cycles = (MACHINE_CYCLES_PER_SECOND as f32 * time_taken) as u32;
-
-        // let cycles_per_sample = num_cycles / num_samples as u32;
-
-        // let mut index = 0;
-        // for n in 0..num_cycles {
-        //     self.clock();
-
-        //     if n % cycles_per_sample == 0 && index < out.len() {
-        //         out[index] = self.memory.sound_controller.get_current_sample();
-        //         index += 1;
-        //     }
-        // }
-
-        // let sample = self.memory.sound_controller.get_current_sample();
-        // while index < out.len() {
-        //     out[index] = sample;
-        // }
-
         let mut sample_elapsed = TIME_PER_SAMPLE;
         let mut clock_elapsed = 0.0;
 
         for x in out.iter_mut() {
             while clock_elapsed < sample_elapsed {
-                self.clock();
+                self.emulator.clock();
                 clock_elapsed += TIME_PER_CLOCK;
             }
 
-            *x = self.memory.sound_controller.get_current_sample();
+            *x = if self.sound_on {
+                self.emulator.memory.sound_controller.get_current_sample()
+            } else {
+                0.0
+            };
             sample_elapsed += TIME_PER_SAMPLE;
         }
     }
@@ -78,7 +64,7 @@ impl FrontendSdl {
         let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
             println!("{:?}", spec);
 
-            emulator
+            SdlState { emulator, sound_on: true }
         })?;
         println!("AUDIO DEVICE CREATED");
 
@@ -119,42 +105,43 @@ impl FrontendSdl {
             let keyboard_state = event_pump.keyboard_state();
 
             {
-                let mut emulator = audio_device.lock();
-                // println!("LOCK");
+                let mut device = audio_device.lock();
 
-                // TODO: Trigger joypad interrupt
-                emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
-                emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
-                emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
-                emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
-                emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
-                emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
-                emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
-                emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
+               if device.emulator.ppu.frame_complete {
+                   // TODO: Trigger joypad interrupt
+                   device.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
+                   device.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
+                   device.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
+                   device.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
+                   device.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
+                   device.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
+                   device.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
+                   device.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
 
-                // self.clock_frame();
+                   if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
+                       let width = LCD_WIDTH as usize;
 
-                // emulator.memory.joypad.clear();
-                emulator.save_external_ram();
+                       texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                           for (i, pixel) in screen_buffer.iter().enumerate() {
+                               let (x, y) = (i % width, i / width);
+                               let (r, g, b) = Self::color(*pixel);
 
-                if emulator.ppu.frame_complete {
-                    if let Some(screen_buffer) = emulator.get_screen_buffer() {
-                        let width = LCD_WIDTH as usize;
+                               let offset = y * pitch + x * 3;
+                               buffer[offset]     = r;
+                               buffer[offset + 1] = g;
+                               buffer[offset + 2] = b;
+                           }
+                       })?;
+                   }
 
-                        texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
-                            for (i, pixel) in screen_buffer.iter().enumerate() {
-                                let (x, y) = (i % width, i / width);
-                                let (r, g, b) = Self::color(*pixel);
+                   device.emulator.ppu.frame_complete = false;
 
-                                let offset = y * pitch + x * 3;
-                                buffer[offset]     = r;
-                                buffer[offset + 1] = g;
-                                buffer[offset + 2] = b;
-                            }
-                        })?;
-                    }
-                    emulator.ppu.frame_complete = false;
-                }
+                   device.emulator.save_external_ram();
+
+                   if keyboard_state.is_scancode_pressed(Scancode::M) {
+                       device.sound_on ^= true;
+                   }
+               }
             }
 
             canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
