@@ -70,11 +70,9 @@ impl MemoryAccess for SoundController {
     fn write(&mut self, addr: u16, byte: u8) {
         match addr {
             0xFF10 => {
-                // let sweep_time_data = (byte & 0b0111_0000) >> 4;
-                // self.sweep_time = sweep_time_data as f32 / 128.0;
-
-                // self.frequency_subtract = read_bit(byte, 3);
-                // self.sweep_shift = byte & 0b0000_0111;
+                self.sequencer.sweep_period = ((byte & 0b0111_0000) >> 4) as u32;
+                self.sequencer.frequency_subtract_mode = read_bit(byte, 3);
+                self.sequencer.sweep_shift = (byte & 0b0000_0111) as u32;
             },
             0xFF11 => {
                 let sound_length_data = byte & 0b0011_1111;
@@ -130,9 +128,12 @@ struct Sequencer {
     auto_volume: bool,
 
     frequency: u32,
-    // shadow_frequency: u32,
-    // sweep_period: u32,
-    // sweep_shift: u32,
+    shadow_frequency: u32,
+    sweep_period: u32,
+    sweep_timer: u32,
+    sweep_shift: u32,
+    frequency_subtract_mode: bool,
+    sweep_enabled: bool,
 }
 
 impl Sequencer {
@@ -156,14 +157,17 @@ impl Sequencer {
             auto_volume: true,
 
             frequency: 0,
-            // shadow_frequency: 0,
-            // sweep_period: 0,
-            // sweep_shift: 0,
+            shadow_frequency: 0,
+            sweep_period: 0,
+            sweep_timer: 0,
+            sweep_shift: 0,
+            frequency_subtract_mode: false,
+            sweep_enabled: true,
         }
     }
 
     fn period(&self) -> u32 {
-        2044 - self.frequency
+        2048 - self.frequency
     }
 
     fn clock(&mut self) {
@@ -178,6 +182,10 @@ impl Sequencer {
 
             if self.length_counter == 0 {
                 self.enabled = false;
+            }
+
+            if self.frame_counter == 7 && self.volume_timer > 0 {
+                self.volume_timer -= 1;
             }
 
             if self.volume_timer == 0 {
@@ -197,10 +205,30 @@ impl Sequencer {
                     }
                 }
             }
-            if self.frame_counter == 7 && self.volume_timer > 0 {
-                self.volume_timer -= 1;
+
+            if (self.frame_counter == 2 || self.frame_counter == 6) && self.sweep_timer > 0 {
+                self.sweep_timer -= 1;
             }
 
+            if self.sweep_timer == 0 {
+                self.sweep_timer = self.sweep_period;
+
+                if self.sweep_enabled && self.sweep_period > 0 {
+                    match self.new_frequency() {
+                        None => self.enabled = false,
+                        Some(new_freq) => {
+                            if self.sweep_shift > 0 {
+                                self.shadow_frequency = new_freq;
+                                self.frequency = new_freq;
+
+                                if self.new_frequency().is_none() {
+                                    self.enabled = false;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         self.timer -= 1;
@@ -228,6 +256,22 @@ impl Sequencer {
         }
     }
 
+    fn new_frequency(&self) -> Option<u32> {
+        let delta = self.shadow_frequency >> self.sweep_shift;
+
+        let result = if self.frequency_subtract_mode {
+            self.shadow_frequency - delta
+        } else {
+            self.shadow_frequency + delta
+        };
+
+        if result < 2048 {
+            Some(result)
+        } else {
+            None
+        }
+    }
+
     fn reset(&mut self) {
         self.timer = self.period();
         self.enabled = true;
@@ -239,5 +283,13 @@ impl Sequencer {
         self.current_volume = self.initial_volume as i32;
         self.volume_timer = self.volume_period;
         self.auto_volume = true;
+
+        self.shadow_frequency = self.frequency;
+        self.sweep_timer = self.sweep_period;
+        self.sweep_enabled = (self.sweep_period > 0) || (self.sweep_shift > 0);
+
+        if self.sweep_shift > 0 && self.new_frequency().is_none() {
+            self.enabled = false;
+        }
     }
 }
