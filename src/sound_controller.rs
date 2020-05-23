@@ -123,6 +123,7 @@ struct Sequencer {
 
     timer: u32,
     waveform: u8,
+    waveform_bit: u8,
     enabled: bool,
 
     length_counter: u32,
@@ -152,6 +153,7 @@ impl Sequencer {
 
             timer: 0,
             waveform: 0b0000_1111,
+            waveform_bit: 0,
             enabled: false,
 
             length_counter: 0,
@@ -243,7 +245,7 @@ impl Sequencer {
 
         if self.timer == 0 {
             self.timer = self.period();
-            self.waveform = self.waveform.rotate_right(1);
+            self.waveform_bit = (self.waveform_bit + 1) % 8;
         }
 
     }
@@ -253,11 +255,9 @@ impl Sequencer {
             return 0.0;
         }
 
-        let current_bit = self.waveform &0b1;
-
         let amplitude = 0.3 * self.current_volume as f32 / 16.0;
 
-        if current_bit == 1 {
+        if read_bit(self.waveform, self.waveform_bit) {
             amplitude
         } else {
             -amplitude
