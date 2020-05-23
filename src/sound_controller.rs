@@ -2,7 +2,6 @@ use crate::memory::MemoryAccess;
 use crate::utils::read_bit;
 
 pub struct SoundController {
-    frequency: u32,
     sequencer: Sequencer,
     master_sound_switch: bool,
 }
@@ -10,20 +9,17 @@ pub struct SoundController {
 impl SoundController {
     pub fn new() -> Self {
         SoundController {
-            frequency: 0,
             sequencer: Sequencer::new(),
             master_sound_switch: false,
         }
     }
 
     fn set_frequency_low_bits(&mut self, byte: u8) {
-        self.frequency = (self.frequency & 0b111_0000_0000) | byte as u32;
-        self.sequencer.period = 2048 - self.frequency;
+        self.sequencer.frequency = (self.sequencer.frequency & 0b111_0000_0000) | byte as u32;
     }
 
     fn set_frequency_high_bits(&mut self, byte: u8) {
-        self.frequency = (self.frequency & 0b000_1111_1111) | (byte as u32) << 8;
-        self.sequencer.period = 2048 - self.frequency;
+        self.sequencer.frequency = (self.sequencer.frequency & 0b000_1111_1111) | (byte as u32) << 8;
     }
 
     pub fn clock(&mut self) {
@@ -102,7 +98,6 @@ impl MemoryAccess for SoundController {
                 let should_restart = read_bit(byte, 7);
 
                 if should_restart {
-                    println!("RESET");
                     self.sequencer.reset();
                 }
 
@@ -120,7 +115,6 @@ struct Sequencer {
     counter: u32,
     frame_counter: u32,
 
-    period: u32,
     timer: u32,
     waveform: u8,
     enabled: bool,
@@ -134,6 +128,11 @@ struct Sequencer {
     volume_period: u32,
     volume_timer: u32,
     auto_volume: bool,
+
+    frequency: u32,
+    // shadow_frequency: u32,
+    // sweep_period: u32,
+    // sweep_shift: u32,
 }
 
 impl Sequencer {
@@ -142,7 +141,6 @@ impl Sequencer {
             counter: 0,
             frame_counter: 0,
 
-            period: 0,
             timer: 0,
             waveform: 0b0000_0011,
             enabled: false,
@@ -156,7 +154,16 @@ impl Sequencer {
             volume_period: 0,
             volume_timer: 0,
             auto_volume: true,
+
+            frequency: 0,
+            // shadow_frequency: 0,
+            // sweep_period: 0,
+            // sweep_shift: 0,
         }
+    }
+
+    fn period(&self) -> u32 {
+        2044 - self.frequency
     }
 
     fn clock(&mut self) {
@@ -199,7 +206,7 @@ impl Sequencer {
         self.timer -= 1;
 
         if self.timer == 0 {
-            self.timer = self.period;
+            self.timer = self.period();
             self.waveform = self.waveform.rotate_right(1);
         }
 
@@ -222,7 +229,7 @@ impl Sequencer {
     }
 
     fn reset(&mut self) {
-        self.timer = self.period;
+        self.timer = self.period();
         self.enabled = true;
 
         if self.length_counter == 0 {
