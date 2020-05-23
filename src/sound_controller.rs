@@ -77,6 +77,14 @@ impl MemoryAccess for SoundController {
             0xFF11 => {
                 let sound_length_data = byte & 0b0011_1111;
                 self.sequencer.length_counter = 64 - sound_length_data as u32;
+
+                self.sequencer.waveform = match (byte & 0b1100_0000) >> 6 {
+                    0 => 0b0000_0001, // 12.5% Duty cycle
+                    1 => 0b1000_0001, // 25%   Duty cycle
+                    2 => 0b1000_0111, // 50%   Duty cycle
+                    3 => 0b0111_1110, // 75%   Duty cycle
+                    _ => unreachable!("Invalid duty cycle byte: {:02x}", byte),
+                };
             },
             0xFF12 => {
                 self.sequencer.initial_volume = ((byte & 0b1111_0000) >> 4) as u32;
@@ -143,7 +151,7 @@ impl Sequencer {
             frame_counter: 0,
 
             timer: 0,
-            waveform: 0b0000_0011,
+            waveform: 0b0000_1111,
             enabled: false,
 
             length_counter: 0,

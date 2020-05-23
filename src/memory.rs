@@ -65,9 +65,9 @@ impl Memory {
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
         // Hard-coded because test roms write results to serial port
-        if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
-            println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
-        }
+        // if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
+        //     println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
+        // }
 
         match addr {
             // Cartridge
