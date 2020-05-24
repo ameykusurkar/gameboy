@@ -76,7 +76,7 @@ impl FrontendSdl {
             .build()
             .map_err(|e| e.to_string())?;
 
-        let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        let mut canvas = window.into_canvas().present_vsync().build().map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
 
         let mut texture = texture_creator
