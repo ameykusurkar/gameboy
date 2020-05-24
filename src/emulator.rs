@@ -47,7 +47,7 @@ impl Emulator {
 
     pub fn get_screen_buffer(&self) -> Option<&[u8]> {
         if self.memory.lcd_enabled() {
-            Some(&self.ppu.screen)
+            Some(&self.ppu.get_screen_buffer())
         } else {
             None
         }

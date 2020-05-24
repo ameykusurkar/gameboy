@@ -185,9 +185,9 @@ impl PgeState {
     fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (LCD_WIDTH as usize, LCD_HEIGHT as usize);
 
-        if self.emulator.memory.lcd_enabled() {
+        if let Some(screen_buffer) = self.emulator.get_screen_buffer() {
             let mut screen_sprite = pge::Sprite::new(width, height);
-            for (i, pixel) in self.emulator.ppu.screen.iter().enumerate() {
+            for (i, pixel) in screen_buffer.iter().enumerate() {
                 let (x, y) = (i % width, i / width);
                 screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
             }
