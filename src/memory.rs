@@ -1,6 +1,7 @@
 use crate::ppu::LcdMode;
 use crate::joypad::Joypad;
 use crate::cartridge::Cartridge;
+use crate::sound_controller::SoundController;
 
 use crate::utils::read_bit;
 
@@ -9,6 +10,7 @@ pub struct Memory {
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
     pub joypad: Joypad,
+    pub sound_controller: SoundController,
 }
 
 pub trait MemoryAccess {
@@ -26,6 +28,7 @@ impl Memory {
             memory: [0; 1 << 16],
             bootrom: [0; 256],
             joypad: Joypad::default(),
+            sound_controller: SoundController::new(),
         }
     }
 
@@ -53,6 +56,8 @@ impl Memory {
             0xFF
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
+        } else if (0xFF10..=0xFF14).contains(&addr) || addr == 0xFF26 {
+            self.sound_controller.read(addr as u16)
         } else {
             self.memory[addr]
         }
@@ -60,9 +65,9 @@ impl Memory {
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
         // Hard-coded because test roms write results to serial port
-        if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
-            println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
-        }
+        // if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
+        //     println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
+        // }
 
         match addr {
             // Cartridge
@@ -88,6 +93,9 @@ impl Memory {
             // Joypad
             0xFF00 => {
                 self.joypad.write(addr, val);
+            },
+            0xFF10..=0xFF14 | 0xFF26 => {
+                self.sound_controller.write(addr, val);
             },
             // DMA Transfer
             0xFF46 => {
