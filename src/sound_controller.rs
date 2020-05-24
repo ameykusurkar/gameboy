@@ -134,7 +134,6 @@ struct Sequencer {
     volume_up: bool,
     volume_period: u32,
     volume_timer: u32,
-    auto_volume: bool,
 
     frequency: u32,
     shadow_frequency: u32,
@@ -164,7 +163,6 @@ impl Sequencer {
             volume_up: true,
             volume_period: 0,
             volume_timer: 0,
-            auto_volume: true,
 
             frequency: 0,
             shadow_frequency: 0,
@@ -201,17 +199,11 @@ impl Sequencer {
             if self.volume_timer == 0 {
                 self.volume_timer = self.volume_period;
 
-                if self.volume_period > 0  && self.auto_volume {
-                    let old = self.current_volume;
-
+                if self.volume_period > 0 {
                     if self.volume_up {
                         self.current_volume = (self.current_volume + 1).min(0xF);
                     } else {
                         self.current_volume = (self.current_volume - 1).max(0);
-                    }
-
-                    if old == self.current_volume {
-                        self.auto_volume = false;
                     }
                 }
             }
@@ -290,7 +282,6 @@ impl Sequencer {
 
         self.current_volume = self.initial_volume as i32;
         self.volume_timer = self.volume_period;
-        self.auto_volume = true;
 
         self.shadow_frequency = self.frequency;
         self.sweep_timer = self.sweep_period;

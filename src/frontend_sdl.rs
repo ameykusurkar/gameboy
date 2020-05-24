@@ -58,7 +58,7 @@ impl FrontendSdl {
         let desired_spec = AudioSpecDesired {
             freq: Some(44_100),
             channels: Some(1),  // mono
-            samples: None       // default sample size
+            samples: Some(512)       // default sample size
         };
 
         let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
@@ -98,6 +98,10 @@ impl FrontendSdl {
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit {..} => { break 'running },
+                    Event::KeyDown { scancode: Some(Scancode::M), .. } => {
+                        let mut device = audio_device.lock();
+                        device.sound_on ^= true;
+                    },
                     _ => {}
                 }
             }
@@ -107,45 +111,42 @@ impl FrontendSdl {
             {
                 let mut device = audio_device.lock();
 
-               if device.emulator.ppu.frame_complete {
-                   // TODO: Trigger joypad interrupt
-                   device.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
-                   device.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
-                   device.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
-                   device.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
-                   device.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
-                   device.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
-                   device.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
-                   device.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
+                if device.emulator.ppu.frame_complete {
+                    // TODO: Trigger joypad interrupt
+                    device.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
+                    device.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
+                    device.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
+                    device.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
+                    device.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
+                    device.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
+                    device.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
+                    device.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
 
-                   if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
-                       let width = LCD_WIDTH as usize;
+                    if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
+                        let width = LCD_WIDTH as usize;
 
-                       texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
-                           for (i, pixel) in screen_buffer.iter().enumerate() {
-                               let (x, y) = (i % width, i / width);
-                               let (r, g, b) = Self::color(*pixel);
+                        texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                            for (i, pixel) in screen_buffer.iter().enumerate() {
+                                let (x, y) = (i % width, i / width);
+                                let (r, g, b) = Self::color(*pixel);
 
-                               let offset = y * pitch + x * 3;
-                               buffer[offset]     = r;
-                               buffer[offset + 1] = g;
-                               buffer[offset + 2] = b;
-                           }
-                       })?;
-                   }
+                                let offset = y * pitch + x * 3;
+                                buffer[offset]     = r;
+                                buffer[offset + 1] = g;
+                                buffer[offset + 2] = b;
+                            }
+                        })?;
 
-                   device.emulator.ppu.frame_complete = false;
+                        canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
+                        canvas.present();
+                    }
 
-                   device.emulator.save_external_ram();
-
-                   if keyboard_state.is_scancode_pressed(Scancode::M) {
-                       device.sound_on ^= true;
-                   }
-               }
+                    device.emulator.ppu.frame_complete = false;
+                    device.emulator.save_external_ram();
+                }
             }
 
-            canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
-            canvas.present();
+            fps_manager.delay();
         }
 
         Ok(())
