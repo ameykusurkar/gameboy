@@ -2,10 +2,12 @@ use crate::memory::MemoryAccess;
 use crate::utils::{read_bit, set_bit};
 
 use crate::square_wave_channel::SquareWaveChannel;
+use crate::noise_channel::NoiseChannel;
 
 pub struct SoundController {
     square_wave_1: SquareWaveChannel,
     square_wave_2: SquareWaveChannel,
+    noise_channel: NoiseChannel,
 
     master_sound_on: bool,
     sound_output_select: u8,
@@ -20,6 +22,7 @@ impl SoundController {
         SoundController {
             square_wave_1: SquareWaveChannel::new(),
             square_wave_2: SquareWaveChannel::new(),
+            noise_channel: NoiseChannel::new(),
 
             master_sound_on: false,
             sound_output_select: 0,
@@ -43,6 +46,7 @@ impl SoundController {
     pub fn clock(&mut self) {
         self.square_wave_1.clock();
         self.square_wave_2.clock();
+        self.noise_channel.clock();
     }
 
     pub fn get_current_samples(&self) -> (f32, f32) {
@@ -66,6 +70,12 @@ impl SoundController {
             sample += self.square_wave_2.sample();
         }
 
+        // TODO: Implmement wave channel
+
+        if read_bit(self.sound_output_select, 7) {
+            sample += self.noise_channel.sample();
+        }
+
         (self.output_2_volume as f32 / 7.0) * sample
     }
 
@@ -78,6 +88,12 @@ impl SoundController {
 
         if read_bit(self.sound_output_select, 1) {
             sample += self.square_wave_2.sample();
+        }
+
+        // TODO: Implmement wave channel
+
+        if read_bit(self.sound_output_select, 3) {
+            sample += self.noise_channel.sample();
         }
 
         (self.output_1_volume as f32 / 7.0) * sample
@@ -142,6 +158,7 @@ impl MemoryAccess for SoundController {
             0xFF25 => {
                 self.sound_output_select
             },
+            0xFF20..=0xFF23 => self.noise_channel.read(addr),
             0xFF26 => {
                 let mut data = set_bit(0b1111_1111, 7, self.master_sound_on);
                 data = set_bit(data, 0, self.square_wave_1.enabled);
@@ -196,6 +213,7 @@ impl MemoryAccess for SoundController {
 
                 square_wave.length_counter_select = read_bit(byte, 6);
             },
+            0xFF20..=0xFF23 => self.noise_channel.write(addr, byte),
             0xFF24 => {
                 self.channel_control = byte;
 
