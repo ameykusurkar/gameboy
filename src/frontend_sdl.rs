@@ -40,16 +40,10 @@ impl AudioCallback for SdlState {
                 clock_elapsed += TIME_PER_CLOCK;
             }
 
-            let left_sample = if self.sound_on {
-                self.emulator.memory.sound_controller.get_current_sample_left()
+            let (left_sample, right_sample) = if self.sound_on {
+                self.emulator.memory.sound_controller.get_current_samples()
             } else {
-                0.0
-            };
-
-            let right_sample = if self.sound_on {
-                self.emulator.memory.sound_controller.get_current_sample_right()
-            } else {
-                0.0
+                (0.0, 0.0)
             };
 
             match xs.len() {
