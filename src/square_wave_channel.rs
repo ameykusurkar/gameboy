@@ -1,4 +1,5 @@
 use crate::utils::read_bit;
+use crate::audio_components::{Timer, VolumeEnvelope};
 
 pub struct SquareWaveChannel {
     frame_timer: Timer,
@@ -102,7 +103,7 @@ impl SquareWaveChannel {
             return 0.0;
         }
 
-        let amplitude = self.volume_envelope.current as f32 / 16.0;
+        let amplitude = self.volume_envelope.get_current() as f32 / 16.0;
 
         if read_bit(self.waveform, self.waveform_bit) {
             amplitude
@@ -143,76 +144,6 @@ impl SquareWaveChannel {
 
         if self.sweep_shift > 0 && self.new_frequency().is_none() {
             self.enabled = false;
-        }
-    }
-}
-
-pub struct VolumeEnvelope {
-    pub initial: u32,
-    pub inc_mode: bool,
-    pub timer: Timer,
-    current: i32,
-}
-
-impl VolumeEnvelope {
-    fn new() -> Self {
-        Self {
-            initial: 0,
-            inc_mode: true,
-            timer: Timer::new(0),
-            current: 0,
-        }
-    }
-
-    fn clock(&mut self) {
-        if self.timer.clock() && self.timer.period > 0 {
-            if self.inc_mode {
-                self.current = (self.current + 1).min(0xF);
-            } else {
-                self.current = (self.current - 1).max(0);
-            }
-        }
-    }
-
-    fn reset(&mut self) {
-        self.current = self.initial as i32;
-        self.timer.reload();
-    }
-
-    fn increment(&mut self) {
-        self.current = (self.current + 1) % 16;
-    }
-}
-
-pub struct Timer {
-    pub period: u32,
-    countdown: u32,
-}
-
-impl Timer {
-    fn new(period: u32) -> Self {
-        Timer {
-            period,
-            countdown: period,
-        }
-    }
-
-    fn reload(&mut self) {
-        self.countdown = self.period;
-    }
-
-    fn clock(&mut self) -> bool {
-        if self.countdown > 0 {
-            self.countdown -= 1;
-
-            if self.countdown == 0 {
-                self.reload();
-                true
-            } else {
-                false
-            }
-        } else {
-            false
         }
     }
 }
