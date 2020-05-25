@@ -56,7 +56,7 @@ impl Memory {
             0xFF
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
-        } else if (0xFF10..=0xFF14).contains(&addr) || addr == 0xFF26 {
+        } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else {
             self.memory[addr]
@@ -94,7 +94,7 @@ impl Memory {
             0xFF00 => {
                 self.joypad.write(addr, val);
             },
-            0xFF10..=0xFF14 | 0xFF26 => {
+            _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
             },
             // DMA Transfer
@@ -107,6 +107,10 @@ impl Memory {
             },
             _ => self.memory[addr as usize] = val,
         }
+    }
+
+    fn is_sound_addr(addr: u16) -> bool {
+        (0xFF10..=0xFF14).contains(&addr) || (0xFF16..=0xFF19).contains(&addr) || addr == 0xFF26
     }
 
     fn vram_blocked(&self) -> bool {

@@ -112,7 +112,7 @@ impl SquareWaveChannel {
             return 0.0;
         }
 
-        let amplitude = 0.3 * self.current_volume as f32 / 16.0;
+        let amplitude = self.current_volume as f32 / 16.0;
 
         if read_bit(self.waveform, self.waveform_bit) {
             amplitude
