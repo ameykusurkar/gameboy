@@ -64,7 +64,7 @@ impl MemoryAccess for SoundController {
             0xFF12 => {
                 (self.sequencer.initial_volume << 4) as u8
                     | (self.sequencer.volume_up as u8) << 3
-                    | self.sequencer.volume_period as u8
+                    | self.sequencer.volume_timer.period as u8
             },
             0xFF13 => {
                 0xFF
@@ -102,7 +102,7 @@ impl MemoryAccess for SoundController {
             0xFF12 => {
                 self.sequencer.initial_volume = ((byte & 0b1111_0000) >> 4) as u32;
                 self.sequencer.volume_up = read_bit(byte, 3);
-                self.sequencer.volume_period = (byte & 0b111) as u32;
+                self.sequencer.volume_timer.period = (byte & 0b111) as u32;
 
                 if byte == 0x08 {
                     self.sequencer.current_volume = (self.sequencer.current_volume + 1) % 16;
@@ -131,7 +131,7 @@ impl MemoryAccess for SoundController {
 }
 
 struct Sequencer {
-    counter: u32,
+    frame_timer: Timer,
     frame_counter: u32,
 
     frequency_timer: Timer,
@@ -145,8 +145,7 @@ struct Sequencer {
     initial_volume: u32,
     current_volume: i32,
     volume_up: bool,
-    volume_period: u32,
-    volume_timer: u32,
+    volume_timer: Timer,
 
     shadow_frequency: u32,
     sweep_period: u32,
@@ -159,7 +158,7 @@ struct Sequencer {
 impl Sequencer {
     fn new() -> Self {
         Sequencer {
-            counter: 0,
+            frame_timer: Timer::new(2048),
             frame_counter: 0,
 
             frequency_timer: Timer::new(0),
@@ -173,8 +172,7 @@ impl Sequencer {
             initial_volume: 0,
             current_volume: 0,
             volume_up: true,
-            volume_period: 0,
-            volume_timer: 0,
+            volume_timer: Timer::new(0),
 
             shadow_frequency: 0,
             sweep_period: 0,
@@ -194,9 +192,7 @@ impl Sequencer {
     }
 
     fn clock(&mut self) {
-        self.counter += 1;
-
-        if self.counter % 2048 == 0 {
+        if self.frame_timer.clock() {
             self.frame_counter = (self.frame_counter + 1) % 8;
 
             if self.frame_counter % 2 == 0 && self.enabled && self.length_counter > 0 {
@@ -207,19 +203,11 @@ impl Sequencer {
                 self.enabled = false;
             }
 
-            if self.frame_counter == 7 && self.volume_timer > 0 {
-                self.volume_timer -= 1;
-            }
-
-            if self.volume_timer == 0 {
-                self.volume_timer = self.volume_period;
-
-                if self.volume_period > 0 {
-                    if self.volume_up {
-                        self.current_volume = (self.current_volume + 1).min(0xF);
-                    } else {
-                        self.current_volume = (self.current_volume - 1).max(0);
-                    }
+            if self.frame_counter == 7 && self.volume_timer.clock() && self.volume_timer.period > 0 {
+                if self.volume_up {
+                    self.current_volume = (self.current_volume + 1).min(0xF);
+                } else {
+                    self.current_volume = (self.current_volume - 1).max(0);
                 }
             }
 
@@ -292,7 +280,7 @@ impl Sequencer {
         }
 
         self.current_volume = self.initial_volume as i32;
-        self.volume_timer = self.volume_period;
+        self.volume_timer.reload();
 
         self.shadow_frequency = self.get_frequency();
         self.sweep_timer = self.sweep_period;
@@ -313,7 +301,7 @@ impl Timer {
     fn new(period: u32) -> Self {
         Timer {
             period,
-            countdown: 0,
+            countdown: period,
         }
     }
 
