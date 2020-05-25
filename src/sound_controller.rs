@@ -46,7 +46,7 @@ impl MemoryAccess for SoundController {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             0xFF10 => {
-                (self.sequencer.sweep_period as u8) << 4
+                (self.sequencer.sweep_timer.period as u8) << 4
                     | (self.sequencer.frequency_subtract_mode as u8) << 3
                     | self.sequencer.sweep_shift as u8
             },
@@ -83,7 +83,7 @@ impl MemoryAccess for SoundController {
     fn write(&mut self, addr: u16, byte: u8) {
         match addr {
             0xFF10 => {
-                self.sequencer.sweep_period = ((byte & 0b0111_0000) >> 4) as u32;
+                self.sequencer.sweep_timer.period = ((byte & 0b0111_0000) >> 4) as u32;
                 self.sequencer.frequency_subtract_mode = read_bit(byte, 3);
                 self.sequencer.sweep_shift = (byte & 0b0000_0111) as u32;
             },
@@ -148,8 +148,7 @@ struct Sequencer {
     volume_timer: Timer,
 
     shadow_frequency: u32,
-    sweep_period: u32,
-    sweep_timer: u32,
+    sweep_timer: Timer,
     sweep_shift: u32,
     frequency_subtract_mode: bool,
     sweep_enabled: bool,
@@ -175,8 +174,7 @@ impl Sequencer {
             volume_timer: Timer::new(0),
 
             shadow_frequency: 0,
-            sweep_period: 0,
-            sweep_timer: 0,
+            sweep_timer: Timer::new(0),
             sweep_shift: 0,
             frequency_subtract_mode: false,
             sweep_enabled: true,
@@ -211,14 +209,8 @@ impl Sequencer {
                 }
             }
 
-            if (self.frame_counter == 2 || self.frame_counter == 6) && self.sweep_timer > 0 {
-                self.sweep_timer -= 1;
-            }
-
-            if self.sweep_timer == 0 {
-                self.sweep_timer = self.sweep_period;
-
-                if self.sweep_enabled && self.sweep_period > 0 {
+            if (self.frame_counter == 2 || self.frame_counter == 6) && self.sweep_timer.clock() {
+                if self.sweep_enabled && self.sweep_timer.period > 0 {
                     match self.new_frequency() {
                         None => self.enabled = false,
                         Some(new_freq) => {
@@ -283,8 +275,8 @@ impl Sequencer {
         self.volume_timer.reload();
 
         self.shadow_frequency = self.get_frequency();
-        self.sweep_timer = self.sweep_period;
-        self.sweep_enabled = (self.sweep_period > 0) || (self.sweep_shift > 0);
+        self.sweep_timer.reload();
+        self.sweep_enabled = (self.sweep_timer.period > 0) || (self.sweep_shift > 0);
 
         if self.sweep_shift > 0 && self.new_frequency().is_none() {
             self.enabled = false;
