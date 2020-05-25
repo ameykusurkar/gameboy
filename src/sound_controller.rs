@@ -15,11 +15,13 @@ impl SoundController {
     }
 
     fn set_frequency_low_bits(&mut self, byte: u8) {
-        self.sequencer.frequency = (self.sequencer.frequency & 0b111_0000_0000) | byte as u32;
+        let old = self.sequencer.get_frequency();
+        self.sequencer.set_frequency((old & 0b111_0000_0000) | byte as u32);
     }
 
     fn set_frequency_high_bits(&mut self, byte: u8) {
-        self.sequencer.frequency = (self.sequencer.frequency & 0b000_1111_1111) | (byte as u32) << 8;
+        let old = self.sequencer.get_frequency();
+        self.sequencer.set_frequency((old & 0b000_1111_1111) | (byte as u32) << 8);
     }
 
     pub fn clock(&mut self) {
@@ -132,7 +134,7 @@ struct Sequencer {
     counter: u32,
     frame_counter: u32,
 
-    timer: u32,
+    frequency_timer: Timer,
     waveform: u8,
     waveform_bit: u8,
     enabled: bool,
@@ -146,7 +148,6 @@ struct Sequencer {
     volume_period: u32,
     volume_timer: u32,
 
-    frequency: u32,
     shadow_frequency: u32,
     sweep_period: u32,
     sweep_timer: u32,
@@ -161,7 +162,7 @@ impl Sequencer {
             counter: 0,
             frame_counter: 0,
 
-            timer: 0,
+            frequency_timer: Timer::new(0),
             waveform: 0b0000_1111,
             waveform_bit: 0,
             enabled: false,
@@ -175,7 +176,6 @@ impl Sequencer {
             volume_period: 0,
             volume_timer: 0,
 
-            frequency: 0,
             shadow_frequency: 0,
             sweep_period: 0,
             sweep_timer: 0,
@@ -185,8 +185,12 @@ impl Sequencer {
         }
     }
 
-    fn period(&self) -> u32 {
-        2048 - self.frequency
+    fn get_frequency(&self) -> u32 {
+        2048 - self.frequency_timer.period
+    }
+
+    fn set_frequency(&mut self, frequency: u32) {
+        self.frequency_timer.period = 2048 - frequency;
     }
 
     fn clock(&mut self) {
@@ -232,7 +236,7 @@ impl Sequencer {
                         Some(new_freq) => {
                             if self.sweep_shift > 0 {
                                 self.shadow_frequency = new_freq;
-                                self.frequency = new_freq;
+                                self.set_frequency(new_freq);
 
                                 if self.new_frequency().is_none() {
                                     self.enabled = false;
@@ -244,13 +248,9 @@ impl Sequencer {
             }
         }
 
-        self.timer -= 1;
-
-        if self.timer == 0 {
-            self.timer = self.period();
+        if self.frequency_timer.clock() {
             self.waveform_bit = (self.waveform_bit + 1) % 8;
         }
-
     }
 
     fn sample(&self) -> f32 {
@@ -284,7 +284,7 @@ impl Sequencer {
     }
 
     fn reset(&mut self) {
-        self.timer = self.period();
+        self.frequency_timer.reload();
         self.enabled = true;
 
         if self.length_counter == 0 {
@@ -294,12 +294,45 @@ impl Sequencer {
         self.current_volume = self.initial_volume as i32;
         self.volume_timer = self.volume_period;
 
-        self.shadow_frequency = self.frequency;
+        self.shadow_frequency = self.get_frequency();
         self.sweep_timer = self.sweep_period;
         self.sweep_enabled = (self.sweep_period > 0) || (self.sweep_shift > 0);
 
         if self.sweep_shift > 0 && self.new_frequency().is_none() {
             self.enabled = false;
+        }
+    }
+}
+
+struct Timer {
+    period: u32,
+    countdown: u32,
+}
+
+impl Timer {
+    fn new(period: u32) -> Self {
+        Timer {
+            period,
+            countdown: 0,
+        }
+    }
+
+    fn reload(&mut self) {
+        self.countdown = self.period;
+    }
+
+    fn clock(&mut self) -> bool {
+        if self.countdown > 0 {
+            self.countdown -= 1;
+
+            if self.countdown == 0 {
+                self.reload();
+                true
+            } else {
+                false
+            }
+        } else {
+            false
         }
     }
 }
