@@ -126,9 +126,9 @@ impl MemoryAccess for SoundController {
                 (duty_cycle << 6 | (64 - square_wave.length_counter)) as u8
             },
             0xFF12 | 0xFF17 => {
-                (square_wave.initial_volume << 4) as u8
-                    | (square_wave.volume_up as u8) << 3
-                    | square_wave.volume_timer.period as u8
+                (square_wave.volume_envelope.initial << 4) as u8
+                    | (square_wave.volume_envelope.inc_mode as u8) << 3
+                    | square_wave.volume_envelope.timer.period as u8
             },
             0xFF13 | 0xFF18 => {
                 0xFF
@@ -174,9 +174,9 @@ impl MemoryAccess for SoundController {
                 };
             },
             0xFF12 | 0xFF17 => {
-                square_wave.initial_volume = ((byte & 0b1111_0000) >> 4) as u32;
-                square_wave.volume_up = read_bit(byte, 3);
-                square_wave.volume_timer.period = (byte & 0b111) as u32;
+                square_wave.volume_envelope.initial = ((byte & 0b1111_0000) >> 4) as u32;
+                square_wave.volume_envelope.inc_mode = read_bit(byte, 3);
+                square_wave.volume_envelope.timer.period = (byte & 0b111) as u32;
 
                 if byte == 0x08 {
                     square_wave.increment_volume();
