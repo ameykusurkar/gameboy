@@ -6,7 +6,10 @@ use crate::square_wave_channel::SquareWaveChannel;
 pub struct SoundController {
     square_wave_1: SquareWaveChannel,
     square_wave_2: SquareWaveChannel,
+
     master_sound_on: bool,
+    output_volume: f32, // In the range [0.0, 1.0)
+    channel_control: u8,
 }
 
 impl SoundController {
@@ -15,6 +18,8 @@ impl SoundController {
             square_wave_1: SquareWaveChannel::new(),
             square_wave_2: SquareWaveChannel::new(),
             master_sound_on: false,
+            output_volume: 0.0,
+            channel_control: 0,
         }
     }
 
@@ -38,7 +43,7 @@ impl SoundController {
             return 0.0;
         }
 
-        0.2 * (self.square_wave_1.sample() + self.square_wave_2.sample())
+        0.2 * self.output_volume * (self.square_wave_1.sample() + self.square_wave_2.sample())
     }
 
     fn is_sound_on(&self) -> bool {
@@ -94,6 +99,9 @@ impl MemoryAccess for SoundController {
             0xFF14 | 0xFF19 => {
                 (square_wave.length_counter_select as u8) << 6
             },
+            0xFF24 => {
+                self.channel_control
+            },
             0xFF26 => {
                 let mut data = set_bit(0b1111_1111, 7, self.master_sound_on);
                 data = set_bit(data, 0, self.square_wave_1.enabled);
@@ -147,6 +155,14 @@ impl MemoryAccess for SoundController {
                 }
 
                 square_wave.length_counter_select = read_bit(byte, 6);
+            },
+            0xFF24 => {
+                // TODO: Implement stereo sound
+                self.channel_control = byte;
+
+                let output_1 = (byte & 0b0000_0111) as f32;
+                let output_2 = ((byte & 0b0111_0000) >> 4 ) as f32;
+                self.output_volume = (output_1 + output_2) / 2.0 / 8.0;
             },
             0xFF26 => {
                 self.master_sound_on = read_bit(byte, 7);
