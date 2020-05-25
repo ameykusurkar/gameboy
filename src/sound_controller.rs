@@ -8,8 +8,11 @@ pub struct SoundController {
     square_wave_2: SquareWaveChannel,
 
     master_sound_on: bool,
-    output_volume: f32, // In the range [0.0, 1.0)
+    sound_output_select: u8,
     channel_control: u8,
+
+    output_left_volume: u8,
+    output_right_volume: u8,
 }
 
 impl SoundController {
@@ -17,9 +20,13 @@ impl SoundController {
         SoundController {
             square_wave_1: SquareWaveChannel::new(),
             square_wave_2: SquareWaveChannel::new(),
+
             master_sound_on: false,
-            output_volume: 0.0,
+            sound_output_select: 0,
             channel_control: 0,
+
+            output_left_volume: 0,
+            output_right_volume: 0,
         }
     }
 
@@ -38,12 +45,40 @@ impl SoundController {
         self.square_wave_2.clock();
     }
 
-    pub fn get_current_sample(&self) -> f32 {
+    pub fn get_current_sample_left(&self) -> f32 {
         if !self.is_sound_on() {
             return 0.0;
         }
 
-        0.2 * self.output_volume * (self.square_wave_1.sample() + self.square_wave_2.sample())
+        let mut sample = 0.0;
+
+        if read_bit(self.sound_output_select, 0) {
+            sample += self.square_wave_1.sample();
+        }
+
+        if read_bit(self.sound_output_select, 1) {
+            sample += self.square_wave_2.sample();
+        }
+
+        0.2 * (self.output_left_volume as f32 / 7.0) * sample
+    }
+
+    pub fn get_current_sample_right(&self) -> f32 {
+        if !self.is_sound_on() {
+            return 0.0;
+        }
+
+        let mut sample = 0.0;
+
+        if read_bit(self.sound_output_select, 4) {
+            sample += self.square_wave_1.sample();
+        }
+
+        if read_bit(self.sound_output_select, 5) {
+            sample += self.square_wave_2.sample();
+        }
+
+        0.2 * (self.output_right_volume as f32 / 7.0) * sample
     }
 
     fn is_sound_on(&self) -> bool {
@@ -102,6 +137,9 @@ impl MemoryAccess for SoundController {
             0xFF24 => {
                 self.channel_control
             },
+            0xFF25 => {
+                self.sound_output_select
+            },
             0xFF26 => {
                 let mut data = set_bit(0b1111_1111, 7, self.master_sound_on);
                 data = set_bit(data, 0, self.square_wave_1.enabled);
@@ -157,12 +195,13 @@ impl MemoryAccess for SoundController {
                 square_wave.length_counter_select = read_bit(byte, 6);
             },
             0xFF24 => {
-                // TODO: Implement stereo sound
                 self.channel_control = byte;
 
-                let output_1 = (byte & 0b0000_0111) as f32;
-                let output_2 = ((byte & 0b0111_0000) >> 4 ) as f32;
-                self.output_volume = (output_1 + output_2) / 2.0 / 8.0;
+                self.output_left_volume = byte & 0b0000_0111;
+                self.output_right_volume = (byte & 0b0111_0000) >> 4;
+            },
+            0xFF25 => {
+                self.sound_output_select = byte;
             },
             0xFF26 => {
                 self.master_sound_on = read_bit(byte, 7);

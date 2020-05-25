@@ -23,6 +23,7 @@ pub struct FrontendSdl;
 
 struct SdlState {
     emulator: Emulator,
+    num_channels: usize,
     sound_on: bool,
 }
 
@@ -33,17 +34,32 @@ impl AudioCallback for SdlState {
         let mut sample_elapsed = TIME_PER_SAMPLE;
         let mut clock_elapsed = 0.0;
 
-        for x in out.iter_mut() {
+        for xs in out.chunks_mut(self.num_channels) {
             while clock_elapsed < sample_elapsed {
                 self.emulator.clock();
                 clock_elapsed += TIME_PER_CLOCK;
             }
 
-            *x = if self.sound_on {
-                self.emulator.memory.sound_controller.get_current_sample()
+            let left_sample = if self.sound_on {
+                self.emulator.memory.sound_controller.get_current_sample_left()
             } else {
                 0.0
             };
+
+            let right_sample = if self.sound_on {
+                self.emulator.memory.sound_controller.get_current_sample_right()
+            } else {
+                0.0
+            };
+
+            match xs.len() {
+                2 => {
+                    xs[0] = left_sample;
+                    xs[1] = right_sample;
+                },
+                _ => xs[0] = (left_sample + right_sample) / 2.0,
+            }
+
             sample_elapsed += TIME_PER_SAMPLE;
         }
     }
@@ -57,14 +73,14 @@ impl FrontendSdl {
 
         let desired_spec = AudioSpecDesired {
             freq: Some(44_100),
-            channels: Some(1),  // mono
-            samples: Some(512)       // default sample size
+            channels: Some(2),  // request stereo
+            samples: Some(512)  // default sample size
         };
 
         let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
             println!("{:?}", spec);
 
-            SdlState { emulator, sound_on: true }
+            SdlState { emulator, sound_on: true, num_channels: spec.channels as usize }
         })?;
         println!("AUDIO DEVICE CREATED");
 
