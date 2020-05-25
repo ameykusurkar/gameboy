@@ -1,16 +1,16 @@
 use crate::memory::MemoryAccess;
-use crate::utils::read_bit;
+use crate::utils::{read_bit, set_bit};
 
 pub struct SoundController {
     sequencer: Sequencer,
-    master_sound_switch: bool,
+    master_sound_on: bool,
 }
 
 impl SoundController {
     pub fn new() -> Self {
         SoundController {
             sequencer: Sequencer::new(),
-            master_sound_switch: false,
+            master_sound_on: false,
         }
     }
 
@@ -36,7 +36,7 @@ impl SoundController {
 
     fn is_sound_on(&self) -> bool {
         // self.master_sound_switch && self.sound1_switch
-        self.master_sound_switch
+        self.master_sound_on
     }
 }
 
@@ -44,24 +44,35 @@ impl MemoryAccess for SoundController {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             0xFF10 => {
-                0xFF
+                (self.sequencer.sweep_period as u8) << 4
+                    | (self.sequencer.frequency_subtract_mode as u8) << 3
+                    | self.sequencer.sweep_shift as u8
             },
             0xFF11 => {
-                0xFF
+                let duty_cycle = match self.sequencer.waveform {
+                    0b0000_0001 => 0,
+                    0b1000_0001 => 1,
+                    0b1000_0111 => 2,
+                    0b0111_1110 => 3,
+                    _ => unreachable!("Invalid waveform: {:02x}", self.sequencer.waveform),
+                };
+
+                (duty_cycle << 6 | (64 - self.sequencer.length_counter)) as u8
             },
             0xFF12 => {
-                0xFF
+                (self.sequencer.initial_volume << 4) as u8
+                    | (self.sequencer.volume_up as u8) << 3
+                    | self.sequencer.volume_period as u8
             },
             0xFF13 => {
                 0xFF
             },
             0xFF14 => {
-                0xFF
+                (self.sequencer.length_counter_select as u8) << 6
             },
             0xFF26 => {
-                0xFF
-                // let data = set_bit(0b1111_1111, 7, self.master_sound_switch);
-                // set_bit(data, 7, self.sound1_switch)
+                let data = set_bit(0b1111_1111, 7, self.master_sound_on);
+                set_bit(data, 7, self.sequencer.enabled)
             },
             _ => unreachable!("Invalid sound controller address: {:04x}", addr),
         }
@@ -110,7 +121,7 @@ impl MemoryAccess for SoundController {
                 self.sequencer.length_counter_select = read_bit(byte, 6);
             },
             0xFF26 => {
-                self.master_sound_switch = read_bit(byte, 7);
+                self.master_sound_on = read_bit(byte, 7);
             },
             _ => unreachable!("Invalid sound controller address: {:04x}", addr),
         }
