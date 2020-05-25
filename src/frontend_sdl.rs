@@ -7,25 +7,68 @@ use sdl2::rect::Rect;
 use sdl2::keyboard::Scancode;
 use sdl2::gfx::framerate::FPSManager;
 
+use sdl2::audio::{AudioCallback, AudioSpecDesired};
+
 use crate::emulator::Emulator;
 use crate::ppu::{LCD_HEIGHT, LCD_WIDTH};
 
+use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
+
 const SCALE: u32 = 3;
 
-pub struct FrontendSdl {
+const TIME_PER_CLOCK: f32 = 1.0 / MACHINE_CYCLES_PER_SECOND as f32;
+const TIME_PER_SAMPLE: f32 = 1.0 / 44100.0;
+
+pub struct FrontendSdl;
+
+struct SdlState {
     emulator: Emulator,
+    sound_on: bool,
+}
+
+impl AudioCallback for SdlState {
+    type Channel = f32;
+
+    fn callback(&mut self, out: &mut [f32]) {
+        let mut sample_elapsed = TIME_PER_SAMPLE;
+        let mut clock_elapsed = 0.0;
+
+        for x in out.iter_mut() {
+            while clock_elapsed < sample_elapsed {
+                self.emulator.clock();
+                clock_elapsed += TIME_PER_CLOCK;
+            }
+
+            *x = if self.sound_on {
+                self.emulator.memory.sound_controller.get_current_sample()
+            } else {
+                0.0
+            };
+            sample_elapsed += TIME_PER_SAMPLE;
+        }
+    }
 }
 
 impl FrontendSdl {
-    pub fn new(emulator: Emulator) -> Self {
-        FrontendSdl {
-            emulator,
-        }
-    }
-
-    pub fn start(&mut self) -> Result<(), String> {
+    pub fn start(emulator: Emulator) -> Result<(), String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
+        let audio_subsystem = sdl_context.audio()?;
+
+        let desired_spec = AudioSpecDesired {
+            freq: Some(44_100),
+            channels: Some(1),  // mono
+            samples: Some(512)       // default sample size
+        };
+
+        let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
+            println!("{:?}", spec);
+
+            SdlState { emulator, sound_on: true }
+        })?;
+        println!("AUDIO DEVICE CREATED");
+
+        audio_device.resume();
 
         let window = video_subsystem.window("Gameboy", LCD_WIDTH * SCALE, LCD_HEIGHT * SCALE)
             .position_centered()
@@ -33,7 +76,7 @@ impl FrontendSdl {
             .build()
             .map_err(|e| e.to_string())?;
 
-        let mut canvas = window.into_canvas().build().map_err(|e| e.to_string())?;
+        let mut canvas = window.into_canvas().present_vsync().build().map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
 
         let mut texture = texture_creator
@@ -55,58 +98,58 @@ impl FrontendSdl {
             for event in event_pump.poll_iter() {
                 match event {
                     Event::Quit {..} => { break 'running },
+                    Event::KeyDown { scancode: Some(Scancode::M), .. } => {
+                        let mut device = audio_device.lock();
+                        device.sound_on ^= true;
+                    },
                     _ => {}
                 }
             }
 
             let keyboard_state = event_pump.keyboard_state();
 
-            // TODO: Trigger joypad interrupt
-            self.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
-            self.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
-            self.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
-            self.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
-            self.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
-            self.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
-            self.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
-            self.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
+            {
+                let mut device = audio_device.lock();
 
-            self.clock_frame();
+                if device.emulator.ppu.frame_complete {
+                    // TODO: Trigger joypad interrupt
+                    device.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
+                    device.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
+                    device.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
+                    device.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
+                    device.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
+                    device.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
+                    device.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
+                    device.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
 
-            self.emulator.memory.joypad.clear();
-            self.emulator.save_external_ram();
+                    if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
+                        let width = LCD_WIDTH as usize;
 
-            if let Some(screen_buffer) = self.emulator.get_screen_buffer() {
-                let width = LCD_WIDTH as usize;
+                        texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
+                            for (i, pixel) in screen_buffer.iter().enumerate() {
+                                let (x, y) = (i % width, i / width);
+                                let (r, g, b) = Self::color(*pixel);
 
-                texture.with_lock(None, |buffer: &mut [u8], pitch: usize| {
-                    for (i, pixel) in screen_buffer.iter().enumerate() {
-                        let (x, y) = (i % width, i / width);
-                        let (r, g, b) = Self::color(*pixel);
+                                let offset = y * pitch + x * 3;
+                                buffer[offset]     = r;
+                                buffer[offset + 1] = g;
+                                buffer[offset + 2] = b;
+                            }
+                        })?;
 
-                        let offset = y * pitch + x * 3;
-                        buffer[offset]     = r;
-                        buffer[offset + 1] = g;
-                        buffer[offset + 2] = b;
+                        canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
+                        canvas.present();
                     }
-                })?;
+
+                    device.emulator.ppu.frame_complete = false;
+                    device.emulator.save_external_ram();
+                }
             }
 
-            canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
-            canvas.present();
             fps_manager.delay();
         }
 
         Ok(())
-    }
-
-    fn clock_frame(&mut self) {
-        loop {
-            self.emulator.clock();
-            if self.emulator.ppu.frame_complete { break };
-        }
-
-        self.emulator.ppu.frame_complete = false;
     }
 
     fn color(pixel: u8) -> (u8, u8, u8) {

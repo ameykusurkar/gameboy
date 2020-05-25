@@ -13,6 +13,7 @@ mod joypad;
 mod utils;
 mod cartridge;
 mod emulator;
+mod sound_controller;
 mod frontend_sdl;
 mod frontend_pge;
 
@@ -75,8 +76,7 @@ fn main() -> std::io::Result<()> {
 
     match frontend_arg {
         "frontend-sdl" => {
-            let mut frontend = FrontendSdl::new(emulator);
-            frontend.start().expect("Error while running gameboy");
+            FrontendSdl::start(emulator).expect("Error while running gameboy");
         },
         "frontend-pge" => {
             let mut frontend = FrontendPge::new(emulator);

@@ -8,7 +8,7 @@ use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
 
 const NORMAL_SPEED: bool = true;
 
-const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
+pub const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
 const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
     (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64
 );
@@ -185,9 +185,9 @@ impl PgeState {
     fn draw_screen(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (LCD_WIDTH as usize, LCD_HEIGHT as usize);
 
-        if self.emulator.memory.lcd_enabled() {
+        if let Some(screen_buffer) = self.emulator.get_screen_buffer() {
             let mut screen_sprite = pge::Sprite::new(width, height);
-            for (i, pixel) in self.emulator.ppu.screen.iter().enumerate() {
+            for (i, pixel) in screen_buffer.iter().enumerate() {
                 let (x, y) = (i % width, i / width);
                 screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
             }

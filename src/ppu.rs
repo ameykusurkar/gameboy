@@ -46,7 +46,7 @@ pub enum LcdMode {
 }
 
 pub struct Ppu {
-    pub screen: [u8; (LCD_WIDTH * LCD_HEIGHT) as usize],
+    screen_buffer: DoubleBuffer,
     cycles: u32,
     scanline: u32,
     visible_sprites: Vec<Sprite>,
@@ -56,7 +56,7 @@ pub struct Ppu {
 impl Ppu {
     pub fn new() -> Ppu {
         Ppu {
-            screen: [0; (LCD_WIDTH * LCD_HEIGHT) as usize],
+            screen_buffer: DoubleBuffer::new(),
             cycles: 0,
             scanline: 0,
             visible_sprites: Vec::new(),
@@ -97,6 +97,7 @@ impl Ppu {
                 LcdMode::VBlank => {
                     Self::set_vblank_interrupt(memory);
                     self.frame_complete = true;
+                    self.screen_buffer.flip();
                 },
                 LcdMode::PixelTransfer => {
                     self.visible_sprites = Self::compute_sprites_for_line(memory, self.scanline);
@@ -108,6 +109,10 @@ impl Ppu {
                 Self::set_status_interrupt(memory);
             }
         }
+    }
+
+    pub fn get_screen_buffer(&self) -> &[u8] {
+        self.screen_buffer.get_secondary()
     }
 
     fn update_screen(&mut self, memory: &Memory) {
@@ -158,7 +163,7 @@ impl Ppu {
             }
 
             let index = self.scanline * LCD_WIDTH + x;
-            self.screen[index as usize] = pixel;
+            self.screen_buffer.get_primary_mut()[index as usize] = pixel;
         }
     }
 
@@ -366,6 +371,44 @@ impl Ppu {
         }
 
         pixels
+    }
+}
+
+struct DoubleBuffer {
+    buffer: [u8; (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
+    index: usize,
+}
+
+impl DoubleBuffer {
+    fn new() -> DoubleBuffer {
+        DoubleBuffer {
+            buffer: [0; (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
+            index: 0,
+        }
+    }
+
+    fn flip(&mut self) {
+        self.index = 1 - self.index;
+    }
+
+    fn get_primary_mut(&mut self) -> &mut [u8] {
+        self.buffer_at_index_mut(self.index)
+    }
+
+    fn get_secondary(&self) -> &[u8] {
+        self.buffer_at_index(1 - self.index)
+    }
+
+    fn buffer_at_index(&self, index: usize) -> &[u8] {
+        let size = (LCD_WIDTH * LCD_HEIGHT) as usize;
+        let offset = index * size;
+        &self.buffer[offset..offset+size]
+    }
+
+    fn buffer_at_index_mut(&mut self, index: usize) -> &mut [u8] {
+        let size = (LCD_WIDTH * LCD_HEIGHT) as usize;
+        let offset = index * size;
+        &mut self.buffer[offset..offset+size]
     }
 }
 
