@@ -11,8 +11,8 @@ pub struct SoundController {
     sound_output_select: u8,
     channel_control: u8,
 
-    output_left_volume: u8,
-    output_right_volume: u8,
+    output_1_volume: u8,
+    output_2_volume: u8,
 }
 
 impl SoundController {
@@ -25,8 +25,8 @@ impl SoundController {
             sound_output_select: 0,
             channel_control: 0,
 
-            output_left_volume: 0,
-            output_right_volume: 0,
+            output_1_volume: 0,
+            output_2_volume: 0,
         }
     }
 
@@ -52,15 +52,15 @@ impl SoundController {
 
         let mut sample = 0.0;
 
-        if read_bit(self.sound_output_select, 0) {
+        if read_bit(self.sound_output_select, 4) {
             sample += self.square_wave_1.sample();
         }
 
-        if read_bit(self.sound_output_select, 1) {
+        if read_bit(self.sound_output_select, 5) {
             sample += self.square_wave_2.sample();
         }
 
-        0.2 * (self.output_left_volume as f32 / 7.0) * sample
+        0.2 * (self.output_2_volume as f32 / 7.0) * sample
     }
 
     pub fn get_current_sample_right(&self) -> f32 {
@@ -70,15 +70,15 @@ impl SoundController {
 
         let mut sample = 0.0;
 
-        if read_bit(self.sound_output_select, 4) {
+        if read_bit(self.sound_output_select, 0) {
             sample += self.square_wave_1.sample();
         }
 
-        if read_bit(self.sound_output_select, 5) {
+        if read_bit(self.sound_output_select, 1) {
             sample += self.square_wave_2.sample();
         }
 
-        0.2 * (self.output_right_volume as f32 / 7.0) * sample
+        0.2 * (self.output_1_volume as f32 / 7.0) * sample
     }
 
     fn is_sound_on(&self) -> bool {
@@ -197,8 +197,8 @@ impl MemoryAccess for SoundController {
             0xFF24 => {
                 self.channel_control = byte;
 
-                self.output_left_volume = byte & 0b0000_0111;
-                self.output_right_volume = (byte & 0b0111_0000) >> 4;
+                self.output_1_volume = byte & 0b0000_0111;
+                self.output_2_volume = (byte & 0b0111_0000) >> 4;
             },
             0xFF25 => {
                 self.sound_output_select = byte;
