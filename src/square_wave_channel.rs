@@ -1,4 +1,5 @@
 use crate::utils::read_bit;
+use crate::audio_components::{Timer, VolumeEnvelope};
 
 pub struct SquareWaveChannel {
     frame_timer: Timer,
@@ -12,10 +13,7 @@ pub struct SquareWaveChannel {
     pub length_counter: u32,
     pub length_counter_select: bool,
 
-    pub initial_volume: u32,
-    pub volume_up: bool,
-    pub volume_timer: Timer,
-    current_volume: i32,
+    pub volume_envelope: VolumeEnvelope,
 
     pub sweep_timer: Timer,
     pub sweep_shift: u32,
@@ -38,10 +36,7 @@ impl SquareWaveChannel {
             length_counter: 0,
             length_counter_select: false,
 
-            initial_volume: 0,
-            volume_up: true,
-            volume_timer: Timer::new(0),
-            current_volume: 0,
+            volume_envelope: VolumeEnvelope::new(),
 
             sweep_timer: Timer::new(0),
             sweep_shift: 0,
@@ -60,7 +55,7 @@ impl SquareWaveChannel {
     }
 
     pub fn increment_volume(&mut self) {
-        self.current_volume = (self.current_volume + 1) % 16;
+        self.volume_envelope.increment();
     }
 
     pub fn clock(&mut self) {
@@ -71,16 +66,12 @@ impl SquareWaveChannel {
                 self.length_counter -= 1;
             }
 
-            if self.length_counter == 0 {
+            if self.length_counter == 0 && self.length_counter_select {
                 self.enabled = false;
             }
 
-            if self.frame_counter == 7 && self.volume_timer.clock() && self.volume_timer.period > 0 {
-                if self.volume_up {
-                    self.current_volume = (self.current_volume + 1).min(0xF);
-                } else {
-                    self.current_volume = (self.current_volume - 1).max(0);
-                }
+            if self.frame_counter == 7 {
+                self.volume_envelope.clock();
             }
 
             if (self.frame_counter == 2 || self.frame_counter == 6) && self.sweep_timer.clock() {
@@ -108,11 +99,11 @@ impl SquareWaveChannel {
     }
 
     pub fn sample(&self) -> f32 {
-        if !self.enabled && self.length_counter_select {
+        if !self.enabled {
             return 0.0;
         }
 
-        let amplitude = self.current_volume as f32 / 16.0;
+        let amplitude = self.volume_envelope.get_current() as f32 / 16.0;
 
         if read_bit(self.waveform, self.waveform_bit) {
             amplitude
@@ -145,8 +136,7 @@ impl SquareWaveChannel {
             self.length_counter = 64;
         }
 
-        self.current_volume = self.initial_volume as i32;
-        self.volume_timer.reload();
+        self.volume_envelope.reset();
 
         self.shadow_frequency = self.get_frequency();
         self.sweep_timer.reload();
@@ -154,39 +144,6 @@ impl SquareWaveChannel {
 
         if self.sweep_shift > 0 && self.new_frequency().is_none() {
             self.enabled = false;
-        }
-    }
-}
-
-pub struct Timer {
-    pub period: u32,
-    countdown: u32,
-}
-
-impl Timer {
-    fn new(period: u32) -> Self {
-        Timer {
-            period,
-            countdown: period,
-        }
-    }
-
-    fn reload(&mut self) {
-        self.countdown = self.period;
-    }
-
-    fn clock(&mut self) -> bool {
-        if self.countdown > 0 {
-            self.countdown -= 1;
-
-            if self.countdown == 0 {
-                self.reload();
-                true
-            } else {
-                false
-            }
-        } else {
-            false
         }
     }
 }

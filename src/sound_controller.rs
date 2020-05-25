@@ -2,10 +2,12 @@ use crate::memory::MemoryAccess;
 use crate::utils::{read_bit, set_bit};
 
 use crate::square_wave_channel::SquareWaveChannel;
+use crate::noise_channel::NoiseChannel;
 
 pub struct SoundController {
     square_wave_1: SquareWaveChannel,
     square_wave_2: SquareWaveChannel,
+    noise_channel: NoiseChannel,
 
     master_sound_on: bool,
     sound_output_select: u8,
@@ -20,6 +22,7 @@ impl SoundController {
         SoundController {
             square_wave_1: SquareWaveChannel::new(),
             square_wave_2: SquareWaveChannel::new(),
+            noise_channel: NoiseChannel::new(),
 
             master_sound_on: false,
             sound_output_select: 0,
@@ -43,6 +46,7 @@ impl SoundController {
     pub fn clock(&mut self) {
         self.square_wave_1.clock();
         self.square_wave_2.clock();
+        self.noise_channel.clock();
     }
 
     pub fn get_current_samples(&self) -> (f32, f32) {
@@ -66,6 +70,12 @@ impl SoundController {
             sample += self.square_wave_2.sample();
         }
 
+        // TODO: Implmement wave channel
+
+        if read_bit(self.sound_output_select, 7) {
+            sample += self.noise_channel.sample();
+        }
+
         (self.output_2_volume as f32 / 7.0) * sample
     }
 
@@ -78,6 +88,12 @@ impl SoundController {
 
         if read_bit(self.sound_output_select, 1) {
             sample += self.square_wave_2.sample();
+        }
+
+        // TODO: Implmement wave channel
+
+        if read_bit(self.sound_output_select, 3) {
+            sample += self.noise_channel.sample();
         }
 
         (self.output_1_volume as f32 / 7.0) * sample
@@ -126,9 +142,9 @@ impl MemoryAccess for SoundController {
                 (duty_cycle << 6 | (64 - square_wave.length_counter)) as u8
             },
             0xFF12 | 0xFF17 => {
-                (square_wave.initial_volume << 4) as u8
-                    | (square_wave.volume_up as u8) << 3
-                    | square_wave.volume_timer.period as u8
+                (square_wave.volume_envelope.initial << 4) as u8
+                    | (square_wave.volume_envelope.inc_mode as u8) << 3
+                    | square_wave.volume_envelope.timer.period as u8
             },
             0xFF13 | 0xFF18 => {
                 0xFF
@@ -142,6 +158,7 @@ impl MemoryAccess for SoundController {
             0xFF25 => {
                 self.sound_output_select
             },
+            0xFF20..=0xFF23 => self.noise_channel.read(addr),
             0xFF26 => {
                 let mut data = set_bit(0b1111_1111, 7, self.master_sound_on);
                 data = set_bit(data, 0, self.square_wave_1.enabled);
@@ -174,9 +191,9 @@ impl MemoryAccess for SoundController {
                 };
             },
             0xFF12 | 0xFF17 => {
-                square_wave.initial_volume = ((byte & 0b1111_0000) >> 4) as u32;
-                square_wave.volume_up = read_bit(byte, 3);
-                square_wave.volume_timer.period = (byte & 0b111) as u32;
+                square_wave.volume_envelope.initial = ((byte & 0b1111_0000) >> 4) as u32;
+                square_wave.volume_envelope.inc_mode = read_bit(byte, 3);
+                square_wave.volume_envelope.timer.period = (byte & 0b111) as u32;
 
                 if byte == 0x08 {
                     square_wave.increment_volume();
@@ -196,6 +213,7 @@ impl MemoryAccess for SoundController {
 
                 square_wave.length_counter_select = read_bit(byte, 6);
             },
+            0xFF20..=0xFF23 => self.noise_channel.write(addr, byte),
             0xFF24 => {
                 self.channel_control = byte;
 

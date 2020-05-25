@@ -17,6 +17,8 @@ mod sound_controller;
 mod frontend_sdl;
 mod frontend_pge;
 mod square_wave_channel;
+mod noise_channel;
+mod audio_components;
 
 use emulator::Emulator;
 use frontend_pge::FrontendPge;
