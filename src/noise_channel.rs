@@ -47,7 +47,7 @@ impl NoiseChannel {
                 self.length_counter -= 1;
             }
 
-            if self.length_counter == 0 {
+            if self.length_counter == 0 && self.length_counter_select {
                 self.enabled = false;
             }
 
@@ -74,7 +74,7 @@ impl NoiseChannel {
     }
 
     pub fn sample(&self) -> f32 {
-        if !self.enabled && self.length_counter_select {
+        if !self.enabled {
             return 0.0;
         }
 
