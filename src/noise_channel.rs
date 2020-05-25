@@ -103,7 +103,23 @@ impl NoiseChannel {
 
 impl MemoryAccess for NoiseChannel {
     fn read(&self, addr: u16) -> u8 {
-        0xFF
+        match addr {
+            0xFF20 => {
+                (64 - self.length_counter) as u8
+            },
+            0xFF21 => {
+                (self.volume_envelope.initial << 4) as u8
+                    | (self.volume_envelope.inc_mode as u8) << 3
+                    | self.volume_envelope.timer.period as u8
+            },
+            0xFF22 => {
+                self.counter_data
+            },
+            0xFF23 => {
+                (self.length_counter_select as u8) << 6
+            },
+            _ => unreachable!("Invalid noise channel address: {:04x}", addr),
+        }
     }
 
     fn write(&mut self, addr: u16, byte: u8) {
