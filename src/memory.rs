@@ -112,8 +112,10 @@ impl Memory {
     fn is_sound_addr(addr: u16) -> bool {
         (0xFF10..=0xFF14).contains(&addr)
             || (0xFF16..=0xFF19).contains(&addr)
+            || (0xFF1A..=0xFF1E).contains(&addr)
             || (0xFF20..=0xFF23).contains(&addr)
-            || addr == 0xFF24 || addr == 0xFF25 || addr == 0xFF26
+            || (0xFF24..=0xFF26).contains(&addr)
+            || (0xFF30..=0xFF3F).contains(&addr)
     }
 
     fn vram_blocked(&self) -> bool {

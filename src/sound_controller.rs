@@ -2,11 +2,13 @@ use crate::memory::MemoryAccess;
 use crate::utils::{read_bit, set_bit};
 
 use crate::square_wave_channel::SquareWaveChannel;
+use crate::wave_channel::WaveChannel;
 use crate::noise_channel::NoiseChannel;
 
 pub struct SoundController {
     square_wave_1: SquareWaveChannel,
     square_wave_2: SquareWaveChannel,
+    wave_channel: WaveChannel,
     noise_channel: NoiseChannel,
 
     master_sound_on: bool,
@@ -22,6 +24,7 @@ impl SoundController {
         SoundController {
             square_wave_1: SquareWaveChannel::new(),
             square_wave_2: SquareWaveChannel::new(),
+            wave_channel: WaveChannel::new(),
             noise_channel: NoiseChannel::new(),
 
             master_sound_on: false,
@@ -36,6 +39,7 @@ impl SoundController {
     pub fn clock(&mut self) {
         self.square_wave_1.clock();
         self.square_wave_2.clock();
+        self.wave_channel.clock();
         self.noise_channel.clock();
     }
 
@@ -60,7 +64,9 @@ impl SoundController {
             sample += self.square_wave_2.sample();
         }
 
-        // TODO: Implmement wave channel
+        if read_bit(self.sound_output_select, 6) {
+            sample += self.wave_channel.sample();
+        }
 
         if read_bit(self.sound_output_select, 7) {
             sample += self.noise_channel.sample();
@@ -80,7 +86,9 @@ impl SoundController {
             sample += self.square_wave_2.sample();
         }
 
-        // TODO: Implmement wave channel
+        if read_bit(self.sound_output_select, 2) {
+            sample += self.wave_channel.sample();
+        }
 
         if read_bit(self.sound_output_select, 3) {
             sample += self.noise_channel.sample();
@@ -117,6 +125,7 @@ impl MemoryAccess for SoundController {
                 let square_wave = self.square_wave_for_addr(addr);
                 square_wave.read(addr)
             },
+            0xFF1A..=0xFF1E => self.wave_channel.read(addr),
             0xFF20..=0xFF23 => self.noise_channel.read(addr),
             0xFF24 => {
                 self.channel_control
@@ -128,8 +137,11 @@ impl MemoryAccess for SoundController {
                 let mut data = set_bit(0b1111_1111, 7, self.master_sound_on);
                 data = set_bit(data, 0, self.square_wave_1.enabled);
                 data = set_bit(data, 1, self.square_wave_2.enabled);
+                data = set_bit(data, 2, self.wave_channel.enabled);
+                data = set_bit(data, 3, self.noise_channel.enabled);
                 data
             },
+            0xFF30..=0xFF3F => self.wave_channel.read(addr),
             _ => unreachable!("Invalid sound controller address: {:04x}", addr),
         }
     }
@@ -140,6 +152,7 @@ impl MemoryAccess for SoundController {
                 let square_wave = self.square_wave_for_addr_mut(addr);
                 square_wave.write(addr, byte);
             },
+            0xFF1A..=0xFF1E => self.wave_channel.write(addr, byte),
             0xFF20..=0xFF23 => self.noise_channel.write(addr, byte),
             0xFF24 => {
                 self.channel_control = byte;
@@ -153,6 +166,7 @@ impl MemoryAccess for SoundController {
             0xFF26 => {
                 self.master_sound_on = read_bit(byte, 7);
             },
+            0xFF30..=0xFF3F => self.wave_channel.write(addr, byte),
             _ => unreachable!("Invalid sound controller address: {:04x}", addr),
         }
     }
