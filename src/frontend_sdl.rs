@@ -164,12 +164,8 @@ impl FrontendSdl {
 
     fn color(pixel: u8) -> (u8, u8, u8) {
         match pixel {
-            // 0x0 => (0xFF, 0xFF, 0xFF),
-            // 0x1 => (0xC0, 0xC0, 0xC0),
-            // 0x2 => (0x60, 0x60, 0x60),
-            // 0x3 => (0x00, 0x00, 0x00),
-            0x0 => (255, 190, 118),
-            0x1 => (235, 77, 75),
+            0x0 => (255, 228, 204),
+            0x1 => (240, 100, 120),
             0x2 => (48, 51, 107),
             0x3 => (19, 15, 64),
             _ => panic!("Unknown pixel value {:02x}", pixel),
