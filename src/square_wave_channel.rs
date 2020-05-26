@@ -1,3 +1,4 @@
+use crate::memory::MemoryAccess;
 use crate::utils::read_bit;
 use crate::audio_components::{Timer, VolumeEnvelope};
 
@@ -5,19 +6,19 @@ pub struct SquareWaveChannel {
     frame_timer: Timer,
     frame_counter: u32,
 
-    pub waveform: u8,
+    waveform: u8,
     pub enabled: bool,
     frequency_timer: Timer,
     waveform_bit: u8,
 
-    pub length_counter: u32,
-    pub length_counter_select: bool,
+    length_counter: u32,
+    length_counter_select: bool,
 
-    pub volume_envelope: VolumeEnvelope,
+    volume_envelope: VolumeEnvelope,
 
-    pub sweep_timer: Timer,
-    pub sweep_shift: u32,
-    pub frequency_subtract_mode: bool,
+    sweep_timer: Timer,
+    sweep_shift: u32,
+    frequency_subtract_mode: bool,
     shadow_frequency: u32,
     sweep_enabled: bool,
 }
@@ -46,16 +47,12 @@ impl SquareWaveChannel {
         }
     }
 
-    pub fn get_frequency(&self) -> u32 {
+    fn get_frequency(&self) -> u32 {
         2048 - self.frequency_timer.period
     }
 
-    pub fn set_frequency(&mut self, frequency: u32) {
+    fn set_frequency(&mut self, frequency: u32) {
         self.frequency_timer.period = 2048 - frequency;
-    }
-
-    pub fn increment_volume(&mut self) {
-        self.volume_envelope.increment();
     }
 
     pub fn clock(&mut self) {
@@ -128,7 +125,17 @@ impl SquareWaveChannel {
         }
     }
 
-    pub fn reset(&mut self) {
+    fn set_frequency_low_bits(&mut self, byte: u8) {
+        let old = self.get_frequency();
+        self.set_frequency((old & 0b111_0000_0000) | byte as u32);
+    }
+
+    fn set_frequency_high_bits(&mut self, byte: u8) {
+        let old = self.get_frequency();
+        self.set_frequency((old & 0b000_1111_1111) | (byte as u32) << 8);
+    }
+
+    fn reset(&mut self) {
         self.frequency_timer.reload();
         self.enabled = true;
 
@@ -144,6 +151,87 @@ impl SquareWaveChannel {
 
         if self.sweep_shift > 0 && self.new_frequency().is_none() {
             self.enabled = false;
+        }
+    }
+}
+
+impl MemoryAccess for SquareWaveChannel {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            0xFF10 => {
+                (self.sweep_timer.period as u8) << 4
+                    | (self.frequency_subtract_mode as u8) << 3
+                    | self.sweep_shift as u8
+            },
+            0xFF11 | 0xFF16 => {
+                let duty_cycle = match self.waveform {
+                    0b0000_0001 => 0,
+                    0b1000_0001 => 1,
+                    0b1000_0111 => 2,
+                    0b0111_1110 => 3,
+                    _ => unreachable!("Invalid waveform: {:02x}", self.waveform),
+                };
+
+                (duty_cycle << 6 | (64 - self.length_counter)) as u8
+            },
+            0xFF12 | 0xFF17 => {
+                (self.volume_envelope.initial << 4) as u8
+                    | (self.volume_envelope.inc_mode as u8) << 3
+                    | self.volume_envelope.timer.period as u8
+            },
+            0xFF13 | 0xFF18 => {
+                0xFF
+            },
+            0xFF14 | 0xFF19 => {
+                (self.length_counter_select as u8) << 6
+            },
+            _ => unreachable!("Invalid square wave address: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8) {
+        match addr {
+            0xFF10 => {
+                self.sweep_timer.period = ((byte & 0b0111_0000) >> 4) as u32;
+                self.frequency_subtract_mode = read_bit(byte, 3);
+                self.sweep_shift = (byte & 0b0000_0111) as u32;
+            },
+            0xFF11 | 0xFF16 => {
+                let sound_length_data = byte & 0b0011_1111;
+                self.length_counter = 64 - sound_length_data as u32;
+
+                self.waveform = match (byte & 0b1100_0000) >> 6 {
+                    0 => 0b0000_0001, // 12.5% Duty cycle
+                    1 => 0b1000_0001, // 25%   Duty cycle
+                    2 => 0b1000_0111, // 50%   Duty cycle
+                    3 => 0b0111_1110, // 75%   Duty cycle
+                    _ => unreachable!("Invalid duty cycle byte: {:02x}", byte),
+                };
+            },
+            0xFF12 | 0xFF17 => {
+                self.volume_envelope.initial = ((byte & 0b1111_0000) >> 4) as u32;
+                self.volume_envelope.inc_mode = read_bit(byte, 3);
+                self.volume_envelope.timer.period = (byte & 0b111) as u32;
+
+                if byte == 0x08 {
+                    self.volume_envelope.increment();
+                }
+            },
+            0xFF13 | 0xFF18 => {
+                self.set_frequency_low_bits(byte);
+            },
+            0xFF14 | 0xFF19 => {
+                self.set_frequency_high_bits(byte & 0b0000_0111);
+
+                let should_restart = read_bit(byte, 7);
+
+                if should_restart {
+                    self.reset();
+                }
+
+                self.length_counter_select = read_bit(byte, 6);
+            },
+            _ => unreachable!("Invalid square wave address: {:04x}", addr),
         }
     }
 }
