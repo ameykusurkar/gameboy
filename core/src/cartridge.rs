@@ -38,9 +38,8 @@ impl Cartridge {
             0x00        => Box::new(NoMbc::default()),
             0x01..=0x02 => Box::new(Mbc1::new(false)), // without battery
             0x03        => Box::new(Mbc1::new(true)),  // with battery
-            0x0F | 0x10 => unimplemented!("MBC Timer not implemented!"),
             0x11..=0x12 => Box::new(Mbc3::new(false)), // without battery
-            0x13        => Box::new(Mbc3::new(true)),  // with battery
+            0x0F | 0x10 | 0x13 => Box::new(Mbc3::new(true)),  // with battery
             _ => unimplemented!("Unimplemented cartridge type: {:02x}h", rom[0x147]),
         };
 
