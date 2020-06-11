@@ -12,13 +12,15 @@ pub struct Emulator {
     pub cpu: Cpu,
     pub ppu: Ppu,
     pub memory: Memory,
-    save_path: PathBuf,
+    // save_path: PathBuf,
 }
 
 impl Emulator {
+    // pub fn new(bootrom: &[u8], rom: Vec<u8>,
+    //            external_ram: Option<Vec<u8>>,
+    //            save_path: PathBuf) -> Self {
     pub fn new(bootrom: &[u8], rom: Vec<u8>,
-               external_ram: Option<Vec<u8>>,
-               save_path: PathBuf) -> Self {
+               external_ram: Option<Vec<u8>>) -> Self {
         let mut memory = Memory::new(rom, external_ram);
         memory.load_bootrom(bootrom);
 
@@ -26,7 +28,7 @@ impl Emulator {
             cpu: Cpu::new(),
             ppu: Ppu::new(),
             memory,
-            save_path,
+            // save_path,
         }
     }
 
@@ -36,14 +38,14 @@ impl Emulator {
         self.memory.sound_controller.clock();
     }
 
-    pub fn save_external_ram(&mut self) {
-        self.memory.get_external_ram()
-            .and_then(|ram| {
-                File::create(&self.save_path)
-                    .and_then(|mut f| f.write_all(ram))
-                    .ok()
-            }).map(|_| self.memory.mark_external_ram_as_saved());
-    }
+    // pub fn save_external_ram(&mut self) {
+    //     self.memory.get_external_ram()
+    //         .and_then(|ram| {
+    //             File::create(&self.save_path)
+    //                 .and_then(|mut f| f.write_all(ram))
+    //                 .ok()
+    //         }).map(|_| self.memory.mark_external_ram_as_saved());
+    // }
 
     pub fn get_screen_buffer(&self) -> Option<&[u8]> {
         if self.memory.lcd_enabled() {
