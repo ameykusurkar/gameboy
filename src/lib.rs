@@ -33,7 +33,7 @@ extern {
     fn alert(s: &str);
 }
 
-#[wasm_bindgen]
+#[wasm_bindgen(js_name = initPanicHook)]
 pub fn init_panic_hook() {
     console_error_panic_hook::set_once();
 }
@@ -57,7 +57,7 @@ impl EmulatorState {
         while !self.emulator.ppu.frame_complete {
             self.emulator.clock();
         }
-        
+
         self.emulator.ppu.frame_complete = false;
         self.emulator.get_screen_buffer().unwrap_or(&EMPTY).as_ptr()
     }

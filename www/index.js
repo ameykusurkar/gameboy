@@ -1,4 +1,4 @@
-import { init_panic_hook, greet, EmulatorState } from "gameboy";
+import { initPanicHook, greet, EmulatorState } from "gameboy";
 import { memory } from "gameboy/gameboy_bg";
 
 const COLOR0 = [255, 228, 204];
@@ -32,7 +32,8 @@ document.addEventListener("keyup", function(e) {
   keysPressed[e.key] = false;
 });
 
-init_panic_hook();
+initCanvas();
+initPanicHook();
 
 fileReader.onloadend = function() {
   let buffer = fileReader.result;
@@ -83,4 +84,11 @@ function updateCanvas(pixels) {
   }
 
   ctx.putImageData(imgData, 0, 0);
+}
+
+function initCanvas() {
+  var canvas = document.getElementById("gameboy-screen");
+  var ctx = canvas.getContext("2d");
+  ctx.fillStyle = "black";
+  ctx.fillRect(0, 0, 160, 144);
 }
