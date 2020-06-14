@@ -1,5 +1,5 @@
-import { initPanicHook, greet, EmulatorState } from "gameboy";
-import { memory } from "gameboy/gameboy_bg";
+import { initPanicHook, greet, EmulatorState } from "gameboy-wasm";
+import { memory } from "gameboy-wasm/gameboy_wasm_bg";
 
 const COLOR0 = [255, 228, 204];
 const COLOR1 = [240, 100, 120];
@@ -8,7 +8,7 @@ const COLOR3 = [19, 15, 64];
 const COLORS = [COLOR0, COLOR1, COLOR2, COLOR3];
 
 const MACHINE_CYCLES_PER_SECOND = 1048576;
-const TIME_PER_SAMPLE = 1.0 / 44100.0;
+const TIME_PER_SAMPLE = 1.0 / 48000.0;
 const TIME_PER_CLOCK = 1.0 / MACHINE_CYCLES_PER_SECOND;
 
 var fileReader = new FileReader();

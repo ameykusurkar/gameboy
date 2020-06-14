@@ -13,9 +13,9 @@ use sdl2::gfx::framerate::FPSManager;
 
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
-use crate::emulator::Emulator;
-use crate::memory::Memory;
-use crate::ppu::{LCD_HEIGHT, LCD_WIDTH};
+use core::emulator::Emulator;
+use core::memory::Memory;
+use core::ppu::{LCD_HEIGHT, LCD_WIDTH};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
 

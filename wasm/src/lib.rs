@@ -1,36 +1,15 @@
 use wasm_bindgen::prelude::*;
-use crate::emulator::Emulator;
 
 extern crate console_error_panic_hook;
 
-mod cpu;
-mod ppu;
-mod registers;
-mod memory;
-mod instruction;
-mod joypad;
-mod utils;
-mod cartridge;
-mod emulator;
-mod sound_controller;
-mod square_wave_channel;
-mod wave_channel;
-mod noise_channel;
-mod audio_components;
-
-mod bootrom;
-use crate::bootrom::BOOTROM;
+use core::bootrom::BOOTROM;
+use core::emulator::Emulator;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-#[wasm_bindgen]
-extern {
-    fn alert(s: &str);
-}
 
 #[wasm_bindgen(js_name = initPanicHook)]
 pub fn init_panic_hook() {

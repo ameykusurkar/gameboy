@@ -2,13 +2,13 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
 
-use crate::ppu::Ppu;
-use crate::registers::RegisterIndex::*;
-use crate::registers::TwoRegisterIndex::HL;
+use core::ppu::Ppu;
+use core::registers::RegisterIndex::*;
+use core::registers::TwoRegisterIndex::HL;
 
-use crate::emulator::{Emulator, DEBUG};
+use core::emulator::{Emulator, DEBUG};
 
-use crate::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
+use core::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
 
 const NORMAL_SPEED: bool = true;
 

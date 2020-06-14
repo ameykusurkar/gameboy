@@ -20,7 +20,6 @@ impl Emulator {
             cpu: Cpu::new(),
             ppu: Ppu::new(),
             memory,
-            // save_path,
         }
     }
 

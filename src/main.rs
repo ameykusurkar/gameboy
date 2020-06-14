@@ -4,28 +4,14 @@ use std::path::Path;
 
 use clap::{App, Arg};
 
-mod cpu;
-mod ppu;
-mod registers;
-mod memory;
-mod instruction;
-mod joypad;
-mod utils;
-mod cartridge;
-mod emulator;
-mod sound_controller;
 mod frontend_sdl;
 mod frontend_pge;
-mod square_wave_channel;
-mod wave_channel;
-mod noise_channel;
-mod audio_components;
-mod bootrom;
 
-use emulator::Emulator;
+use core::emulator::Emulator;
+use core::bootrom::BOOTROM;
+
 use frontend_pge::FrontendPge;
 use frontend_sdl::FrontendSdl;
-use bootrom::BOOTROM;
 
 fn main() -> std::io::Result<()> {
     let matches = App::new("Gameboy")
