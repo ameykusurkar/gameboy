@@ -1,6 +1,5 @@
 use wasm_bindgen::prelude::*;
 use crate::emulator::Emulator;
-use std::path::Path;
 
 extern crate console_error_panic_hook;
 
@@ -43,23 +42,13 @@ struct EmulatorState {
     emulator: Emulator,
 }
 
-const EMPTY: [u8; 0] = [];
+const EMPTY: [u8; 1] = [4];
 
 #[wasm_bindgen]
 impl EmulatorState {
     pub fn new(rom_buffer: &[u8]) -> EmulatorState {
         let emulator = Emulator::new(&BOOTROM, rom_buffer.to_vec(), None);
         EmulatorState { emulator }
-    }
-
-    #[wasm_bindgen(js_name = clockFrame)]
-    pub fn clock_frame(&mut self) -> *const u8 {
-        while !self.emulator.ppu.frame_complete {
-            self.emulator.clock();
-        }
-
-        self.emulator.ppu.frame_complete = false;
-        self.emulator.get_screen_buffer().unwrap_or(&EMPTY).as_ptr()
     }
 
     #[wasm_bindgen(js_name = updateJoypad)]
@@ -73,9 +62,31 @@ impl EmulatorState {
         self.emulator.memory.joypad.b      = states[6] > 0;
         self.emulator.memory.joypad.a      = states[7] > 0;
     }
-}
 
-#[wasm_bindgen]
-pub fn greet(bytes: &[u8]) {
-    alert(&format!("{:x}{:x}{:x}", bytes[0], bytes[1], bytes[2]));
+    pub fn pixels(&self) -> *const u8 {
+        self.emulator.get_screen_buffer().unwrap_or(&EMPTY).as_ptr()
+    }
+
+    // TODO: Implement stereo sound
+    #[wasm_bindgen(js_name = currentAudioSample)]
+    pub fn current_audio_sample(&self) -> f32 {
+        (
+            self.emulator.memory.sound_controller.get_current_samples().0 +
+            self.emulator.memory.sound_controller.get_current_samples().1
+        ) / 2.0
+    }
+
+    #[wasm_bindgen(js_name = isFrameComplete)]
+    pub fn is_frame_complete(&self) -> bool {
+        self.emulator.ppu.frame_complete
+    }
+
+    #[wasm_bindgen(js_name = markFrameAsComplete)]
+    pub fn mark_frame_as_complete(&mut self) {
+        self.emulator.ppu.frame_complete = false;
+    }
+
+    pub fn clock(&mut self) {
+        self.emulator.clock();
+    }
 }
