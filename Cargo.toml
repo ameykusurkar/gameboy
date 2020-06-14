@@ -10,13 +10,13 @@ edition = "2018"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# minifb = "0.15.3"
+minifb = "0.15.3"
 clap = "2.33.0"
 wasm-bindgen = "0.2.63"
-# pge = { path = "/Users/ameykusurkar/rustyPixelGameEngine" }
+pge = { path = "/Users/ameykusurkar/rustyPixelGameEngine" }
 wee_alloc = { version = "0.4.5", optional = true }
 console_error_panic_hook = "0.1.6"
 
-# [dependencies.sdl2]
-# version = "0.34.0"
-# features = ["gfx"]
+[dependencies.sdl2]
+version = "0.34.0"
+features = ["gfx"]

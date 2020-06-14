@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
+
 use crate::ppu::Ppu;
 use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex::HL;
@@ -18,9 +22,9 @@ pub struct FrontendPge {
 }
 
 impl FrontendPge {
-    pub fn new(emulator: Emulator) -> Self {
+    pub fn new(emulator: Emulator, save_path: PathBuf) -> Self {
         FrontendPge {
-            pge_state: PgeState::new(emulator),
+            pge_state: PgeState::new(emulator, save_path),
         }
     }
 
@@ -41,15 +45,17 @@ pub struct PgeState {
     cycles: u32,
     single_step_mode: bool,
     last_render_at: std::time::Instant,
+    save_path: PathBuf,
 }
 
 impl PgeState {
-    pub fn new(emulator: Emulator) -> Self {
+    pub fn new(emulator: Emulator, save_path: PathBuf) -> Self {
         PgeState {
             emulator,
             cycles: 0,
             single_step_mode: false,
             last_render_at: std::time::Instant::now(),
+            save_path,
         }
     }
 
@@ -66,6 +72,15 @@ impl PgeState {
             0x3 => pge::Pixel::rgb(0x00, 0x00, 0x00),
             _ => panic!("Unknown pixel value {:02x}", pixel),
         }
+    }
+
+    fn save_external_ram(&mut self) {
+        self.emulator.memory.get_external_ram()
+            .and_then(|ram| {
+                File::create(&self.save_path)
+                    .and_then(|mut f| f.write_all(ram))
+                    .ok()
+            }).map(|_| self.emulator.memory.mark_external_ram_as_saved());
     }
 
     fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
@@ -251,7 +266,7 @@ impl pge::State for PgeState {
 
         self.emulator.memory.joypad.clear();
 
-        self.emulator.save_external_ram();
+        self.save_external_ram();
 
         if DEBUG {
             println!("CYCLE: {}", now.elapsed().as_nanos());

@@ -1,3 +1,7 @@
+use std::path::PathBuf;
+use std::fs::File;
+use std::io::Write;
+
 use sdl2;
 
 use sdl2::pixels::Color;
@@ -10,6 +14,7 @@ use sdl2::gfx::framerate::FPSManager;
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
 use crate::emulator::Emulator;
+use crate::memory::Memory;
 use crate::ppu::{LCD_HEIGHT, LCD_WIDTH};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
@@ -60,7 +65,7 @@ impl AudioCallback for SdlState {
 }
 
 impl FrontendSdl {
-    pub fn start(emulator: Emulator) -> Result<(), String> {
+    pub fn start(emulator: Emulator, save_path: PathBuf) -> Result<(), String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let audio_subsystem = sdl_context.audio()?;
@@ -152,7 +157,7 @@ impl FrontendSdl {
                     }
 
                     device.emulator.ppu.frame_complete = false;
-                    device.emulator.save_external_ram();
+                    Self::save_external_ram(&mut device.emulator.memory, &save_path);
                 }
             }
 
@@ -160,6 +165,15 @@ impl FrontendSdl {
         }
 
         Ok(())
+    }
+
+    fn save_external_ram(memory: &mut Memory, save_path: &PathBuf) {
+        memory.get_external_ram()
+            .and_then(|ram| {
+                File::create(save_path)
+                    .and_then(|mut f| f.write_all(ram))
+                    .ok()
+            }).map(|_| memory.mark_external_ram_as_saved());
     }
 
     fn color(pixel: u8) -> (u8, u8, u8) {
