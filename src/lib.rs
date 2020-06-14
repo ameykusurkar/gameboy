@@ -53,16 +53,25 @@ impl EmulatorState {
     }
 
     #[wasm_bindgen(js_name = clockFrame)]
-    pub fn clockFrame(&mut self) {
+    pub fn clock_frame(&mut self) -> *const u8 {
         while !self.emulator.ppu.frame_complete {
             self.emulator.clock();
         }
         
         self.emulator.ppu.frame_complete = false;
+        self.emulator.get_screen_buffer().unwrap_or(&EMPTY).as_ptr()
     }
 
-    pub fn pixels(&self) -> *const u8 {
-        self.emulator.get_screen_buffer().unwrap_or(&EMPTY).as_ptr()
+    #[wasm_bindgen(js_name = updateJoypad)]
+    pub fn update_joypad(&mut self, states: &[u8]) {
+        self.emulator.memory.joypad.down   = states[0] > 0;
+        self.emulator.memory.joypad.up     = states[1] > 0;
+        self.emulator.memory.joypad.left   = states[2] > 0;
+        self.emulator.memory.joypad.right  = states[3] > 0;
+        self.emulator.memory.joypad.select = states[4] > 0;
+        self.emulator.memory.joypad.start  = states[5] > 0;
+        self.emulator.memory.joypad.b      = states[6] > 0;
+        self.emulator.memory.joypad.a      = states[7] > 0;
     }
 }
 

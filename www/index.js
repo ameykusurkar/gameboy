@@ -12,6 +12,26 @@ var fileReader = new FileReader();
 var fileInputElement = document.getElementById("file-input");
 var emu = null;
 
+var keysPressed = {
+  j: false, // down
+  k: false, // up
+  h: false, // left
+  l: false, // right
+
+  v: false, // select
+  n: false, // start
+  d: false, // b
+  f: false, // a
+};
+
+document.addEventListener("keydown", function(e) {
+  keysPressed[e.key] = true;
+});
+
+document.addEventListener("keyup", function(e) {
+  keysPressed[e.key] = false;
+});
+
 init_panic_hook();
 
 fileReader.onloadend = function() {
@@ -31,9 +51,19 @@ function step() {
   var canvas = document.getElementById("gameboy-screen");
   var ctx = canvas.getContext("2d");
 
-  emu.clockFrame();
+  emu.updateJoypad(new Uint8Array([
+    keysPressed['j'], // down
+    keysPressed['k'], // up
+    keysPressed['h'], // left
+    keysPressed['l'], // right
+    keysPressed['v'], // select
+    keysPressed['n'], // start
+    keysPressed['d'], // b
+    keysPressed['f'], // a
+  ]));
 
-  const pixelsPtr = emu.pixels();
+  // TODO: Deal with empty pixel buffer
+  const pixelsPtr = emu.clockFrame();
   const pixels = new Uint8Array(memory.buffer, pixelsPtr, 160 * 144);
 
   var imgData = ctx.createImageData(160, 144);
