@@ -47,10 +47,7 @@ fileInputElement.addEventListener("change", e => {
 });
 
 function step() {
-  const t0 = performance.now();
-  var canvas = document.getElementById("gameboy-screen");
-  var ctx = canvas.getContext("2d");
-
+  // const t0 = performance.now();
   emu.updateJoypad(new Uint8Array([
     keysPressed['j'], // down
     keysPressed['k'], // up
@@ -66,18 +63,24 @@ function step() {
   const pixelsPtr = emu.clockFrame();
   const pixels = new Uint8Array(memory.buffer, pixelsPtr, 160 * 144);
 
+  updateCanvas(pixels);
+  // const t1 = performance.now();
+  // console.log(t1-t0);
+}
+
+function updateCanvas(pixels) {
+  var canvas = document.getElementById("gameboy-screen");
+  var ctx = canvas.getContext("2d");
+
   var imgData = ctx.createImageData(160, 144);
 
   for (let i = 0; i < imgData.data.length; i+=4) {
     const pixel = pixels[Math.floor(i / 4)];
-    const [r, g, b] = COLORS[pixel];
-    imgData.data[i] = r;
-    imgData.data[i+1] = g;
-    imgData.data[i+2] = b;
+    imgData.data[i] = COLORS[pixel][0];
+    imgData.data[i+1] = COLORS[pixel][1];
+    imgData.data[i+2] = COLORS[pixel][2];
     imgData.data[i+3] = 255;
   }
 
   ctx.putImageData(imgData, 0, 0);
-  const t1 = performance.now();
-  console.log(t1-t0);
 }
