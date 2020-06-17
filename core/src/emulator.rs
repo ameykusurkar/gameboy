@@ -1,6 +1,7 @@
 use crate::cpu::Cpu;
 use crate::ppu::Ppu;
 use crate::memory::Memory;
+use crate::bootrom::BOOTROM;
 
 pub const DEBUG: bool = false;
 
@@ -11,10 +12,9 @@ pub struct Emulator {
 }
 
 impl Emulator {
-    pub fn new(bootrom: &[u8], rom: Vec<u8>,
-               external_ram: Option<Vec<u8>>) -> Self {
+    pub fn new(rom: Vec<u8>, external_ram: Option<Vec<u8>>) -> Self {
         let mut memory = Memory::new(rom, external_ram);
-        memory.load_bootrom(bootrom);
+        memory.load_bootrom(&BOOTROM);
 
         Emulator {
             cpu: Cpu::new(),

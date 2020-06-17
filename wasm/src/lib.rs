@@ -2,7 +2,6 @@ use wasm_bindgen::prelude::*;
 
 extern crate console_error_panic_hook;
 
-use core::bootrom::BOOTROM;
 use core::emulator::Emulator;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -26,7 +25,7 @@ const EMPTY: [u8; 1] = [4];
 #[wasm_bindgen]
 impl EmulatorState {
     pub fn new(rom_buffer: &[u8]) -> EmulatorState {
-        let emulator = Emulator::new(&BOOTROM, rom_buffer.to_vec(), None);
+        let emulator = Emulator::new(rom_buffer.to_vec(), None);
         EmulatorState { emulator }
     }
 

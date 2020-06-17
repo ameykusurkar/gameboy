@@ -8,7 +8,6 @@ mod frontend_sdl;
 mod frontend_pge;
 
 use core::emulator::Emulator;
-use core::bootrom::BOOTROM;
 
 use frontend_pge::FrontendPge;
 use frontend_sdl::FrontendSdl;
@@ -59,7 +58,7 @@ fn main() -> std::io::Result<()> {
         None
     };
 
-    let emulator = Emulator::new(&BOOTROM, rom_buffer, save_buffer);
+    let emulator = Emulator::new(rom_buffer, save_buffer);
 
     match frontend_arg {
         "frontend-sdl" => {
