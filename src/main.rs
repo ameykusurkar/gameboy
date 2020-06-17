@@ -4,24 +4,12 @@ use std::path::Path;
 
 use clap::{App, Arg};
 
-mod cpu;
-mod ppu;
-mod registers;
-mod memory;
-mod instruction;
-mod joypad;
-mod utils;
-mod cartridge;
-mod emulator;
-mod sound_controller;
 mod frontend_sdl;
 mod frontend_pge;
-mod square_wave_channel;
-mod wave_channel;
-mod noise_channel;
-mod audio_components;
 
-use emulator::Emulator;
+use core::emulator::Emulator;
+use core::bootrom::BOOTROM;
+
 use frontend_pge::FrontendPge;
 use frontend_sdl::FrontendSdl;
 
@@ -53,11 +41,6 @@ fn main() -> std::io::Result<()> {
         return Ok(())
     }
 
-    let path = "bootrom.bin";
-    let mut f = File::open(&path)?;
-    let mut bootrom_buffer = Vec::new();
-    f.read_to_end(&mut bootrom_buffer)?;
-
     let mut f = File::open(&rom_path)?;
     let mut rom_buffer = Vec::new();
     f.read_to_end(&mut rom_buffer)?;
@@ -76,14 +59,15 @@ fn main() -> std::io::Result<()> {
         None
     };
 
-    let emulator = Emulator::new(&bootrom_buffer, rom_buffer, save_buffer, save_path);
+    let emulator = Emulator::new(&BOOTROM, rom_buffer, save_buffer);
 
     match frontend_arg {
         "frontend-sdl" => {
-            FrontendSdl::start(emulator).expect("Error while running gameboy");
+            FrontendSdl::start(emulator, save_path)
+                .expect("Error while running gameboy");
         },
         "frontend-pge" => {
-            let mut frontend = FrontendPge::new(emulator);
+            let mut frontend = FrontendPge::new(emulator, save_path);
             frontend.start().expect("Error while running gameboy");
         },
         _ => panic!("Invalid frontend type: {}", frontend_arg),

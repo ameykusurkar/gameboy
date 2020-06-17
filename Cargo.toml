@@ -10,6 +10,7 @@ edition = "2018"
 minifb = "0.15.3"
 clap = "2.33.0"
 pge = { path = "/Users/ameykusurkar/rustyPixelGameEngine" }
+gameboy-core = { path = "core" }
 
 [dependencies.sdl2]
 version = "0.34.0"
