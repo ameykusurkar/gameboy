@@ -45,6 +45,21 @@ pub enum LcdMode {
     PixelTransfer,
 }
 
+#[derive(Copy, Clone)]
+pub enum PixelColor {
+    BackgroundPixel(u8),
+    SpritePixel(u8),
+}
+
+impl PixelColor {
+    pub fn raw(&self) -> u8 {
+        match self {
+            PixelColor::BackgroundPixel(p) => *p,
+            PixelColor::SpritePixel(p) => *p,
+        }
+    }
+}
+
 pub struct Ppu {
     screen_buffer: DoubleBuffer,
     cycles: u32,
@@ -111,7 +126,7 @@ impl Ppu {
         }
     }
 
-    pub fn get_screen_buffer(&self) -> &[u8] {
+    pub fn get_screen_buffer(&self) -> &[PixelColor] {
         self.screen_buffer.get_secondary()
     }
 
@@ -133,10 +148,10 @@ impl Ppu {
         let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
 
         for x in start_x..(start_x + 4) {
-            let mut pixel = 0;
+            let mut background_pixel = 0;
 
             if background_enabled {
-                pixel = Self::get_background_pixel(
+                background_pixel = Self::get_background_pixel(
                     memory,
                     (x as u8).wrapping_add(scroll_x),
                     (self.scanline as u8).wrapping_add(scroll_y),
@@ -150,18 +165,20 @@ impl Ppu {
                     && (window_y..LCD_WIDTH as u8).contains(&y);
 
                 if should_draw {
-                    pixel = Self::get_background_pixel(
+                    background_pixel = Self::get_background_pixel(
                         memory, x - window_x, y - window_y, window_map,
                     );
                 }
             }
 
+            let mut pixel = PixelColor::BackgroundPixel(background_pixel);
+
             if sprites_enabled {
                 // Finds first non-transparent sprite pixel, if any
                 self.get_sprites_at_x(x as u8).iter()
-                    .filter(|sprite| !(sprite.priority && (1..=3).contains(&pixel)))
+                    .filter(|sprite| !(sprite.priority && (1..=3).contains(&background_pixel)))
                     .find_map(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
-                    .map(|sprite_pixel| pixel = sprite_pixel);
+                    .map(|sprite_pixel| pixel = PixelColor::SpritePixel(sprite_pixel));
             }
 
             let index = self.scanline * LCD_WIDTH + x;
@@ -377,14 +394,14 @@ impl Ppu {
 }
 
 struct DoubleBuffer {
-    buffer: [u8; (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
+    buffer: [PixelColor; (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
     index: usize,
 }
 
 impl DoubleBuffer {
     fn new() -> DoubleBuffer {
         DoubleBuffer {
-            buffer: [0; (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
+            buffer: [PixelColor::BackgroundPixel(0); (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
             index: 0,
         }
     }
@@ -393,21 +410,21 @@ impl DoubleBuffer {
         self.index = 1 - self.index;
     }
 
-    fn get_primary_mut(&mut self) -> &mut [u8] {
+    fn get_primary_mut(&mut self) -> &mut [PixelColor] {
         self.buffer_at_index_mut(self.index)
     }
 
-    fn get_secondary(&self) -> &[u8] {
+    fn get_secondary(&self) -> &[PixelColor] {
         self.buffer_at_index(1 - self.index)
     }
 
-    fn buffer_at_index(&self, index: usize) -> &[u8] {
+    fn buffer_at_index(&self, index: usize) -> &[PixelColor] {
         let size = (LCD_WIDTH * LCD_HEIGHT) as usize;
         let offset = index * size;
         &self.buffer[offset..offset+size]
     }
 
-    fn buffer_at_index_mut(&mut self, index: usize) -> &mut [u8] {
+    fn buffer_at_index_mut(&mut self, index: usize) -> &mut [PixelColor] {
         let size = (LCD_WIDTH * LCD_HEIGHT) as usize;
         let offset = index * size;
         &mut self.buffer[offset..offset+size]
