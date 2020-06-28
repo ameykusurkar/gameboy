@@ -6,4 +6,10 @@ jobs:
       - image: circleci/rust:1.43.0
     steps:
       - checkout
+      - restore_cache:
+          keys:
+            - deps-{{ checksum "cargo.lock" }}-{{ checksum "core/cargo.lock" }}-{{ checksum "wasm/cargo.lock" }}
       - run: make ci
+      - save_cache:
+          keys:
+            - deps-{{ checksum "cargo.lock" }}-{{ checksum "core/cargo.lock" }}-{{ checksum "wasm/cargo.lock" }}
