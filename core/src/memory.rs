@@ -11,6 +11,7 @@ pub struct Memory {
     bootrom: [u8; 256],
     pub joypad: Joypad,
     pub sound_controller: SoundController,
+    pub serial_transfer_write: bool,
 }
 
 pub trait MemoryAccess {
@@ -29,6 +30,7 @@ impl Memory {
             bootrom: [0; 256],
             joypad: Joypad::default(),
             sound_controller: SoundController::new(),
+            serial_transfer_write: false,
         }
     }
 
@@ -68,6 +70,7 @@ impl Memory {
         // if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
         //     println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
         // }
+        self.serial_transfer_write = addr == 0xFF02;
 
         match addr {
             // Cartridge

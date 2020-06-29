@@ -320,7 +320,7 @@ impl Cpu {
     fn update_timers(&mut self, memory: &mut Memory) {
         if self.total_clock_cycles % 64 == 0 {
             let div = memory.cpu_read(DIV_ADDR);
-            memory.cpu_write(DIV_ADDR, div + 1);
+            memory.cpu_write(DIV_ADDR, div.wrapping_add(1));
         }
 
         let timer_control = memory.cpu_read(TAC_ADDR);
@@ -1109,7 +1109,7 @@ impl Cpu {
     fn execute_inc<T: Copy>(&mut self, memory: &mut Memory, src: T)
         where Self: Operand8<T> {
         let old = self.read_oper(memory, src);
-        let result = old + 1;
+        let result = old.wrapping_add(1);
         self.write_oper(memory, src, result);
         self.set_flag(ZERO_FLAG, result == 0);
         self.set_flag(SUBTRACT_FLAG, false);
@@ -1119,7 +1119,7 @@ impl Cpu {
     fn execute_dec<T: Copy>(&mut self, memory: &mut Memory, src: T)
         where Self: Operand8<T> {
         let old = self.read_oper(memory, src);
-        let result = old - 1;
+        let result = old.wrapping_sub(1);
         self.write_oper(memory, src, result);
         self.set_flag(ZERO_FLAG, result == 0);
         self.set_flag(SUBTRACT_FLAG, true);
