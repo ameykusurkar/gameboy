@@ -569,12 +569,12 @@ impl Cpu {
             0x03 => self.execute_inc16(BC),
             0x13 => self.execute_inc16(DE),
             0x23 => self.execute_inc16(HL),
-            0x33 => self.sp += 1,
+            0x33 => self.sp = self.sp.wrapping_add(1),
 
             0x0B => self.execute_dec16(BC),
             0x1B => self.execute_dec16(DE),
             0x2B => self.execute_dec16(HL),
-            0x3B => self.sp -= 1,
+            0x3B => self.sp = self.sp.wrapping_sub(1),
 
             0x09 => self.execute_add16(memory, BC),
             0x19 => self.execute_add16(memory, DE),
@@ -829,11 +829,11 @@ impl Cpu {
     }
 
     fn execute_inc16(&mut self, reg: TwoRegisterIndex) {
-        self.regs.write(reg, self.regs.read(reg) + 1);
+        self.regs.write(reg, self.regs.read(reg).wrapping_add(1));
     }
 
     fn execute_dec16(&mut self, reg: TwoRegisterIndex) {
-        self.regs.write(reg, self.regs.read(reg) - 1);
+        self.regs.write(reg, self.regs.read(reg).wrapping_sub(1));
     }
 
     fn execute_add16<T>(&mut self, memory: &Memory, src: T) where
@@ -957,9 +957,9 @@ impl Cpu {
         }
 
         if read_bit(self.regs[F], SUBTRACT_FLAG) {
-            self.regs[A] -= correction;
+            self.regs[A] = self.regs[A].wrapping_sub(correction);
         } else {
-            self.regs[A] += correction;
+            self.regs[A] = self.regs[A].wrapping_add(correction);
         }
 
         self.set_flag(ZERO_FLAG, self.regs[A] == 0);
@@ -1349,7 +1349,7 @@ fn adc_u8(x: u8, y: u8, carry: bool) -> (u8, Flags) {
 }
 
 fn add_u16(x: u16, y: u16) -> (u16, Flags) {
-    let result = x + y;
+    let result = x.wrapping_add(y);
 
     let flags = Flags {
         zero: result == 0,

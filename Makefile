@@ -7,4 +7,7 @@ wasm:
 ci:
 	cargo check && cd wasm; cargo check
 
-.PHONY: sdl wasm ci
+test:
+	cd core; cargo test
+
+.PHONY: sdl wasm ci test

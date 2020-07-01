@@ -27,9 +27,12 @@ impl TestEmulator {
         self.memory.sound_controller.clock();
     }
 
+    fn raw_serial_buffer(&self) -> &[u8] {
+        self.memory.serial_transfer.buffer()
+    }
+
     pub fn serial_buffer(&self) -> &str {
-        let raw_buffer = &self.memory.serial_transfer.buffer();
-        std::str::from_utf8(raw_buffer).unwrap()
+        std::str::from_utf8(self.raw_serial_buffer()).unwrap()
     }
 }
 

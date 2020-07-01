@@ -13,14 +13,102 @@ fn read_rom(rom_path: &str) -> Vec<u8> {
     buffer
 }
 
-#[test]
-fn it_runs_the_cpu() {
-    let buffer = read_rom("tests/roms/cpu_instrs/06-ld r,r.gb");
-    let mut emu = TestEmulator::new(buffer);
+fn run_test_rom(rom: Vec<u8>, num_cycles: u32) -> String {
+    let mut emu = TestEmulator::new(rom);
 
-    for _ in 0..6500000 {
+    for _ in 0..num_cycles {
         emu.clock();
     }
 
-    assert_eq!("06-ld r,r\n\n\nPassed\n", emu.serial_buffer());
+    emu.serial_buffer().to_string()
+}
+
+///// Blarg's Tests /////
+
+#[test]
+fn it_passes_cpu_test_01() {
+    let rom = read_rom("tests/roms/cpu_instrs/01-special.gb");
+    let output = run_test_rom(rom, 8_400_000);
+
+    assert_eq!("01-special\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_02() {
+    let rom = read_rom("tests/roms/cpu_instrs/02-interrupts.gb");
+    let output = run_test_rom(rom, 6_400_000);
+
+    assert_eq!("02-interrupts\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_03() {
+    let rom = read_rom("tests/roms/cpu_instrs/03-op sp,hl.gb");
+    let output = run_test_rom(rom, 8_400_000);
+
+    assert_eq!("03-op sp,hl\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_04() {
+    let rom = read_rom("tests/roms/cpu_instrs/04-op r,imm.gb");
+    let output = run_test_rom(rom, 9_000_000);
+
+    assert_eq!("04-op r,imm\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_05() {
+    let rom = read_rom("tests/roms/cpu_instrs/05-op rp.gb");
+    let output = run_test_rom(rom, 10_000_000);
+
+    assert_eq!("05-op rp\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_06() {
+    let rom = read_rom("tests/roms/cpu_instrs/06-ld r,r.gb");
+    let output = run_test_rom(rom, 6_500_000);
+
+    assert_eq!("06-ld r,r\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_07() {
+    let rom = read_rom("tests/roms/cpu_instrs/07-jr,jp,call,ret,rst.gb");
+    let output = run_test_rom(rom, 6_600_000);
+
+    assert_eq!("07-jr,jp,call,ret,rst\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_08() {
+    let rom = read_rom("tests/roms/cpu_instrs/08-misc instrs.gb");
+    let output = run_test_rom(rom, 6_500_000);
+
+    assert_eq!("08-misc instrs\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_09() {
+    let rom = read_rom("tests/roms/cpu_instrs/09-op r,r.gb");
+    let output = run_test_rom(rom, 16_000_000);
+
+    assert_eq!("09-op r,r\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_10() {
+    let rom = read_rom("tests/roms/cpu_instrs/10-bit ops.gb");
+    let output = run_test_rom(rom, 20_500_000);
+
+    assert_eq!("10-bit ops\n\n\nPassed\n", output);
+}
+
+#[test]
+fn it_passes_cpu_test_11() {
+    let rom = read_rom("tests/roms/cpu_instrs/11-op a,(hl).gb");
+    let output = run_test_rom(rom, 25_000_000);
+
+    assert_eq!("11-op a,(hl)\n\n\nPassed\n", output);
 }
