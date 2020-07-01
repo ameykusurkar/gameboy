@@ -1,5 +1,6 @@
 use crate::ppu::LcdMode;
 use crate::joypad::Joypad;
+use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
 use crate::sound_controller::SoundController;
 
@@ -11,6 +12,7 @@ pub struct Memory {
     bootrom: [u8; 256],
     pub joypad: Joypad,
     pub sound_controller: SoundController,
+    pub serial_transfer: SerialTransfer,
 }
 
 pub trait MemoryAccess {
@@ -29,6 +31,7 @@ impl Memory {
             bootrom: [0; 256],
             joypad: Joypad::default(),
             sound_controller: SoundController::new(),
+            serial_transfer: SerialTransfer::new(),
         }
     }
 
@@ -56,6 +59,8 @@ impl Memory {
             0xFF
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
+        } else if addr == 0xFF01 || addr == 0xFF02 {
+            self.serial_transfer.read(addr as u16)
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else {
@@ -64,11 +69,6 @@ impl Memory {
     }
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
-        // Hard-coded because test roms write results to serial port
-        // if addr == 0xFF02 && self.memory[addr as usize] == 0x81 {
-        //     println!("SERIAL: {}", self.memory[0xFF01 as usize] as char);
-        // }
-
         match addr {
             // Cartridge
             0x0000..=0x7FFF => {
@@ -93,6 +93,9 @@ impl Memory {
             // Joypad
             0xFF00 => {
                 self.joypad.write(addr, val);
+            },
+            0xFF01 | 0xFF02 => {
+                self.serial_transfer.write(addr, val);
             },
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);

@@ -7,3 +7,16 @@ jobs:
     steps:
       - checkout
       - run: make ci
+  test:
+    docker:
+      - image: circleci/rust:1.43.0
+    steps:
+      - checkout
+      - run: make test
+
+workflows:
+  version: 2
+  build_and_test:
+    jobs:
+      - build
+      - test

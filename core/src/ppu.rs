@@ -119,7 +119,7 @@ impl Ppu {
         let scroll_x = memory.ppu_read(SCX_ADDR);
         let scroll_y = memory.ppu_read(SCY_ADDR);
 
-        let window_x = memory.ppu_read(WX_ADDR) - 7;
+        let window_x = memory.ppu_read(WX_ADDR).wrapping_sub(7);
         let window_y = memory.ppu_read(WY_ADDR);
 
         let bg_map = Self::get_background_map_memory(memory);
@@ -137,8 +137,10 @@ impl Ppu {
 
             if background_enabled {
                 pixel = Self::get_background_pixel(
-                    // Since we are using u8, x and y should automatically wrap around 256
-                    memory, (x as u8) + scroll_x, (self.scanline as u8) + scroll_y, bg_map,
+                    memory,
+                    (x as u8).wrapping_add(scroll_x),
+                    (self.scanline as u8).wrapping_add(scroll_y),
+                    bg_map,
                 );
             }
 
