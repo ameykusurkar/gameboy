@@ -1,5 +1,7 @@
 # gameboy
 
+[![CircleCI](https://circleci.com/gh/ameykusurkar/gameboy.svg?style=shield)](https://circleci.com/gh/ameykusurkar/gameboy)
+
 A [Game Boy](https://en.wikipedia.org/wiki/Game_Boy) emulator written in Rust.
 
 ![A demo gif of the emulator](blue_60fps.gif)
