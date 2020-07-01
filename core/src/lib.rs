@@ -4,6 +4,7 @@ pub mod registers;
 pub mod memory;
 pub mod instruction;
 pub mod joypad;
+pub mod serial_transfer;
 pub mod utils;
 pub mod cartridge;
 pub mod emulator;
