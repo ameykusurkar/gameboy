@@ -15,7 +15,7 @@ use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
 use core::emulator::Emulator;
 use core::memory::Memory;
-use core::ppu::{LCD_HEIGHT, LCD_WIDTH};
+use core::ppu::{PixelColor, LCD_HEIGHT, LCD_WIDTH};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
 
@@ -23,6 +23,28 @@ const SCALE: u32 = 3;
 
 const TIME_PER_CLOCK: f32 = 1.0 / MACHINE_CYCLES_PER_SECOND as f32;
 const TIME_PER_SAMPLE: f32 = 1.0 / 44100.0;
+
+const BLUE_PALETTE: [(u8, u8, u8); 4] = [
+    (0xFF, 0xFF, 0xFF),
+    (0x63, 0xA5, 0xFF),
+    (0x00, 0x00, 0xFF),
+    (0x00, 0x00, 0x00),
+];
+
+const RED_PALETTE: [(u8, u8, u8); 4] = [
+    (0xFF, 0xFF, 0xFF),
+    (0xFF, 0x84, 0x84),
+    (0x94, 0x3A, 0x3A),
+    (0x00, 0x00, 0x00),
+];
+
+#[allow(dead_code)]
+const FANCY_PALETTE: [(u8, u8, u8); 4] = [
+    (255, 228, 204),
+    (240, 100, 120),
+    (48, 51, 107),
+    (19, 15, 64),
+];
 
 pub struct FrontendSdl;
 
@@ -176,13 +198,10 @@ impl FrontendSdl {
             }).map(|_| memory.mark_external_ram_as_saved());
     }
 
-    fn color(pixel: u8) -> (u8, u8, u8) {
+    fn color(pixel: PixelColor) -> (u8, u8, u8) {
         match pixel {
-            0x0 => (255, 228, 204),
-            0x1 => (240, 100, 120),
-            0x2 => (48, 51, 107),
-            0x3 => (19, 15, 64),
-            _ => panic!("Unknown pixel value {:02x}", pixel),
+            PixelColor::BackgroundPixel(p) => BLUE_PALETTE[p as usize],
+            PixelColor::SpritePixel(p) => RED_PALETTE[p as usize],
         }
     }
 }

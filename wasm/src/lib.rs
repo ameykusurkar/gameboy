@@ -3,6 +3,7 @@ use wasm_bindgen::prelude::*;
 extern crate console_error_panic_hook;
 
 use core::emulator::Emulator;
+use core::ppu::PixelColor;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
@@ -16,17 +17,16 @@ pub fn init_panic_hook() {
 }
 
 #[wasm_bindgen]
-struct EmulatorState {
+pub struct EmulatorState {
     emulator: Emulator,
+    pixel_buffer: Vec<u8>,
 }
-
-const EMPTY: [u8; 1] = [4];
 
 #[wasm_bindgen]
 impl EmulatorState {
     pub fn new(rom_buffer: &[u8]) -> EmulatorState {
         let emulator = Emulator::new(rom_buffer.to_vec(), None);
-        EmulatorState { emulator }
+        EmulatorState { emulator, pixel_buffer: vec![0; 160 * 144] }
     }
 
     #[wasm_bindgen(js_name = updateJoypad)]
@@ -41,8 +41,16 @@ impl EmulatorState {
         self.emulator.memory.joypad.a      = states[7] > 0;
     }
 
-    pub fn pixels(&self) -> *const u8 {
-        self.emulator.get_screen_buffer().unwrap_or(&EMPTY).as_ptr()
+    pub fn pixels(&mut self) -> *const u8 {
+        match self.emulator.get_screen_buffer() {
+            Some(buffer) => {
+                let processed_buffer: Vec<u8> = buffer.iter().map(PixelColor::raw).collect();
+                self.pixel_buffer.copy_from_slice(&processed_buffer);
+            },
+            None => (),
+        }
+
+        self.pixel_buffer.as_ptr()
     }
 
     // TODO: Implement stereo sound

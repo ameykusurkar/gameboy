@@ -1,5 +1,5 @@
 use crate::cpu::Cpu;
-use crate::ppu::Ppu;
+use crate::ppu::{Ppu, PixelColor};
 use crate::memory::Memory;
 use crate::bootrom::BOOTROM;
 
@@ -29,7 +29,7 @@ impl Emulator {
         self.memory.sound_controller.clock();
     }
 
-    pub fn get_screen_buffer(&self) -> Option<&[u8]> {
+    pub fn get_screen_buffer(&self) -> Option<&[PixelColor]> {
         if self.memory.lcd_enabled() {
             Some(&self.ppu.get_screen_buffer())
         } else {

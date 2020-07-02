@@ -204,7 +204,7 @@ impl PgeState {
             let mut screen_sprite = pge::Sprite::new(width, height);
             for (i, pixel) in screen_buffer.iter().enumerate() {
                 let (x, y) = (i % width, i / width);
-                screen_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
+                screen_sprite.set_pixel(x as i32, y as i32, &Self::color(pixel.raw()));
             }
             pge.draw_sprite(x, y, &screen_sprite, scale);
         } else {
