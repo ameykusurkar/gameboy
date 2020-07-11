@@ -40,6 +40,7 @@ pub struct Cpu {
     total_clock_cycles: u32,
     halted: bool,
     pub current_instruction: &'static Instruction<'static>,
+    current_new_instruction: Option<Vec<MicroInstruction>>,
 }
 
 enum Condition { NZ, Z, NC, C }
@@ -256,6 +257,7 @@ impl Cpu {
             halted: false,
             // This should get populated when cpu starts running
             current_instruction: &INSTRUCTIONS[0],
+            current_new_instruction: None,
         }
     }
 
@@ -272,6 +274,20 @@ impl Cpu {
         }
 
         if !self.halted {
+            if self.current_new_instruction.is_some() {
+                let foo = self.current_new_instruction.as_mut().unwrap().pop();
+                match foo {
+                    Some(micro_instruction) => {
+                        self.execute_micro(memory, micro_instruction);
+
+                        if self.current_new_instruction.as_ref().unwrap().is_empty() {
+                            self.current_new_instruction = None;
+                        }
+                    },
+                    None => panic!(),
+                }
+            }
+
             if self.remaining_cycles == 0 {
                 let interrupt_was_serviced = self.check_and_handle_interrupts(memory);
 
@@ -279,14 +295,24 @@ impl Cpu {
                     self.remaining_cycles += 5;
                 }
 
-                self.current_instruction = self.fetch_instruction(memory, self.pc);
+                if memory.cpu_read(self.pc) == 0x06 {
+                    // To advance the PC
+                    self.read_oper(memory, Immediate8);
+                    let new_instruction = Self::load_b_n_instruction();
+                    // Add an extra cycle to simulate fetching the instruction.
+                    // Will be removed once all instructions follow the new format.
+                    self.remaining_cycles += new_instruction.len() as u32 + 1;
+                    self.current_new_instruction = Some(new_instruction);
+                } else {
+                    self.current_instruction = self.fetch_instruction(memory, self.pc);
 
-                self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
+                    self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
-                // For instructions with a conditional jump, the cpu takes extra cycles if
-                // the jump does happen, which `execute` determines based on the condition.
-                let extra_cycles = self.execute(memory);
-                self.remaining_cycles += extra_cycles;
+                    // For instructions with a conditional jump, the cpu takes extra cycles if
+                    // the jump does happen, which `execute` determines based on the condition.
+                    let extra_cycles = self.execute(memory);
+                    self.remaining_cycles += extra_cycles;
+                }
             }
 
             self.remaining_cycles -= 1;
@@ -294,6 +320,48 @@ impl Cpu {
 
         self.total_clock_cycles += 1;
         self.update_timers(memory);
+    }
+
+    fn load_b_n_instruction() -> Vec<MicroInstruction> {
+        let mut vec = Vec::new();
+        vec.push(MicroInstruction {
+            memory_operation:
+                Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::B)),
+            register_operation: None,
+        });
+        vec
+    }
+
+    fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: MicroInstruction) {
+        micro_instruction.memory_operation.map(|memory_op| {
+            match memory_op {
+                MemoryOperation::Read(address_source, mem_reg) => {
+                    // let addr = match address_source {
+                    //     AddressSource::Immediate => self.pc,
+                    // };
+                    // let val = memory.cpu_read(addr);
+                    let val = match address_source {
+                        AddressSource::Immediate => self.read_oper(memory, Immediate8),
+                    };
+                    let reg = match mem_reg {
+                        MemoryRegister::B => B,
+                        _ => panic!(),
+                    };
+                    self.regs[reg] = val;
+                },
+                _ => panic!(),
+                // MemoryOperation::Write(address_source, mem_reg) => {
+                //     let addr = match address_source {
+                //         AddressSource::Immediate => self.pc,
+                //     };
+                //     let reg = match mem_reg {
+                //         MemoryRegister::C => C,
+                //         _ => panic!(),
+                //     };
+                //     memory.cpu_write(addr, self.regs[reg]);
+                // },
+            }
+        });
     }
 
     fn fetch_instruction(&self, memory: &Memory, addr: u16) -> &'static Instruction<'static> {
@@ -368,7 +436,7 @@ impl Cpu {
             0x02 => self.execute_load(memory, AddrReg16(BC), A),
             0x12 => self.execute_load(memory, AddrReg16(DE), A),
 
-            0x06 => self.execute_load(memory, B, Immediate8),
+            // 0x06 => self.execute_load(memory, B, Immediate8),
             0x0E => self.execute_load(memory, C, Immediate8),
             0x16 => self.execute_load(memory, D, Immediate8),
             0x1E => self.execute_load(memory, E, Immediate8),
@@ -1359,4 +1427,25 @@ fn add_u16(x: u16, y: u16) -> (u16, Flags) {
     };
 
     (result, flags)
+}
+
+struct MicroInstruction {
+    memory_operation: Option<MemoryOperation>,
+    register_operation: Option<RegisterOperation>,
+}
+
+enum MemoryOperation {
+    Read(AddressSource, MemoryRegister),
+    Write(AddressSource, MemoryRegister),
+}
+
+enum MemoryRegister { A, F, B, C, D, H, L, PC }
+
+enum RegisterOperation {
+    Load(MemoryRegister, MemoryRegister),
+}
+
+enum AddressSource {
+    Immediate,
+    // Reg(TwoRegisterIndex),
 }
