@@ -40,7 +40,9 @@ pub struct Cpu {
     total_clock_cycles: u32,
     halted: bool,
     pub current_instruction: &'static Instruction<'static>,
-    current_new_instruction: Option<Vec<MicroInstruction>>,
+    current_new_instruction: Option<NewInstruction>,
+    instruction_registry: InstructionRegistry,
+    temp_register: u8,
 }
 
 enum Condition { NZ, Z, NC, C }
@@ -258,6 +260,8 @@ impl Cpu {
             // This should get populated when cpu starts running
             current_instruction: &INSTRUCTIONS[0],
             current_new_instruction: None,
+            instruction_registry: InstructionRegistry::new(),
+            temp_register: 0,
         }
     }
 
@@ -275,15 +279,15 @@ impl Cpu {
 
         if !self.halted {
             if self.current_new_instruction.is_some() {
-                let foo = self.current_new_instruction.as_mut().unwrap().pop();
-                match foo {
+                match self.current_new_instruction.as_mut().unwrap().next_micro() {
                     Some(micro_instruction) => {
                         self.execute_micro(memory, micro_instruction);
-
-                        if self.current_new_instruction.as_ref().unwrap().is_empty() {
+                        // TODO: Clean up!
+                        if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
                             self.current_new_instruction = None;
                         }
                     },
+                    // TODO: Clean up!
                     None => panic!(),
                 }
             }
@@ -295,23 +299,27 @@ impl Cpu {
                     self.remaining_cycles += 5;
                 }
 
-                if memory.cpu_read(self.pc) == 0x06 {
-                    // To advance the PC
-                    self.read_oper(memory, Immediate8);
-                    let new_instruction = Self::load_b_n_instruction();
-                    // Add an extra cycle to simulate fetching the instruction.
-                    // Will be removed once all instructions follow the new format.
-                    self.remaining_cycles += new_instruction.len() as u32 + 1;
-                    self.current_new_instruction = Some(new_instruction);
-                } else {
-                    self.current_instruction = self.fetch_instruction(memory, self.pc);
+                let opcode = memory.cpu_read(self.pc);
 
-                    self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
+                match self.instruction_registry.fetch(opcode) {
+                    Some(instruction) => {
+                        let instruction = instruction.to_owned();
+                        // To advance the PC
+                        self.read_oper(memory, Immediate8);
+                        // Add an extra cycle to simulate fetching the instruction.
+                        // Will be removed once all instructions follow the new format.
+                        self.remaining_cycles += instruction.num_cycles() as u32 + 1;
+                        self.current_new_instruction = Some(instruction.to_owned());
+                    },
+                    None => {
+                        self.current_instruction = self.fetch_instruction(memory, self.pc);
+                        self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
-                    // For instructions with a conditional jump, the cpu takes extra cycles if
-                    // the jump does happen, which `execute` determines based on the condition.
-                    let extra_cycles = self.execute(memory);
-                    self.remaining_cycles += extra_cycles;
+                        // For instructions with a conditional jump, the cpu takes extra cycles if
+                        // the jump does happen, which `execute` determines based on the condition.
+                        let extra_cycles = self.execute(memory);
+                        self.remaining_cycles += extra_cycles;
+                    },
                 }
             }
 
@@ -322,44 +330,44 @@ impl Cpu {
         self.update_timers(memory);
     }
 
-    fn load_b_n_instruction() -> Vec<MicroInstruction> {
-        let mut vec = Vec::new();
-        vec.push(MicroInstruction {
-            memory_operation:
-                Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::B)),
-            register_operation: None,
-        });
-        vec
-    }
-
     fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: MicroInstruction) {
         micro_instruction.memory_operation.map(|memory_op| {
             match memory_op {
                 MemoryOperation::Read(address_source, mem_reg) => {
-                    // let addr = match address_source {
-                    //     AddressSource::Immediate => self.pc,
-                    // };
-                    // let val = memory.cpu_read(addr);
                     let val = match address_source {
                         AddressSource::Immediate => self.read_oper(memory, Immediate8),
-                    };
-                    let reg = match mem_reg {
-                        MemoryRegister::B => B,
                         _ => panic!(),
                     };
-                    self.regs[reg] = val;
+                    match mem_reg {
+                        MemoryRegister::B => self.regs[B] = val,
+                        MemoryRegister::C => self.regs[C] = val,
+                        MemoryRegister::D => self.regs[D] = val,
+                        MemoryRegister::E => self.regs[E] = val,
+                        MemoryRegister::H => self.regs[H] = val,
+                        MemoryRegister::L => self.regs[L] = val,
+                        MemoryRegister::A => self.regs[A] = val,
+                        MemoryRegister::Temp => self.temp_register = val,
+                        MemoryRegister::F | MemoryRegister::PC => panic!(),
+                    };
                 },
-                _ => panic!(),
-                // MemoryOperation::Write(address_source, mem_reg) => {
-                //     let addr = match address_source {
-                //         AddressSource::Immediate => self.pc,
-                //     };
-                //     let reg = match mem_reg {
-                //         MemoryRegister::C => C,
-                //         _ => panic!(),
-                //     };
-                //     memory.cpu_write(addr, self.regs[reg]);
-                // },
+                MemoryOperation::Write(address_source, mem_reg) => {
+                    let addr = match address_source {
+                        // AddressSource::Immediate => self.pc,
+                        AddressSource::Immediate => panic!(),
+                        AddressSource::Reg(reg) => self.regs.read(reg),
+                    };
+                    match mem_reg {
+                        MemoryRegister::B => memory.cpu_write(addr, self.regs[B]),
+                        MemoryRegister::C => memory.cpu_write(addr, self.regs[C]),
+                        MemoryRegister::D => memory.cpu_write(addr, self.regs[D]),
+                        MemoryRegister::E => memory.cpu_write(addr, self.regs[E]),
+                        MemoryRegister::H => memory.cpu_write(addr, self.regs[H]),
+                        MemoryRegister::L => memory.cpu_write(addr, self.regs[L]),
+                        MemoryRegister::A => memory.cpu_write(addr, self.regs[A]),
+                        MemoryRegister::Temp => memory.cpu_write(addr, self.temp_register),
+                        MemoryRegister::F | MemoryRegister::PC => panic!(),
+                    };
+                },
             }
         });
     }
@@ -437,13 +445,13 @@ impl Cpu {
             0x12 => self.execute_load(memory, AddrReg16(DE), A),
 
             // 0x06 => self.execute_load(memory, B, Immediate8),
-            0x0E => self.execute_load(memory, C, Immediate8),
-            0x16 => self.execute_load(memory, D, Immediate8),
-            0x1E => self.execute_load(memory, E, Immediate8),
-            0x26 => self.execute_load(memory, H, Immediate8),
-            0x2E => self.execute_load(memory, L, Immediate8),
-            0x36 => self.execute_load(memory, RegisterHL, Immediate8),
-            0x3E => self.execute_load(memory, A, Immediate8),
+            // 0x0E => self.execute_load(memory, C, Immediate8),
+            // 0x16 => self.execute_load(memory, D, Immediate8),
+            // 0x1E => self.execute_load(memory, E, Immediate8),
+            // 0x26 => self.execute_load(memory, H, Immediate8),
+            // 0x2E => self.execute_load(memory, L, Immediate8),
+            // 0x36 => self.execute_load(memory, RegisterHL, Immediate8),
+            // 0x3E => self.execute_load(memory, A, Immediate8),
 
             0x0A => self.execute_load(memory, A, AddrReg16(BC)),
             0x1A => self.execute_load(memory, A, AddrReg16(DE)),
@@ -1429,23 +1437,93 @@ fn add_u16(x: u16, y: u16) -> (u16, Flags) {
     (result, flags)
 }
 
+#[derive(Clone)]
+struct NewInstruction {
+    micro_instructions: std::collections::VecDeque<MicroInstruction>,
+}
+
+impl NewInstruction {
+    fn num_cycles(&self) -> usize {
+        self.micro_instructions.len()
+    }
+
+    fn next_micro(&mut self) -> Option<MicroInstruction> {
+        self.micro_instructions.pop_front()
+    }
+}
+
+#[derive(Clone)]
 struct MicroInstruction {
     memory_operation: Option<MemoryOperation>,
     register_operation: Option<RegisterOperation>,
 }
 
+#[derive(Debug, Copy, Clone)]
 enum MemoryOperation {
     Read(AddressSource, MemoryRegister),
     Write(AddressSource, MemoryRegister),
 }
 
-enum MemoryRegister { A, F, B, C, D, H, L, PC }
+#[derive(Debug, Copy, Clone)]
+enum MemoryRegister { A, F, B, C, D, E, H, L, PC, Temp }
 
+#[derive(Copy, Clone)]
 enum RegisterOperation {
     Load(MemoryRegister, MemoryRegister),
 }
 
+#[derive(Debug, Copy, Clone)]
 enum AddressSource {
     Immediate,
-    // Reg(TwoRegisterIndex),
+    Reg(TwoRegisterIndex),
+}
+
+struct InstructionRegistry {
+    instruction_map: std::collections::HashMap<u8, NewInstruction>,
+}
+
+impl InstructionRegistry {
+    fn new() -> Self {
+        let mut instruction_map = std::collections::HashMap::new();
+
+        instruction_map.insert(0x06, build_load_r_n_instruction(MemoryRegister::B));
+        instruction_map.insert(0x0E, build_load_r_n_instruction(MemoryRegister::C));
+        instruction_map.insert(0x16, build_load_r_n_instruction(MemoryRegister::D));
+        instruction_map.insert(0x1E, build_load_r_n_instruction(MemoryRegister::E));
+        instruction_map.insert(0x26, build_load_r_n_instruction(MemoryRegister::H));
+        instruction_map.insert(0x2E, build_load_r_n_instruction(MemoryRegister::L));
+        instruction_map.insert(0x36, build_load_rhl_n_instruction());
+        instruction_map.insert(0x3E, build_load_r_n_instruction(MemoryRegister::A));
+
+        InstructionRegistry { instruction_map }
+    }
+
+    fn fetch(&self, opcode: u8) -> Option<NewInstruction> {
+        self.instruction_map.get(&opcode).map(|instr| instr.to_owned())
+    }
+}
+
+fn build_load_r_n_instruction(reg: MemoryRegister) -> NewInstruction {
+    let mut queue = std::collections::VecDeque::new();
+    queue.push_back(MicroInstruction {
+        memory_operation:
+            Some(MemoryOperation::Read(AddressSource::Immediate, reg)),
+        register_operation: None,
+    });
+    NewInstruction { micro_instructions: queue }
+}
+
+fn build_load_rhl_n_instruction() -> NewInstruction {
+    let mut queue = std::collections::VecDeque::new();
+    queue.push_back(MicroInstruction {
+        memory_operation:
+            Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
+        register_operation: None,
+    });
+    queue.push_back(MicroInstruction {
+        memory_operation:
+            Some(MemoryOperation::Write(AddressSource::Reg(HL), MemoryRegister::Temp)),
+        register_operation: None,
+    });
+    NewInstruction { micro_instructions: queue }
 }
