@@ -336,7 +336,7 @@ impl Cpu {
                 MemoryOperation::Read(address_source, mem_reg) => {
                     let val = match address_source {
                         AddressSource::Immediate => self.read_oper(memory, Immediate8),
-                        _ => panic!(),
+                        AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
                     };
                     match mem_reg {
                         MemoryRegister::B => self.regs[B] = val,
@@ -441,8 +441,8 @@ impl Cpu {
             0x21 => self.execute_load16(memory, HL, Immediate16),
             0x31 => self.sp = self.read16(memory, Immediate16),
 
-            0x02 => self.execute_load(memory, AddrReg16(BC), A),
-            0x12 => self.execute_load(memory, AddrReg16(DE), A),
+            // 0x02 => self.execute_load(memory, AddrReg16(BC), A),
+            // 0x12 => self.execute_load(memory, AddrReg16(DE), A),
 
             // 0x06 => self.execute_load(memory, B, Immediate8),
             // 0x0E => self.execute_load(memory, C, Immediate8),
@@ -453,8 +453,8 @@ impl Cpu {
             // 0x36 => self.execute_load(memory, RegisterHL, Immediate8),
             // 0x3E => self.execute_load(memory, A, Immediate8),
 
-            0x0A => self.execute_load(memory, A, AddrReg16(BC)),
-            0x1A => self.execute_load(memory, A, AddrReg16(DE)),
+            // 0x0A => self.execute_load(memory, A, AddrReg16(BC)),
+            // 0x1A => self.execute_load(memory, A, AddrReg16(DE)),
 
             0x08 => self.write16(memory, Addr16, self.sp),
 
@@ -1443,6 +1443,17 @@ struct NewInstruction {
 }
 
 impl NewInstruction {
+    fn new() -> NewInstruction {
+        NewInstruction {
+            micro_instructions: std::collections::VecDeque::new(),
+        }
+    }
+
+    fn push(mut self, micro_instruction: MicroInstruction) -> Self {
+        (&mut self).micro_instructions.push_back(micro_instruction);
+        self
+    }
+
     fn num_cycles(&self) -> usize {
         self.micro_instructions.len()
     }
@@ -1486,6 +1497,12 @@ impl InstructionRegistry {
     fn new() -> Self {
         let mut instruction_map = std::collections::HashMap::new();
 
+        instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
+        instruction_map.insert(0x12, build_load_reg16addr_reg_instruction(AddressSource::Reg(DE)));
+
+        instruction_map.insert(0x0A, build_load_reg_reg16addr_instruction(AddressSource::Reg(BC)));
+        instruction_map.insert(0x1A, build_load_reg_reg16addr_instruction(AddressSource::Reg(DE)));
+
         instruction_map.insert(0x06, build_load_r_n_instruction(MemoryRegister::B));
         instruction_map.insert(0x0E, build_load_r_n_instruction(MemoryRegister::C));
         instruction_map.insert(0x16, build_load_r_n_instruction(MemoryRegister::D));
@@ -1504,26 +1521,45 @@ impl InstructionRegistry {
 }
 
 fn build_load_r_n_instruction(reg: MemoryRegister) -> NewInstruction {
-    let mut queue = std::collections::VecDeque::new();
-    queue.push_back(MicroInstruction {
-        memory_operation:
-            Some(MemoryOperation::Read(AddressSource::Immediate, reg)),
-        register_operation: None,
-    });
-    NewInstruction { micro_instructions: queue }
+    NewInstruction::new()
+        .push(MicroInstruction {
+            memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, reg)),
+            register_operation: None,
+        })
 }
 
 fn build_load_rhl_n_instruction() -> NewInstruction {
-    let mut queue = std::collections::VecDeque::new();
-    queue.push_back(MicroInstruction {
-        memory_operation:
-            Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
-        register_operation: None,
-    });
-    queue.push_back(MicroInstruction {
-        memory_operation:
-            Some(MemoryOperation::Write(AddressSource::Reg(HL), MemoryRegister::Temp)),
-        register_operation: None,
-    });
-    NewInstruction { micro_instructions: queue }
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation:
+                    Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation:
+                    Some(MemoryOperation::Write(AddressSource::Reg(HL), MemoryRegister::Temp)),
+                register_operation: None,
+        })
+}
+
+fn build_load_reg16addr_reg_instruction(reg: AddressSource) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation:
+                    Some(MemoryOperation::Write(reg, MemoryRegister::A)),
+                register_operation: None,
+        })
+}
+
+fn build_load_reg_reg16addr_instruction(reg: AddressSource) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation:
+                    Some(MemoryOperation::Read(reg, MemoryRegister::A)),
+                register_operation: None,
+        })
 }
