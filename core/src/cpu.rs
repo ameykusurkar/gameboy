@@ -281,10 +281,17 @@ impl Cpu {
             if self.current_new_instruction.is_some() {
                 match self.current_new_instruction.as_mut().unwrap().next_micro() {
                     Some(micro_instruction) => {
-                        self.execute_micro(memory, micro_instruction);
+                        self.execute_micro(memory, &micro_instruction);
                         // TODO: Clean up!
                         if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
                             self.current_new_instruction = None;
+
+                            if micro_instruction.has_memory_access() {
+                                // Add an extra cycle to simulate fetching the next instruction, as
+                                // it already has a memory access in the current micro instruction.
+                                // Will be removed once all instructions follow the new format.
+                                self.remaining_cycles += 1;
+                            }
                         }
                     },
                     // TODO: Clean up!
@@ -306,10 +313,8 @@ impl Cpu {
                         let instruction = instruction.to_owned();
                         // To advance the PC
                         self.read_oper(memory, Immediate8);
-                        // Add an extra cycle to simulate fetching the instruction.
-                        // Will be removed once all instructions follow the new format.
-                        self.remaining_cycles += instruction.num_cycles() as u32 + 1;
-                        self.current_new_instruction = Some(instruction.to_owned());
+                        self.remaining_cycles += instruction.num_cycles() as u32;
+                        self.current_new_instruction = Some(instruction);
                     },
                     None => {
                         self.current_instruction = self.fetch_instruction(memory, self.pc);
@@ -330,7 +335,7 @@ impl Cpu {
         self.update_timers(memory);
     }
 
-    fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: MicroInstruction) {
+    fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: &MicroInstruction) {
         micro_instruction.memory_operation.map(|memory_op| {
             match memory_op {
                 MemoryOperation::Read(address_source, mem_reg) => {
@@ -368,6 +373,15 @@ impl Cpu {
                         MemoryRegister::F | MemoryRegister::PC => panic!(),
                     };
                 },
+            }
+        });
+
+        micro_instruction.register_operation.map(|register_op| {
+            match register_op {
+                RegisterOperation::Load(dst, src) => {
+                    let val = self.read_oper(memory, src);
+                    self.write_oper(memory, dst, val);
+                }
             }
         });
     }
@@ -474,9 +488,9 @@ impl Cpu {
 
             0xF9 => self.sp = self.regs.read(HL),
 
-            0x40..=0x75 | 0x77..=0x7F => {
-                self.execute_load_reg_reg(memory, opcode);
-            },
+            // 0x40..=0x75 | 0x77..=0x7F => {
+            //     self.execute_load_reg_reg(memory, opcode);
+            // },
 
             0x18 => self.execute_jr(memory),
             0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
@@ -1463,10 +1477,16 @@ impl NewInstruction {
     }
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 struct MicroInstruction {
     memory_operation: Option<MemoryOperation>,
     register_operation: Option<RegisterOperation>,
+}
+
+impl MicroInstruction {
+    fn has_memory_access(&self) -> bool {
+        self.memory_operation.is_some()
+    }
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1478,9 +1498,24 @@ enum MemoryOperation {
 #[derive(Debug, Copy, Clone)]
 enum MemoryRegister { A, F, B, C, D, E, H, L, PC, Temp }
 
-#[derive(Copy, Clone)]
+impl std::convert::From<RegisterIndex> for MemoryRegister {
+    fn from(reg: RegisterIndex) -> Self {
+        match reg {
+            B => MemoryRegister::B,
+            C => MemoryRegister::C,
+            D => MemoryRegister::D,
+            E => MemoryRegister::E,
+            H => MemoryRegister::H,
+            L => MemoryRegister::L,
+            A => MemoryRegister::A,
+            F => MemoryRegister::F,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
 enum RegisterOperation {
-    Load(MemoryRegister, MemoryRegister),
+    Load(RegisterIndex, RegisterIndex),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -1511,6 +1546,23 @@ impl InstructionRegistry {
         instruction_map.insert(0x2E, build_load_r_n_instruction(MemoryRegister::L));
         instruction_map.insert(0x36, build_load_rhl_n_instruction());
         instruction_map.insert(0x3E, build_load_r_n_instruction(MemoryRegister::A));
+
+        let order = [
+            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        ];
+
+        for opcode in 0x40..=0x7F {
+            let opcode_index = opcode - 0x40;
+            let dst_index = order[(opcode_index / 0x08) as usize];
+            let src_index = order[(opcode_index % 0x08) as usize];
+
+            match (dst_index, src_index) {
+                (Some(reg), Some(reg1)) => instruction_map.insert(opcode, build_load_r_r_instruction(reg, reg1)),
+                (None, Some(reg)) => instruction_map.insert(opcode, build_load_rhl_r_instruction(reg.into())),
+                (Some(reg), None) => instruction_map.insert(opcode, build_load_r_rhl_instruction(reg.into())),
+                (None, None) => None,
+            };
+        }
 
         InstructionRegistry { instruction_map }
     }
@@ -1560,6 +1612,33 @@ fn build_load_reg_reg16addr_instruction(reg: AddressSource) -> NewInstruction {
             MicroInstruction {
                 memory_operation:
                     Some(MemoryOperation::Read(reg, MemoryRegister::A)),
+                register_operation: None,
+        })
+}
+
+fn build_load_r_r_instruction(dst_reg: RegisterIndex, src_reg: RegisterIndex) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: None,
+                register_operation: Some(RegisterOperation::Load(dst_reg, src_reg)),
+        })
+}
+
+fn build_load_r_rhl_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Reg(HL), reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_rhl_r_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
                 register_operation: None,
         })
 }

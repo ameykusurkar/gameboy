@@ -14,7 +14,7 @@ pub struct Registers {
     h: u8, l: u8,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RegisterIndex {
     A, F,
     B, C,
