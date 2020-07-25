@@ -12,6 +12,8 @@ pub struct Registers {
     b: u8, c: u8,
     d: u8, e: u8,
     h: u8, l: u8,
+    sp: u16,
+    // pc: u16,
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -28,6 +30,8 @@ pub enum TwoRegisterIndex {
     BC,
     DE,
     HL,
+    SP,
+    // PC,
 }
 
 #[derive(Default, Copy, Clone)]
@@ -45,24 +49,38 @@ impl TwoRegisterIndex {
             TwoRegisterIndex::BC => (B, C),
             TwoRegisterIndex::DE => (D, E),
             TwoRegisterIndex::HL => (H, L),
+            // TwoRegisterIndex::SP | TwoRegisterIndex::PC => {
+            TwoRegisterIndex::SP => {
+                unreachable!("Cannot split index: {:?}", self);
+            },
         }
     }
 }
 
 impl Registers {
     pub fn write(&mut self, index: TwoRegisterIndex, val: u16) {
-        let (high, low) = index.split_index();
-        self[high] = ((val & 0xFF00) >> 8) as u8;
-        match low {
-            // Bits 0-3 of the flags register are unused and always stay zeroed
-            F => self[low] = (val & 0x00F0) as u8,
-            _ => self[low] = (val & 0x00FF) as u8,
-        };
+        match index {
+            TwoRegisterIndex::SP => self.sp = val,
+            _ => {
+                let (high, low) = index.split_index();
+                self[high] = ((val & 0xFF00) >> 8) as u8;
+                match low {
+                    // Bits 0-3 of the flags register are unused and always stay zeroed
+                    F => self[low] = (val & 0x00F0) as u8,
+                    _ => self[low] = (val & 0x00FF) as u8,
+                };
+            },
+        }
     }
 
     pub fn read(&self, index: TwoRegisterIndex) -> u16 {
-        let (high, low) = index.split_index();
-        ((self[high] as u16) << 8) | self[low] as u16
+        match index {
+            TwoRegisterIndex::SP => self.sp,
+            _ => {
+                let (high, low) = index.split_index();
+                ((self[high] as u16) << 8) | self[low] as u16
+            },
+        }
     }
 
     pub fn write_flags(&mut self, flags: Flags) {

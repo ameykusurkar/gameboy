@@ -33,7 +33,6 @@ const TAC_ADDR: u16  = 0xFF07;
 
 pub struct Cpu {
     pub regs: Registers,
-    pub sp: u16,
     pub pc: u16,
     ime: bool,
     remaining_cycles: u32,
@@ -73,7 +72,6 @@ struct Immediate16;
 struct Addr16;
 struct HighPageAddr;
 struct HighPageC;
-struct SP;
 
 struct AddrReg16(TwoRegisterIndex);
 
@@ -211,16 +209,6 @@ impl Operand16<TwoRegisterIndex> for Cpu {
     }
 }
 
-impl Operand16<SP> for Cpu {
-    fn read16(&mut self, _memory: &Memory, _src: SP) -> u16 {
-        self.sp
-    }
-
-    fn write16(&mut self, _memory: &mut Memory, _src: SP, val: u16) {
-        self.sp = val;
-    }
-}
-
 impl Operand16<Immediate16> for Cpu {
     fn read16(&mut self, memory: &Memory, _src: Immediate16) -> u16 {
         let lsb = self.read_oper(memory, Immediate8) as u16;
@@ -252,7 +240,6 @@ impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
             regs: Registers::default(),
-            sp: 0,
             pc: 0,
             ime: false,
             remaining_cycles: 0,
@@ -270,7 +257,7 @@ impl Cpu {
     #[allow(dead_code)]
     pub fn skip_bootrom(&mut self, memory: &mut Memory) {
         self.pc = 0x100;
-        self.sp = 0xFFFE;
+        self.regs.write(SP, 0xFFFE);
         memory.cpu_write(0xFF50, 1);
     }
 
@@ -481,7 +468,7 @@ impl Cpu {
             // 0x01 => self.execute_load16(memory, BC, Immediate16),
             // 0x11 => self.execute_load16(memory, DE, Immediate16),
             // 0x21 => self.execute_load16(memory, HL, Immediate16),
-            0x31 => self.sp = self.read16(memory, Immediate16),
+            0x31 => self.execute_load16(memory, SP, Immediate16),
 
             // 0x02 => self.execute_load(memory, AddrReg16(BC), A),
             // 0x12 => self.execute_load(memory, AddrReg16(DE), A),
@@ -498,7 +485,7 @@ impl Cpu {
             // 0x0A => self.execute_load(memory, A, AddrReg16(BC)),
             // 0x1A => self.execute_load(memory, A, AddrReg16(DE)),
 
-            0x08 => self.write16(memory, Addr16, self.sp),
+            0x08 => self.write16(memory, Addr16, self.regs.read(SP)),
 
             // 0xE0 => self.execute_load(memory, HighPageAddr, A),
             // 0xF0 => self.execute_load(memory, A, HighPageAddr),
@@ -514,7 +501,7 @@ impl Cpu {
             0x32 => self.execute_load(memory, RegisterHLD, A),
             0x3A => self.execute_load(memory, A, RegisterHLD),
 
-            0xF9 => self.sp = self.regs.read(HL),
+            0xF9 => self.regs.write(SP, self.regs.read(HL)),
 
             // 0x40..=0x75 | 0x77..=0x7F => {
             //     self.execute_load_reg_reg(memory, opcode);
@@ -687,12 +674,12 @@ impl Cpu {
             0x03 => self.execute_inc16(BC),
             0x13 => self.execute_inc16(DE),
             0x23 => self.execute_inc16(HL),
-            0x33 => self.sp = self.sp.wrapping_add(1),
+            0x33 => self.regs.write(SP, self.regs.read(SP).wrapping_add(1)),
 
             0x0B => self.execute_dec16(BC),
             0x1B => self.execute_dec16(DE),
             0x2B => self.execute_dec16(HL),
-            0x3B => self.sp = self.sp.wrapping_sub(1),
+            0x3B => self.regs.write(SP, self.regs.read(SP).wrapping_sub(1)),
 
             0x09 => self.execute_add16(memory, BC),
             0x19 => self.execute_add16(memory, DE),
@@ -820,8 +807,8 @@ impl Cpu {
         // This routine should take 5 machine cycles
         self.ime = false;
         memory.cpu_write(IF_ADDR, set_bit(memory.cpu_read(IF_ADDR), interrupt_no, false));
-        self.sp -= 2;
-        Self::write_mem_u16(memory, self.sp, self.pc);
+        self.regs.write(SP, self.regs.read(SP) - 2);
+        Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
         self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
     }
 
@@ -1250,11 +1237,11 @@ impl Cpu {
         self.write_oper(memory, dst, val);
     }
 
-    // fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
-    // Self: Operand16<D> + Operand16<S> {
-    //     let val = self.read16(memory, src);
-    //     self.write16(memory, dst, val);
-    // }
+    fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
+    Self: Operand16<D> + Operand16<S> {
+        let val = self.read16(memory, src);
+        self.write16(memory, dst, val);
+    }
 
     fn execute_jr(&mut self, memory: &Memory) {
         let offset = self.read_oper(memory, Immediate8) as i8;
@@ -1291,8 +1278,8 @@ impl Cpu {
 
     fn execute_call(&mut self, memory: &mut Memory) {
         let addr = self.read16(memory, Immediate16);
-        self.sp -= 2;
-        Self::write_mem_u16(memory, self.sp, self.pc);
+        self.regs.write(SP, self.regs.read(SP) - 2);
+        Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
         self.pc = addr;
     }
 
@@ -1300,8 +1287,8 @@ impl Cpu {
         let addr = self.read16(memory, Immediate16);
 
         if self.eval_condition(condition) {
-            self.sp -= 2;
-            Self::write_mem_u16(memory, self.sp, self.pc);
+            self.regs.write(SP, self.regs.read(SP) - 2);
+            Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
             self.pc = addr;
             self.current_instruction.cycles.get_extra_cycles()
         } else {
@@ -1310,14 +1297,14 @@ impl Cpu {
     }
 
     fn execute_ret(&mut self, memory: &Memory) {
-        self.pc = Self::read_mem_u16(memory, self.sp);
-        self.sp += 2;
+        self.pc = Self::read_mem_u16(memory, self.regs.read(SP));
+        self.regs.write(SP, self.regs.read(SP) + 2);
     }
 
     fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         if self.eval_condition(condition) {
-            self.pc = Self::read_mem_u16(memory, self.sp);
-            self.sp += 2;
+            self.pc = Self::read_mem_u16(memory, self.regs.read(SP));
+            self.regs.write(SP, self.regs.read(SP) + 2);
             self.current_instruction.cycles.get_extra_cycles()
         } else {
             0
@@ -1325,26 +1312,26 @@ impl Cpu {
     }
 
     fn execute_rst(&mut self, memory: &mut Memory, addr: u16) {
-        self.sp -= 2;
-        Self::write_mem_u16(memory, self.sp, self.pc);
+        self.regs.write(SP, self.regs.read(SP) - 2);
+        Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
         self.pc = addr;
     }
 
     fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
-        self.sp -= 2;
-        Self::write_mem_u16(memory, self.sp, self.regs.read(index));
+        self.regs.write(SP, self.regs.read(SP) - 2);
+        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(index));
     }
 
     fn execute_pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
-        let nn = Self::read_mem_u16(memory, self.sp);
+        let nn = Self::read_mem_u16(memory, self.regs.read(SP));
         self.regs.write(index, nn);
-        self.sp += 2;
+        self.regs.write(SP, self.regs.read(SP) + 2);
     }
 
     fn sum_sp_n(&mut self, n: u8) -> (u16, Flags) {
         // n is a signed value
         let n = n as i8;
-        let sp = self.sp as i32;
+        let sp = self.regs.read(SP) as i32;
 
         let result = sp + (n as i32);
         let (half_carry, carry) = if n < 0 {

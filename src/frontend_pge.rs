@@ -4,7 +4,7 @@ use std::io::Write;
 
 use core::ppu::Ppu;
 use core::registers::RegisterIndex::*;
-use core::registers::TwoRegisterIndex::HL;
+use core::registers::TwoRegisterIndex::{HL, SP};
 
 use core::emulator::{Emulator, DEBUG};
 
@@ -170,7 +170,7 @@ impl PgeState {
         pge.draw_string(x + 6 * cx, y + 7 * cy, "C", c_color, scale);
 
         pge.draw_string(x, y + 9 * cy, &format!("PC: {:04X}", self.emulator.cpu.pc), &pge::WHITE, scale);
-        pge.draw_string(x, y + 10 * cy, &format!("SP: {:04X}", self.emulator.cpu.sp), &pge::WHITE, scale);
+        pge.draw_string(x, y + 10 * cy, &format!("SP: {:04X}", self.emulator.cpu.regs.read(SP)), &pge::WHITE, scale);
 
         pge.draw_string(x, y + 12 * cy, &format!("CYCLES: {}", self.cycles), &pge::WHITE, scale);
 
