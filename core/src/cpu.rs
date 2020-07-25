@@ -42,7 +42,8 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
     current_new_instruction: Option<NewInstruction>,
     instruction_registry: InstructionRegistry,
-    temp_register: u8,
+    low_temp_register: u8,
+    high_temp_register: u8,
 }
 
 enum Condition { NZ, Z, NC, C }
@@ -261,7 +262,8 @@ impl Cpu {
             current_instruction: &INSTRUCTIONS[0],
             current_new_instruction: None,
             instruction_registry: InstructionRegistry::new(),
-            temp_register: 0,
+            low_temp_register: 0,
+            high_temp_register: 0,
         }
     }
 
@@ -278,27 +280,6 @@ impl Cpu {
         }
 
         if !self.halted {
-            if self.current_new_instruction.is_some() {
-                match self.current_new_instruction.as_mut().unwrap().next_micro() {
-                    Some(micro_instruction) => {
-                        self.execute_micro(memory, &micro_instruction);
-                        // TODO: Clean up!
-                        if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
-                            self.current_new_instruction = None;
-
-                            if micro_instruction.has_memory_access() {
-                                // Add an extra cycle to simulate fetching the next instruction, as
-                                // it already has a memory access in the current micro instruction.
-                                // Will be removed once all instructions follow the new format.
-                                self.remaining_cycles += 1;
-                            }
-                        }
-                    },
-                    // TODO: Clean up!
-                    None => panic!(),
-                }
-            }
-
             if self.remaining_cycles == 0 {
                 let interrupt_was_serviced = self.check_and_handle_interrupts(memory);
 
@@ -328,6 +309,27 @@ impl Cpu {
                 }
             }
 
+            if self.current_new_instruction.is_some() {
+                match self.current_new_instruction.as_mut().unwrap().next_micro() {
+                    Some(micro_instruction) => {
+                        self.execute_micro(memory, &micro_instruction);
+                        // TODO: Clean up!
+                        if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
+                            self.current_new_instruction = None;
+
+                            if micro_instruction.has_memory_access() {
+                                // Add an extra cycle to simulate fetching the next instruction, as
+                                // it already has a memory access in the current micro instruction.
+                                // Will be removed once all instructions follow the new format.
+                                self.remaining_cycles += 1;
+                            }
+                        }
+                    },
+                    // TODO: Clean up!
+                    None => panic!(),
+                }
+            }
+
             self.remaining_cycles -= 1;
         }
 
@@ -341,7 +343,20 @@ impl Cpu {
                 MemoryOperation::Read(address_source, mem_reg) => {
                     let val = match address_source {
                         AddressSource::Immediate => self.read_oper(memory, Immediate8),
+                        AddressSource::HighPage(src_reg) => {
+                            let addr_low_byte = match src_reg {
+                                MemoryRegister::Temp => self.low_temp_register,
+                                MemoryRegister::C => self.regs[C],
+                                _ => panic!(),
+                            };
+
+                            memory.cpu_read(0xFF00 | addr_low_byte as u16)
+                        },
                         AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
+                        AddressSource::Temp16 => {
+                            let addr = (self.high_temp_register as u16) << 8 | self.low_temp_register as u16;
+                            memory.cpu_read(addr)
+                        },
                     };
                     match mem_reg {
                         MemoryRegister::B => self.regs[B] = val,
@@ -351,15 +366,27 @@ impl Cpu {
                         MemoryRegister::H => self.regs[H] = val,
                         MemoryRegister::L => self.regs[L] = val,
                         MemoryRegister::A => self.regs[A] = val,
-                        MemoryRegister::Temp => self.temp_register = val,
+                        MemoryRegister::Temp => self.low_temp_register = val,
+                        MemoryRegister::HighTemp => self.high_temp_register = val,
                         MemoryRegister::F | MemoryRegister::PC => panic!(),
                     };
                 },
                 MemoryOperation::Write(address_source, mem_reg) => {
                     let addr = match address_source {
-                        // AddressSource::Immediate => self.pc,
                         AddressSource::Immediate => panic!(),
+                        AddressSource::HighPage(src_reg) => {
+                            let addr_low_byte = match src_reg {
+                                MemoryRegister::Temp => self.low_temp_register,
+                                MemoryRegister::C => self.regs[C],
+                                _ => panic!(),
+                            };
+
+                            0xFF00 | addr_low_byte as u16
+                        },
                         AddressSource::Reg(reg) => self.regs.read(reg),
+                        AddressSource::Temp16 => {
+                            (self.high_temp_register as u16) << 8 | self.low_temp_register as u16
+                        },
                     };
                     match mem_reg {
                         MemoryRegister::B => memory.cpu_write(addr, self.regs[B]),
@@ -369,7 +396,8 @@ impl Cpu {
                         MemoryRegister::H => memory.cpu_write(addr, self.regs[H]),
                         MemoryRegister::L => memory.cpu_write(addr, self.regs[L]),
                         MemoryRegister::A => memory.cpu_write(addr, self.regs[A]),
-                        MemoryRegister::Temp => memory.cpu_write(addr, self.temp_register),
+                        MemoryRegister::Temp => memory.cpu_write(addr, self.low_temp_register),
+                        MemoryRegister::HighTemp => memory.cpu_write(addr, self.high_temp_register),
                         MemoryRegister::F | MemoryRegister::PC => panic!(),
                     };
                 },
@@ -450,9 +478,9 @@ impl Cpu {
         match opcode {
             0x00 => (), // NOP
 
-            0x01 => self.execute_load16(memory, BC, Immediate16),
-            0x11 => self.execute_load16(memory, DE, Immediate16),
-            0x21 => self.execute_load16(memory, HL, Immediate16),
+            // 0x01 => self.execute_load16(memory, BC, Immediate16),
+            // 0x11 => self.execute_load16(memory, DE, Immediate16),
+            // 0x21 => self.execute_load16(memory, HL, Immediate16),
             0x31 => self.sp = self.read16(memory, Immediate16),
 
             // 0x02 => self.execute_load(memory, AddrReg16(BC), A),
@@ -472,14 +500,14 @@ impl Cpu {
 
             0x08 => self.write16(memory, Addr16, self.sp),
 
-            0xE0 => self.execute_load(memory, HighPageAddr, A),
-            0xF0 => self.execute_load(memory, A, HighPageAddr),
+            // 0xE0 => self.execute_load(memory, HighPageAddr, A),
+            // 0xF0 => self.execute_load(memory, A, HighPageAddr),
 
-            0xE2 => self.execute_load(memory, HighPageC, A),
-            0xF2 => self.execute_load(memory, A, HighPageC),
+            // 0xE2 => self.execute_load(memory, HighPageC, A),
+            // 0xF2 => self.execute_load(memory, A, HighPageC),
 
-            0xEA => self.execute_load(memory, Addr16, A),
-            0xFA => self.execute_load(memory, A, Addr16),
+            // 0xEA => self.execute_load(memory, Addr16, A),
+            // 0xFA => self.execute_load(memory, A, Addr16),
 
             0x22 => self.execute_load(memory, RegisterHLI, A),
             0x2A => self.execute_load(memory, A, RegisterHLI),
@@ -942,22 +970,22 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_load_reg_reg(&mut self, memory: &mut Memory, opcode: u8) {
-        let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-        ];
+    // fn execute_load_reg_reg(&mut self, memory: &mut Memory, opcode: u8) {
+    //     let order = [
+    //         Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+    //     ];
 
-        let opcode_index = opcode - 0x40;
-        let dst_index = order[(opcode_index / 0x08) as usize];
-        let src_index = order[(opcode_index % 0x08) as usize];
+    //     let opcode_index = opcode - 0x40;
+    //     let dst_index = order[(opcode_index / 0x08) as usize];
+    //     let src_index = order[(opcode_index % 0x08) as usize];
 
-        match (dst_index, src_index) {
-            (Some(reg), Some(reg1)) => self.execute_load(memory, reg, reg1),
-            (None, Some(reg)) => self.execute_load(memory, RegisterHL, reg),
-            (Some(reg), None) => self.execute_load(memory, reg, RegisterHL),
-            (None, None) => unreachable!(),
-        }
-    }
+    //     match (dst_index, src_index) {
+    //         (Some(reg), Some(reg1)) => self.execute_load(memory, reg, reg1),
+    //         (None, Some(reg)) => self.execute_load(memory, RegisterHL, reg),
+    //         (Some(reg), None) => self.execute_load(memory, reg, RegisterHL),
+    //         (None, None) => unreachable!(),
+    //     }
+    // }
 
     fn execute_add<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
@@ -1222,11 +1250,11 @@ impl Cpu {
         self.write_oper(memory, dst, val);
     }
 
-    fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
-    Self: Operand16<D> + Operand16<S> {
-        let val = self.read16(memory, src);
-        self.write16(memory, dst, val);
-    }
+    // fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
+    // Self: Operand16<D> + Operand16<S> {
+    //     let val = self.read16(memory, src);
+    //     self.write16(memory, dst, val);
+    // }
 
     fn execute_jr(&mut self, memory: &Memory) {
         let offset = self.read_oper(memory, Immediate8) as i8;
@@ -1496,7 +1524,7 @@ enum MemoryOperation {
 }
 
 #[derive(Debug, Copy, Clone)]
-enum MemoryRegister { A, F, B, C, D, E, H, L, PC, Temp }
+enum MemoryRegister { A, F, B, C, D, E, H, L, PC, Temp, HighTemp }
 
 impl std::convert::From<RegisterIndex> for MemoryRegister {
     fn from(reg: RegisterIndex) -> Self {
@@ -1521,7 +1549,9 @@ enum RegisterOperation {
 #[derive(Debug, Copy, Clone)]
 enum AddressSource {
     Immediate,
+    HighPage(MemoryRegister),
     Reg(TwoRegisterIndex),
+    Temp16,
 }
 
 struct InstructionRegistry {
@@ -1531,6 +1561,10 @@ struct InstructionRegistry {
 impl InstructionRegistry {
     fn new() -> Self {
         let mut instruction_map = std::collections::HashMap::new();
+
+        instruction_map.insert(0x01, build_load_rr_addr16_instruction(BC));
+        instruction_map.insert(0x11, build_load_rr_addr16_instruction(DE));
+        instruction_map.insert(0x21, build_load_rr_addr16_instruction(HL));
 
         instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
         instruction_map.insert(0x12, build_load_reg16addr_reg_instruction(AddressSource::Reg(DE)));
@@ -1546,6 +1580,15 @@ impl InstructionRegistry {
         instruction_map.insert(0x2E, build_load_r_n_instruction(MemoryRegister::L));
         instruction_map.insert(0x36, build_load_rhl_n_instruction());
         instruction_map.insert(0x3E, build_load_r_n_instruction(MemoryRegister::A));
+
+        instruction_map.insert(0xE0, build_load_high_addr_a_instruction(MemoryRegister::A));
+        instruction_map.insert(0xF0, build_load_a_high_addr_instruction(MemoryRegister::A));
+
+        instruction_map.insert(0xE2, build_load_high_addr_c_a_instruction(MemoryRegister::A));
+        instruction_map.insert(0xF2, build_load_a_high_addr_c_instruction(MemoryRegister::A));
+
+        instruction_map.insert(0xEA, build_load_addr16_a_instruction(MemoryRegister::A));
+        instruction_map.insert(0xFA, build_load_a_addr16_instruction(MemoryRegister::A));
 
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
@@ -1639,6 +1682,106 @@ fn build_load_rhl_r_instruction(reg: MemoryRegister) -> NewInstruction {
         .push(
             MicroInstruction {
                 memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_high_addr_a_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::HighPage(MemoryRegister::Temp), reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_a_high_addr_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::HighPage(MemoryRegister::Temp), reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_high_addr_c_a_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::HighPage(MemoryRegister::C), reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_a_high_addr_c_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::HighPage(MemoryRegister::C), reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_addr16_a_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::HighTemp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::Temp16, reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_a_addr16_instruction(reg: MemoryRegister) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::Temp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, MemoryRegister::HighTemp)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Temp16, reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_rr_addr16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+    let (high_reg, low_reg) = reg16.split_index();
+
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, low_reg.into())),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, high_reg.into())),
                 register_operation: None,
         })
 }

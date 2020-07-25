@@ -39,7 +39,7 @@ pub struct Flags {
 }
 
 impl TwoRegisterIndex {
-    fn split_index(&self) -> (RegisterIndex, RegisterIndex) {
+    pub fn split_index(&self) -> (RegisterIndex, RegisterIndex) {
         match self {
             TwoRegisterIndex::AF => (A, F),
             TwoRegisterIndex::BC => (B, C),
