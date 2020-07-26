@@ -52,6 +52,8 @@ pub enum MemoryOperation {
 pub enum RegisterOperation {
     Load(RegisterIndex, RegisterIndex),
     Load16(TwoRegisterIndex, TwoRegisterIndex),
+    IncReg16(TwoRegisterIndex),
+    DecReg16(TwoRegisterIndex),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -102,6 +104,11 @@ impl InstructionRegistry {
         instruction_map.insert(0xFA, build_load_a_addr16_instruction(A));
 
         instruction_map.insert(0xF9, build_load_rr_rr_instruction(SP, HL));
+
+        instruction_map.insert(0x22, build_load_rhl_inc_r_instruction(A));
+        instruction_map.insert(0x2A, build_load_r_rhl_inc_instruction(A));
+        instruction_map.insert(0x32, build_load_rhl_dec_r_instruction(A));
+        instruction_map.insert(0x3A, build_load_r_rhl_dec_instruction(A));
 
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
@@ -205,6 +212,62 @@ fn build_load_rhl_r_instruction(reg: RegisterIndex) -> NewInstruction {
             MicroInstruction {
                 memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
                 register_operation: None,
+        })
+}
+
+fn build_load_rhl_inc_r_instruction(reg: RegisterIndex) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: None,
+                register_operation: Some(RegisterOperation::IncReg16(HL)),
+        })
+}
+
+fn build_load_r_rhl_inc_instruction(reg: RegisterIndex) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Reg(HL), reg)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: None,
+                register_operation: Some(RegisterOperation::IncReg16(HL)),
+        })
+}
+
+fn build_load_rhl_dec_r_instruction(reg: RegisterIndex) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: None,
+                register_operation: Some(RegisterOperation::DecReg16(HL)),
+        })
+}
+
+fn build_load_r_rhl_dec_instruction(reg: RegisterIndex) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Reg(HL), reg)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: None,
+                register_operation: Some(RegisterOperation::DecReg16(HL)),
         })
 }
 

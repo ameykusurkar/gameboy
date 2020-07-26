@@ -368,7 +368,13 @@ impl Cpu {
                 }
                 RegisterOperation::Load16(dst, src) => {
                     self.regs.write(dst, self.regs.read(src));
-                }
+                },
+                RegisterOperation::IncReg16(reg) => {
+                    self.regs.write(reg, self.regs.read(reg).wrapping_add(1));
+                },
+                RegisterOperation::DecReg16(reg) => {
+                    self.regs.write(reg, self.regs.read(reg).wrapping_sub(1));
+                },
             }
         });
     }
@@ -468,10 +474,10 @@ impl Cpu {
             // 0xEA => self.execute_load(memory, Addr16, A),
             // 0xFA => self.execute_load(memory, A, Addr16),
 
-            0x22 => self.execute_load(memory, RegisterHLI, A),
-            0x2A => self.execute_load(memory, A, RegisterHLI),
-            0x32 => self.execute_load(memory, RegisterHLD, A),
-            0x3A => self.execute_load(memory, A, RegisterHLD),
+            // 0x22 => self.execute_load(memory, RegisterHLI, A),
+            // 0x2A => self.execute_load(memory, A, RegisterHLI),
+            // 0x32 => self.execute_load(memory, RegisterHLD, A),
+            // 0x3A => self.execute_load(memory, A, RegisterHLD),
 
             // 0xF9 => self.regs.write(SP, self.regs.read(HL)),
 
@@ -1203,11 +1209,11 @@ impl Cpu {
         self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
     }
 
-    fn execute_load<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
-    Self: Operand8<D> + Operand8<S> {
-        let val = self.read_oper(memory, src);
-        self.write_oper(memory, dst, val);
-    }
+    // fn execute_load<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
+    // Self: Operand8<D> + Operand8<S> {
+    //     let val = self.read_oper(memory, src);
+    //     self.write_oper(memory, dst, val);
+    // }
 
     // fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
     // Self: Operand16<D> + Operand16<S> {
