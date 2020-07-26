@@ -353,9 +353,11 @@ impl Cpu {
                         MemoryRegister::H => self.regs[H] = val,
                         MemoryRegister::L => self.regs[L] = val,
                         MemoryRegister::A => self.regs[A] = val,
+                        MemoryRegister::SPHigh => self.regs[SPHigh] = val,
+                        MemoryRegister::SPLow => self.regs[SPLow] = val,
                         MemoryRegister::Temp => self.low_temp_register = val,
                         MemoryRegister::HighTemp => self.high_temp_register = val,
-                        MemoryRegister::F | MemoryRegister::PC => panic!(),
+                        MemoryRegister::F => panic!(),
                     };
                 },
                 MemoryOperation::Write(address_source, mem_reg) => {
@@ -383,9 +385,11 @@ impl Cpu {
                         MemoryRegister::H => memory.cpu_write(addr, self.regs[H]),
                         MemoryRegister::L => memory.cpu_write(addr, self.regs[L]),
                         MemoryRegister::A => memory.cpu_write(addr, self.regs[A]),
+                        MemoryRegister::SPHigh => memory.cpu_write(addr, self.regs[SPHigh]),
+                        MemoryRegister::SPLow => memory.cpu_write(addr, self.regs[SPLow]),
                         MemoryRegister::Temp => memory.cpu_write(addr, self.low_temp_register),
                         MemoryRegister::HighTemp => memory.cpu_write(addr, self.high_temp_register),
-                        MemoryRegister::F | MemoryRegister::PC => panic!(),
+                        MemoryRegister::F => panic!(),
                     };
                 },
             }
@@ -468,7 +472,7 @@ impl Cpu {
             // 0x01 => self.execute_load16(memory, BC, Immediate16),
             // 0x11 => self.execute_load16(memory, DE, Immediate16),
             // 0x21 => self.execute_load16(memory, HL, Immediate16),
-            0x31 => self.execute_load16(memory, SP, Immediate16),
+            // 0x31 => self.execute_load16(memory, SP, Immediate16),
 
             // 0x02 => self.execute_load(memory, AddrReg16(BC), A),
             // 0x12 => self.execute_load(memory, AddrReg16(DE), A),
@@ -1237,11 +1241,11 @@ impl Cpu {
         self.write_oper(memory, dst, val);
     }
 
-    fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
-    Self: Operand16<D> + Operand16<S> {
-        let val = self.read16(memory, src);
-        self.write16(memory, dst, val);
-    }
+    // fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
+    // Self: Operand16<D> + Operand16<S> {
+    //     let val = self.read16(memory, src);
+    //     self.write16(memory, dst, val);
+    // }
 
     fn execute_jr(&mut self, memory: &Memory) {
         let offset = self.read_oper(memory, Immediate8) as i8;
@@ -1511,7 +1515,7 @@ enum MemoryOperation {
 }
 
 #[derive(Debug, Copy, Clone)]
-enum MemoryRegister { A, F, B, C, D, E, H, L, PC, Temp, HighTemp }
+enum MemoryRegister { A, F, B, C, D, E, H, L, Temp, HighTemp, SPHigh, SPLow }
 
 impl std::convert::From<RegisterIndex> for MemoryRegister {
     fn from(reg: RegisterIndex) -> Self {
@@ -1524,6 +1528,8 @@ impl std::convert::From<RegisterIndex> for MemoryRegister {
             L => MemoryRegister::L,
             A => MemoryRegister::A,
             F => MemoryRegister::F,
+            SPHigh => MemoryRegister::SPHigh,
+            SPLow => MemoryRegister::SPLow,
         }
     }
 }
@@ -1552,6 +1558,7 @@ impl InstructionRegistry {
         instruction_map.insert(0x01, build_load_rr_addr16_instruction(BC));
         instruction_map.insert(0x11, build_load_rr_addr16_instruction(DE));
         instruction_map.insert(0x21, build_load_rr_addr16_instruction(HL));
+        instruction_map.insert(0x31, build_load_rr_addr16_instruction(SP));
 
         instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
         instruction_map.insert(0x12, build_load_reg16addr_reg_instruction(AddressSource::Reg(DE)));

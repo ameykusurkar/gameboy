@@ -12,7 +12,8 @@ pub struct Registers {
     b: u8, c: u8,
     d: u8, e: u8,
     h: u8, l: u8,
-    sp: u16,
+
+    sp_high: u8, sp_low: u8,
     // pc: u16,
 }
 
@@ -22,6 +23,7 @@ pub enum RegisterIndex {
     B, C,
     D, E,
     H, L,
+    SPHigh, SPLow,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -49,38 +51,29 @@ impl TwoRegisterIndex {
             TwoRegisterIndex::BC => (B, C),
             TwoRegisterIndex::DE => (D, E),
             TwoRegisterIndex::HL => (H, L),
+            TwoRegisterIndex::SP => (SPHigh, SPLow),
             // TwoRegisterIndex::SP | TwoRegisterIndex::PC => {
-            TwoRegisterIndex::SP => {
-                unreachable!("Cannot split index: {:?}", self);
-            },
+            // TwoRegisterIndex::SP => {
+            //     unreachable!("Cannot split index: {:?}", self);
+            // },
         }
     }
 }
 
 impl Registers {
     pub fn write(&mut self, index: TwoRegisterIndex, val: u16) {
-        match index {
-            TwoRegisterIndex::SP => self.sp = val,
-            _ => {
-                let (high, low) = index.split_index();
-                self[high] = ((val & 0xFF00) >> 8) as u8;
-                match low {
-                    // Bits 0-3 of the flags register are unused and always stay zeroed
-                    F => self[low] = (val & 0x00F0) as u8,
-                    _ => self[low] = (val & 0x00FF) as u8,
-                };
-            },
-        }
+        let (high, low) = index.split_index();
+        self[high] = ((val & 0xFF00) >> 8) as u8;
+        match low {
+            // Bits 0-3 of the flags register are unused and always stay zeroed
+            F => self[low] = (val & 0x00F0) as u8,
+            _ => self[low] = (val & 0x00FF) as u8,
+        };
     }
 
     pub fn read(&self, index: TwoRegisterIndex) -> u16 {
-        match index {
-            TwoRegisterIndex::SP => self.sp,
-            _ => {
-                let (high, low) = index.split_index();
-                ((self[high] as u16) << 8) | self[low] as u16
-            },
-        }
+        let (high, low) = index.split_index();
+        ((self[high] as u16) << 8) | self[low] as u16
     }
 
     pub fn write_flags(&mut self, flags: Flags) {
@@ -108,6 +101,9 @@ impl std::ops::Index<RegisterIndex> for Registers {
 
             RegisterIndex::H => &self.h,
             RegisterIndex::L => &self.l,
+
+            RegisterIndex::SPHigh => &self.sp_high,
+            RegisterIndex::SPLow => &self.sp_low,
         }
     }
 }
@@ -126,6 +122,9 @@ impl std::ops::IndexMut<RegisterIndex> for Registers {
 
             RegisterIndex::H => &mut self.h,
             RegisterIndex::L => &mut self.l,
+
+            RegisterIndex::SPHigh => &mut self.sp_high,
+            RegisterIndex::SPLow => &mut self.sp_low,
         }
     }
 }
