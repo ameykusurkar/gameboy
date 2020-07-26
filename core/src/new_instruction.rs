@@ -57,6 +57,7 @@ pub enum AddressSource {
     Immediate,
     HighPage(RegisterIndex),
     Reg(TwoRegisterIndex),
+    RegWithOffset(TwoRegisterIndex, u16),
 }
 
 pub struct InstructionRegistry {
@@ -71,6 +72,8 @@ impl InstructionRegistry {
         instruction_map.insert(0x11, build_load_rr_addr16_instruction(DE));
         instruction_map.insert(0x21, build_load_rr_addr16_instruction(HL));
         instruction_map.insert(0x31, build_load_rr_addr16_instruction(SP));
+
+        instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
         instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
         instruction_map.insert(0x12, build_load_reg16addr_reg_instruction(AddressSource::Reg(DE)));
@@ -288,6 +291,30 @@ fn build_load_rr_addr16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
         .push(
             MicroInstruction {
                 memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, high_reg)),
+                register_operation: None,
+        })
+}
+
+fn build_load_addr16_sp_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, TempLow)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Immediate, TempHigh)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(Temp16), SPLow)),
+                register_operation: None,
+        })
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Write(AddressSource::RegWithOffset(Temp16, 1), SPHigh)),
                 register_operation: None,
         })
 }

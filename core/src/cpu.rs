@@ -334,6 +334,10 @@ impl Cpu {
                             memory.cpu_read(0xFF00 | self.regs[src_reg] as u16)
                         },
                         AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
+                        AddressSource::RegWithOffset(reg, offset) => {
+                            let addr = self.regs.read(reg) + offset;
+                            memory.cpu_read(addr)
+                        },
                     };
 
                     self.regs[mem_reg] = val;
@@ -345,6 +349,9 @@ impl Cpu {
                             0xFF00 | self.regs[src_reg] as u16
                         },
                         AddressSource::Reg(reg) => self.regs.read(reg),
+                        AddressSource::RegWithOffset(reg, offset) => {
+                            self.regs.read(reg) + offset
+                        },
                     };
 
                     memory.cpu_write(addr, self.regs[mem_reg]);
@@ -446,7 +453,7 @@ impl Cpu {
             // 0x0A => self.execute_load(memory, A, AddrReg16(BC)),
             // 0x1A => self.execute_load(memory, A, AddrReg16(DE)),
 
-            0x08 => self.write16(memory, Addr16, self.regs.read(SP)),
+            // 0x08 => self.write16(memory, Addr16, self.regs.read(SP)),
 
             // 0xE0 => self.execute_load(memory, HighPageAddr, A),
             // 0xF0 => self.execute_load(memory, A, HighPageAddr),
