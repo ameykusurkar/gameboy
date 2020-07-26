@@ -41,8 +41,6 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
     current_new_instruction: Option<NewInstruction>,
     instruction_registry: InstructionRegistry,
-    low_temp_register: u8,
-    high_temp_register: u8,
 }
 
 enum Condition { NZ, Z, NC, C }
@@ -249,8 +247,6 @@ impl Cpu {
             current_instruction: &INSTRUCTIONS[0],
             current_new_instruction: None,
             instruction_registry: InstructionRegistry::new(),
-            low_temp_register: 0,
-            high_temp_register: 0,
         }
     }
 
@@ -332,7 +328,7 @@ impl Cpu {
                         AddressSource::Immediate => self.read_oper(memory, Immediate8),
                         AddressSource::HighPage(src_reg) => {
                             let addr_low_byte = match src_reg {
-                                MemoryRegister::Temp => self.low_temp_register,
+                                MemoryRegister::Temp => self.regs[TempLow],
                                 MemoryRegister::C => self.regs[C],
                                 _ => panic!(),
                             };
@@ -340,10 +336,6 @@ impl Cpu {
                             memory.cpu_read(0xFF00 | addr_low_byte as u16)
                         },
                         AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
-                        AddressSource::Temp16 => {
-                            let addr = (self.high_temp_register as u16) << 8 | self.low_temp_register as u16;
-                            memory.cpu_read(addr)
-                        },
                     };
                     match mem_reg {
                         MemoryRegister::B => self.regs[B] = val,
@@ -355,8 +347,8 @@ impl Cpu {
                         MemoryRegister::A => self.regs[A] = val,
                         MemoryRegister::SPHigh => self.regs[SPHigh] = val,
                         MemoryRegister::SPLow => self.regs[SPLow] = val,
-                        MemoryRegister::Temp => self.low_temp_register = val,
-                        MemoryRegister::HighTemp => self.high_temp_register = val,
+                        MemoryRegister::Temp => self.regs[TempLow] = val,
+                        MemoryRegister::HighTemp => self.regs[TempHigh] = val,
                         MemoryRegister::F => panic!(),
                     };
                 },
@@ -365,7 +357,7 @@ impl Cpu {
                         AddressSource::Immediate => panic!(),
                         AddressSource::HighPage(src_reg) => {
                             let addr_low_byte = match src_reg {
-                                MemoryRegister::Temp => self.low_temp_register,
+                                MemoryRegister::Temp => self.regs[TempLow],
                                 MemoryRegister::C => self.regs[C],
                                 _ => panic!(),
                             };
@@ -373,9 +365,6 @@ impl Cpu {
                             0xFF00 | addr_low_byte as u16
                         },
                         AddressSource::Reg(reg) => self.regs.read(reg),
-                        AddressSource::Temp16 => {
-                            (self.high_temp_register as u16) << 8 | self.low_temp_register as u16
-                        },
                     };
                     match mem_reg {
                         MemoryRegister::B => memory.cpu_write(addr, self.regs[B]),
@@ -387,8 +376,8 @@ impl Cpu {
                         MemoryRegister::A => memory.cpu_write(addr, self.regs[A]),
                         MemoryRegister::SPHigh => memory.cpu_write(addr, self.regs[SPHigh]),
                         MemoryRegister::SPLow => memory.cpu_write(addr, self.regs[SPLow]),
-                        MemoryRegister::Temp => memory.cpu_write(addr, self.low_temp_register),
-                        MemoryRegister::HighTemp => memory.cpu_write(addr, self.high_temp_register),
+                        MemoryRegister::Temp => memory.cpu_write(addr, self.regs[TempLow]),
+                        MemoryRegister::HighTemp => memory.cpu_write(addr, self.regs[TempHigh]),
                         MemoryRegister::F => panic!(),
                     };
                 },
@@ -1530,6 +1519,8 @@ impl std::convert::From<RegisterIndex> for MemoryRegister {
             F => MemoryRegister::F,
             SPHigh => MemoryRegister::SPHigh,
             SPLow => MemoryRegister::SPLow,
+            TempHigh => MemoryRegister::HighTemp,
+            TempLow => MemoryRegister::Temp,
         }
     }
 }
@@ -1544,7 +1535,6 @@ enum AddressSource {
     Immediate,
     HighPage(MemoryRegister),
     Reg(TwoRegisterIndex),
-    Temp16,
 }
 
 struct InstructionRegistry {
@@ -1740,7 +1730,7 @@ fn build_load_addr16_a_instruction(reg: MemoryRegister) -> NewInstruction {
         })
         .push(
             MicroInstruction {
-                memory_operation: Some(MemoryOperation::Write(AddressSource::Temp16, reg)),
+                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(Temp16), reg)),
                 register_operation: None,
         })
 }
@@ -1759,7 +1749,7 @@ fn build_load_a_addr16_instruction(reg: MemoryRegister) -> NewInstruction {
         })
         .push(
             MicroInstruction {
-                memory_operation: Some(MemoryOperation::Read(AddressSource::Temp16, reg)),
+                memory_operation: Some(MemoryOperation::Read(AddressSource::Reg(Temp16), reg)),
                 register_operation: None,
         })
 }

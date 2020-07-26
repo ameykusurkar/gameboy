@@ -14,7 +14,7 @@ pub struct Registers {
     h: u8, l: u8,
 
     sp_high: u8, sp_low: u8,
-    // pc: u16,
+    temp_high: u8, temp_low: u8,
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -24,6 +24,7 @@ pub enum RegisterIndex {
     D, E,
     H, L,
     SPHigh, SPLow,
+    TempHigh, TempLow,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -33,7 +34,7 @@ pub enum TwoRegisterIndex {
     DE,
     HL,
     SP,
-    // PC,
+    Temp16,
 }
 
 #[derive(Default, Copy, Clone)]
@@ -52,10 +53,7 @@ impl TwoRegisterIndex {
             TwoRegisterIndex::DE => (D, E),
             TwoRegisterIndex::HL => (H, L),
             TwoRegisterIndex::SP => (SPHigh, SPLow),
-            // TwoRegisterIndex::SP | TwoRegisterIndex::PC => {
-            // TwoRegisterIndex::SP => {
-            //     unreachable!("Cannot split index: {:?}", self);
-            // },
+            TwoRegisterIndex::Temp16 => (TempHigh, TempLow),
         }
     }
 }
@@ -104,6 +102,9 @@ impl std::ops::Index<RegisterIndex> for Registers {
 
             RegisterIndex::SPHigh => &self.sp_high,
             RegisterIndex::SPLow => &self.sp_low,
+
+            RegisterIndex::TempHigh => &self.temp_high,
+            RegisterIndex::TempLow => &self.temp_low,
         }
     }
 }
@@ -125,6 +126,9 @@ impl std::ops::IndexMut<RegisterIndex> for Registers {
 
             RegisterIndex::SPHigh => &mut self.sp_high,
             RegisterIndex::SPLow => &mut self.sp_low,
+
+            RegisterIndex::TempHigh => &mut self.temp_high,
+            RegisterIndex::TempLow => &mut self.temp_low,
         }
     }
 }
