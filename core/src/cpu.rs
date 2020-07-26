@@ -356,6 +356,7 @@ impl Cpu {
 
                     memory.cpu_write(addr, self.regs[mem_reg]);
                 },
+                MemoryOperation::Noop => (),
             }
         });
 
@@ -364,6 +365,9 @@ impl Cpu {
                 RegisterOperation::Load(dst, src) => {
                     let val = self.read_oper(memory, src);
                     self.write_oper(memory, dst, val);
+                }
+                RegisterOperation::Load16(dst, src) => {
+                    self.regs.write(dst, self.regs.read(src));
                 }
             }
         });
@@ -469,7 +473,7 @@ impl Cpu {
             0x32 => self.execute_load(memory, RegisterHLD, A),
             0x3A => self.execute_load(memory, A, RegisterHLD),
 
-            0xF9 => self.regs.write(SP, self.regs.read(HL)),
+            // 0xF9 => self.regs.write(SP, self.regs.read(HL)),
 
             // 0x40..=0x75 | 0x77..=0x7F => {
             //     self.execute_load_reg_reg(memory, opcode);

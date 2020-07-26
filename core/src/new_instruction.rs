@@ -43,6 +43,7 @@ impl MicroInstruction {
 
 #[derive(Debug, Copy, Clone)]
 pub enum MemoryOperation {
+    Noop,
     Read(AddressSource, RegisterIndex),
     Write(AddressSource, RegisterIndex),
 }
@@ -50,6 +51,7 @@ pub enum MemoryOperation {
 #[derive(Debug, Copy, Clone)]
 pub enum RegisterOperation {
     Load(RegisterIndex, RegisterIndex),
+    Load16(TwoRegisterIndex, TwoRegisterIndex),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -98,6 +100,8 @@ impl InstructionRegistry {
 
         instruction_map.insert(0xEA, build_load_addr16_a_instruction(A));
         instruction_map.insert(0xFA, build_load_a_addr16_instruction(A));
+
+        instruction_map.insert(0xF9, build_load_rr_rr_instruction(SP, HL));
 
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
@@ -174,6 +178,15 @@ fn build_load_r_r_instruction(dst_reg: RegisterIndex, src_reg: RegisterIndex) ->
             MicroInstruction {
                 memory_operation: None,
                 register_operation: Some(RegisterOperation::Load(dst_reg, src_reg)),
+        })
+}
+
+fn build_load_rr_rr_instruction(dst_reg: TwoRegisterIndex, src_reg: TwoRegisterIndex) -> NewInstruction {
+    NewInstruction::new()
+        .push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Noop),
+                register_operation: Some(RegisterOperation::Load16(dst_reg, src_reg)),
         })
 }
 
