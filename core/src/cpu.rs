@@ -357,9 +357,9 @@ impl Cpu {
             }
         });
 
-        if micro_instruction.enable_interrupts {
-            self.ime = true;
-        }
+        micro_instruction.set_interrupts.map(|val| {
+            self.ime = val;
+        });
 
         micro_instruction.check_condition.map_or(true, |condition| {
             self.eval_condition(condition)
@@ -452,8 +452,6 @@ impl Cpu {
             0xF8 => self.execute_add_sp_imm8(memory, HL),
 
             0xCB => self.execute_prefixed_instruction(memory),
-            0xF3 => self.ime = false,
-            0xFB => self.ime = true,
             0x76 => self.halted = true,
 
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),

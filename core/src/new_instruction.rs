@@ -33,16 +33,24 @@ impl NewInstruction {
         self.micro_instructions.pop_front()
     }
 
-    fn and_enable_interrupts(mut self) -> Self {
+    fn set_interrupt_value(mut self, val: bool) -> Self {
         match self.micro_instructions.pop_back() {
             Some(mut micro_instruction) => {
-                micro_instruction.enable_interrupts = true;
+                micro_instruction.set_interrupts = Some(val);
                 self.micro_instructions.push_back(micro_instruction);
             },
             None => unimplemented!("No micro instruction found to enable interrupts!"),
         }
 
         self
+    }
+
+    fn and_enable_interrupts(self) -> Self {
+        self.set_interrupt_value(true)
+    }
+
+    fn and_disable_interrupts(self) -> Self {
+        self.set_interrupt_value(false)
     }
 
     fn append_register_operation(mut self, reg_op: RegisterOperation) -> Self {
@@ -153,7 +161,7 @@ pub struct MicroInstruction {
     pub memory_operation: Option<MemoryOperation>,
     pub register_operation: Option<RegisterOperation>,
     pub check_condition: Option<Condition>,
-    pub enable_interrupts: bool,
+    pub set_interrupts: Option<bool>,
 }
 
 impl MicroInstruction {
@@ -302,6 +310,9 @@ impl InstructionRegistry {
         instruction_map.insert(0xCC, build_conditional_call_instruction(Condition::Z));
         instruction_map.insert(0xD4, build_conditional_call_instruction(Condition::NC));
         instruction_map.insert(0xDC, build_conditional_call_instruction(Condition::C));
+
+        instruction_map.insert(0xF3, NewInstruction::new().empty().and_disable_interrupts());
+        instruction_map.insert(0xFB, NewInstruction::new().empty().and_enable_interrupts());
 
         for opcode in [0xC7, 0xD7, 0xE7, 0xF7, 0xCF, 0xDF, 0xEF, 0xFF].iter() {
             let addr = (opcode - 0xC7) as u16;
