@@ -46,7 +46,9 @@ pub struct Cpu {
     instruction_registry: InstructionRegistry,
 }
 
-enum Condition { NZ, Z, NC, C }
+#[derive(Debug, Clone, Copy)]
+pub enum Condition { NZ, Z, NC, C }
+
 trait ConditionEvaluate {
     fn eval_condition(&self, condition: Condition) -> bool;
 }
@@ -297,7 +299,13 @@ impl Cpu {
             if self.current_new_instruction.is_some() {
                 match self.current_new_instruction.as_mut().unwrap().next_micro() {
                     Some(micro_instruction) => {
-                        self.execute_micro(memory, &micro_instruction);
+                        let should_proceed = self.execute_micro(memory, &micro_instruction);
+
+                        if !should_proceed {
+                            self.current_new_instruction.as_mut().unwrap().complete();
+                            self.remaining_cycles = 1;
+                        }
+
                         // TODO: Clean up!
                         if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
                             self.current_new_instruction = None;
@@ -322,7 +330,7 @@ impl Cpu {
         self.update_timers(memory);
     }
 
-    fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: &MicroInstruction) {
+    fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: &MicroInstruction) -> bool {
         micro_instruction.memory_operation.map(|memory_op| {
             match memory_op {
                 MemoryOperation::Read(address_source, mem_reg) => {
@@ -378,8 +386,19 @@ impl Cpu {
                     let orig_val = self.regs.read(reg16) as i32;
                     self.regs.write(reg16, (orig_val + offset) as u16);
                 },
+                RegisterOperation::LoadRstAddress(addr) => {
+                    self.regs.write(PC, addr);
+                },
             }
         });
+
+        if micro_instruction.enable_interrupts {
+            self.ime = true;
+        }
+
+        micro_instruction.check_condition.map_or(true, |condition| {
+            self.eval_condition(condition)
+        })
     }
 
     fn fetch_instruction(&self, memory: &Memory, addr: u16) -> &'static Instruction<'static> {
@@ -437,7 +456,7 @@ impl Cpu {
     pub fn execute(&mut self, memory: &mut Memory) -> u32 {
         let opcode = self.read_oper(memory, Immediate8);
 
-        let mut extra_cycles = 0;
+        let extra_cycles = 0;
 
         if DEBUG {
             println!("{:#06x}: {}", self.regs.read(PC) - 1, self.build_instruction_repr(memory, self.regs.read(PC), self.current_instruction));
@@ -489,38 +508,38 @@ impl Cpu {
             // },
 
             // 0x18 => self.execute_jr(memory),
-            0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
-            0x28 => extra_cycles = self.execute_jr_cc(memory, Condition::Z),
-            0x30 => extra_cycles = self.execute_jr_cc(memory, Condition::NC),
-            0x38 => extra_cycles = self.execute_jr_cc(memory, Condition::C),
+            // 0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
+            // 0x28 => extra_cycles = self.execute_jr_cc(memory, Condition::Z),
+            // 0x30 => extra_cycles = self.execute_jr_cc(memory, Condition::NC),
+            // 0x38 => extra_cycles = self.execute_jr_cc(memory, Condition::C),
 
             // 0xC3 => self.execute_jp(memory),
-            0xC2 => extra_cycles = self.execute_jp_cc(memory, Condition::NZ),
-            0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
-            0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
-            0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
-            0xE9 => self.regs.write(PC, self.regs.read(HL)),
+            // 0xC2 => extra_cycles = self.execute_jp_cc(memory, Condition::NZ),
+            // 0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
+            // 0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
+            // 0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
+            // 0xE9 => self.regs.write(PC, self.regs.read(HL)),
 
             // 0xC9 => self.execute_ret(memory),
-            0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
-            0xC8 => extra_cycles = self.execute_ret_cc(memory, Condition::Z),
-            0xD0 => extra_cycles = self.execute_ret_cc(memory, Condition::NC),
-            0xD8 => extra_cycles = self.execute_ret_cc(memory, Condition::C),
-            0xD9 => {
-                self.ime = true;
-                self.execute_ret(memory);
-            },
+            // 0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
+            // 0xC8 => extra_cycles = self.execute_ret_cc(memory, Condition::Z),
+            // 0xD0 => extra_cycles = self.execute_ret_cc(memory, Condition::NC),
+            // 0xD8 => extra_cycles = self.execute_ret_cc(memory, Condition::C),
+            // 0xD9 => {
+            //     self.ime = true;
+            //     self.execute_ret(memory);
+            // },
 
             // 0xCD => self.execute_call(memory),
-            0xC4 => extra_cycles = self.execute_call_cc(memory, Condition::NZ),
-            0xCC => extra_cycles = self.execute_call_cc(memory, Condition::Z),
-            0xD4 => extra_cycles = self.execute_call_cc(memory, Condition::NC),
-            0xDC => extra_cycles = self.execute_call_cc(memory, Condition::C),
+            // 0xC4 => extra_cycles = self.execute_call_cc(memory, Condition::NZ),
+            // 0xCC => extra_cycles = self.execute_call_cc(memory, Condition::Z),
+            // 0xD4 => extra_cycles = self.execute_call_cc(memory, Condition::NC),
+            // 0xDC => extra_cycles = self.execute_call_cc(memory, Condition::C),
 
-            0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
-                let addr = (opcode - 0xC7) as u16;
-                self.execute_rst(memory, addr);
-            },
+            // 0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
+            //     let addr = (opcode - 0xC7) as u16;
+            //     self.execute_rst(memory, addr);
+            // },
 
             // 0xC1 => self.execute_pop(memory, BC),
             // 0xD1 => self.execute_pop(memory, DE),
@@ -1229,33 +1248,33 @@ impl Cpu {
     //     self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
     // }
 
-    fn execute_jr_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
-        // Offset is signed
-        let offset = self.read_oper(memory, Immediate8) as i8;
+    // fn execute_jr_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
+    //     // Offset is signed
+    //     let offset = self.read_oper(memory, Immediate8) as i8;
 
-        if self.eval_condition(condition) {
-            self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
-            self.current_instruction.cycles.get_extra_cycles()
-        } else {
-            0
-        }
-    }
+    //     if self.eval_condition(condition) {
+    //         self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
+    //         self.current_instruction.cycles.get_extra_cycles()
+    //     } else {
+    //         0
+    //     }
+    // }
 
     // fn execute_jp(&mut self, memory: &Memory) {
     //     let addr = self.read16(memory, Immediate16);
     //     self.regs.write(PC, addr);
     // }
 
-    fn execute_jp_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
-        let addr = self.read16(memory, Immediate16);
+    // fn execute_jp_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
+    //     let addr = self.read16(memory, Immediate16);
 
-        if self.eval_condition(condition) {
-            self.regs.write(PC, addr);
-            self.current_instruction.cycles.get_extra_cycles()
-        } else {
-            0
-        }
-    }
+    //     if self.eval_condition(condition) {
+    //         self.regs.write(PC, addr);
+    //         self.current_instruction.cycles.get_extra_cycles()
+    //     } else {
+    //         0
+    //     }
+    // }
 
     // fn execute_call(&mut self, memory: &mut Memory) {
     //     let addr = self.read16(memory, Immediate16);
@@ -1264,39 +1283,39 @@ impl Cpu {
     //     self.regs.write(PC, addr);
     // }
 
-    fn execute_call_cc(&mut self, memory: &mut Memory, condition: Condition) -> u32 {
-        let addr = self.read16(memory, Immediate16);
+    // fn execute_call_cc(&mut self, memory: &mut Memory, condition: Condition) -> u32 {
+    //     let addr = self.read16(memory, Immediate16);
 
-        if self.eval_condition(condition) {
-            self.regs.write(SP, self.regs.read(SP) - 2);
-            Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-            self.regs.write(PC, addr);
-            self.current_instruction.cycles.get_extra_cycles()
-        } else {
-            0
-        }
-    }
+    //     if self.eval_condition(condition) {
+    //         self.regs.write(SP, self.regs.read(SP) - 2);
+    //         Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+    //         self.regs.write(PC, addr);
+    //         self.current_instruction.cycles.get_extra_cycles()
+    //     } else {
+    //         0
+    //     }
+    // }
 
-    fn execute_ret(&mut self, memory: &Memory) {
-        self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
-        self.regs.write(SP, self.regs.read(SP).wrapping_add(2));
-    }
+    // fn execute_ret(&mut self, memory: &Memory) {
+    //     self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
+    //     self.regs.write(SP, self.regs.read(SP).wrapping_add(2));
+    // }
 
-    fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
-        if self.eval_condition(condition) {
-            self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
-            self.regs.write(SP, self.regs.read(SP) + 2);
-            self.current_instruction.cycles.get_extra_cycles()
-        } else {
-            0
-        }
-    }
+    // fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
+    //     if self.eval_condition(condition) {
+    //         self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
+    //         self.regs.write(SP, self.regs.read(SP) + 2);
+    //         self.current_instruction.cycles.get_extra_cycles()
+    //     } else {
+    //         0
+    //     }
+    // }
 
-    fn execute_rst(&mut self, memory: &mut Memory, addr: u16) {
-        self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-        self.regs.write(PC, addr);
-    }
+    // fn execute_rst(&mut self, memory: &mut Memory, addr: u16) {
+    //     self.regs.write(SP, self.regs.read(SP) - 2);
+    //     Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+    //     self.regs.write(PC, addr);
+    // }
 
     // fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
     //     self.regs.write(SP, self.regs.read(SP) - 2);
