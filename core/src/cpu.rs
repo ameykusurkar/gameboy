@@ -12,7 +12,8 @@ use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::instruction::CycleCount::*;
 use crate::new_instruction::{
     NewInstruction, MicroInstruction, InstructionRegistry,
-    MemoryOperation, AddressSource, RegisterOperation
+    MemoryOperation, AddressSource, RegisterOperation,
+    AluOperation,
 };
 
 use crate::emulator::DEBUG;
@@ -324,6 +325,9 @@ impl Cpu {
                 RegisterOperation::DecReg16(reg) => {
                     self.regs.write(reg, self.regs.read(reg).wrapping_sub(1));
                 },
+                RegisterOperation::AddReg16(reg) => {
+                    self.execute_add16(memory, reg);
+                },
                 RegisterOperation::SignedAddReg16(reg16, reg) => {
                     let offset = (self.regs[reg] as i8) as i32;
                     let orig_val = self.regs.read(reg16) as i32;
@@ -331,6 +335,24 @@ impl Cpu {
                 },
                 RegisterOperation::LoadRstAddress(addr) => {
                     self.regs.write(PC, addr);
+                },
+                RegisterOperation::Alu(alu_operation, reg) => {
+                    match alu_operation {
+                        AluOperation::Inc => self.execute_inc(memory, reg),
+                        AluOperation::Dec => self.execute_dec(memory, reg),
+                        AluOperation::Add => self.execute_add(memory, reg),
+                        AluOperation::Adc => self.execute_adc(memory, reg),
+                        AluOperation::Sub => self.execute_sub(memory, reg),
+                        AluOperation::Sbc => self.execute_sbc(memory, reg),
+                        AluOperation::And => self.execute_and(memory, reg),
+                        AluOperation::Xor => self.execute_xor(memory, reg),
+                        AluOperation::Or => self.execute_or(memory, reg),
+                        AluOperation::Cp => self.execute_cp(memory, reg),
+                        AluOperation::Daa => self.execute_daa(),
+                        AluOperation::Scf => self.execute_scf(),
+                        AluOperation::Cpl => self.execute_cpl(),
+                        AluOperation::Ccf => self.execute_ccf(),
+                    }
                 },
             }
         });
@@ -425,114 +447,6 @@ impl Cpu {
                 self.execute_rr(memory, A);
                 self.set_flag(ZERO_FLAG, false);
             },
-
-            0x04 => self.execute_inc(memory, B),
-            0x0C => self.execute_inc(memory, C),
-            0x14 => self.execute_inc(memory, D),
-            0x1C => self.execute_inc(memory, E),
-            0x24 => self.execute_inc(memory, H),
-            0x2C => self.execute_inc(memory, L),
-            0x34 => self.execute_inc(memory, RegisterHL),
-            0x3C => self.execute_inc(memory, A),
-
-            0x05 => self.execute_dec(memory, B),
-            0x0D => self.execute_dec(memory, C),
-            0x15 => self.execute_dec(memory, D),
-            0x1D => self.execute_dec(memory, E),
-            0x25 => self.execute_dec(memory, H),
-            0x2D => self.execute_dec(memory, L),
-            0x35 => self.execute_dec(memory, RegisterHL),
-            0x3D => self.execute_dec(memory, A),
-
-            0x80 => self.execute_add(memory, B),
-            0x81 => self.execute_add(memory, C),
-            0x82 => self.execute_add(memory, D),
-            0x83 => self.execute_add(memory, E),
-            0x84 => self.execute_add(memory, H),
-            0x85 => self.execute_add(memory, L),
-            0x86 => self.execute_add(memory, RegisterHL),
-            0x87 => self.execute_add(memory, A),
-            0xC6 => self.execute_add(memory, Immediate8),
-
-            0x88 => self.execute_adc(memory, B),
-            0x89 => self.execute_adc(memory, C),
-            0x8A => self.execute_adc(memory, D),
-            0x8B => self.execute_adc(memory, E),
-            0x8C => self.execute_adc(memory, H),
-            0x8D => self.execute_adc(memory, L),
-            0x8E => self.execute_adc(memory, RegisterHL),
-            0x8F => self.execute_adc(memory, A),
-            0xCE => self.execute_adc(memory, Immediate8),
-
-            0x90 => self.execute_sub(memory, B),
-            0x91 => self.execute_sub(memory, C),
-            0x92 => self.execute_sub(memory, D),
-            0x93 => self.execute_sub(memory, E),
-            0x94 => self.execute_sub(memory, H),
-            0x95 => self.execute_sub(memory, L),
-            0x96 => self.execute_sub(memory, RegisterHL),
-            0x97 => self.execute_sub(memory, A),
-            0xD6 => self.execute_sub(memory, Immediate8),
-
-            0x98 => self.execute_sbc(memory, B),
-            0x99 => self.execute_sbc(memory, C),
-            0x9A => self.execute_sbc(memory, D),
-            0x9B => self.execute_sbc(memory, E),
-            0x9C => self.execute_sbc(memory, H),
-            0x9D => self.execute_sbc(memory, L),
-            0x9E => self.execute_sbc(memory, RegisterHL),
-            0x9F => self.execute_sbc(memory, A),
-            0xDE => self.execute_sbc(memory, Immediate8),
-
-            0xA0 => self.execute_and(memory, B),
-            0xA1 => self.execute_and(memory, C),
-            0xA2 => self.execute_and(memory, D),
-            0xA3 => self.execute_and(memory, E),
-            0xA4 => self.execute_and(memory, H),
-            0xA5 => self.execute_and(memory, L),
-            0xA6 => self.execute_and(memory, RegisterHL),
-            0xA7 => self.execute_and(memory, A),
-            0xE6 => self.execute_and(memory, Immediate8),
-
-            0xA8 => self.execute_xor(memory, B),
-            0xA9 => self.execute_xor(memory, C),
-            0xAA => self.execute_xor(memory, D),
-            0xAB => self.execute_xor(memory, E),
-            0xAC => self.execute_xor(memory, H),
-            0xAD => self.execute_xor(memory, L),
-            0xAE => self.execute_xor(memory, RegisterHL),
-            0xAF => self.execute_xor(memory, A),
-            0xEE => self.execute_xor(memory, Immediate8),
-
-            0xB0 => self.execute_or(memory, B),
-            0xB1 => self.execute_or(memory, C),
-            0xB2 => self.execute_or(memory, D),
-            0xB3 => self.execute_or(memory, E),
-            0xB4 => self.execute_or(memory, H),
-            0xB5 => self.execute_or(memory, L),
-            0xB6 => self.execute_or(memory, RegisterHL),
-            0xB7 => self.execute_or(memory, A),
-            0xF6 => self.execute_or(memory, Immediate8),
-
-            0xB8 => self.execute_cp(memory, B),
-            0xB9 => self.execute_cp(memory, C),
-            0xBA => self.execute_cp(memory, D),
-            0xBB => self.execute_cp(memory, E),
-            0xBC => self.execute_cp(memory, H),
-            0xBD => self.execute_cp(memory, L),
-            0xBE => self.execute_cp(memory, RegisterHL),
-            0xBF => self.execute_cp(memory, A),
-            0xFE => self.execute_cp(memory, Immediate8),
-
-            0x27 => self.execute_daa(),
-            0x2F => self.execute_cpl(),
-            0x37 => self.execute_scf(),
-            0x3F => self.execute_ccf(),
-
-            0x09 => self.execute_add16(memory, BC),
-            0x19 => self.execute_add16(memory, DE),
-            0x29 => self.execute_add16(memory, HL),
-            0x39 => self.execute_add16(memory, SP),
 
             0xE8 => self.execute_add_sp_imm8(memory, SP),
             0xF8 => self.execute_add_sp_imm8(memory, HL),

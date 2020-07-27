@@ -138,6 +138,14 @@ impl NewInstruction {
     fn and_dec16(self, reg16: TwoRegisterIndex) -> Self {
         self.append_register_operation(RegisterOperation::DecReg16(reg16))
     }
+
+    fn and_add16(self, reg16: TwoRegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::AddReg16(reg16))
+    }
+
+    fn and_alu(self, alu_operation: AluOperation, reg: RegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::Alu(alu_operation, reg))
+    }
 }
 
 #[derive(Debug, Clone, Default)]
@@ -172,8 +180,15 @@ pub enum RegisterOperation {
     Load16(TwoRegisterIndex, TwoRegisterIndex),
     IncReg16(TwoRegisterIndex),
     DecReg16(TwoRegisterIndex),
+    AddReg16(TwoRegisterIndex),
     SignedAddReg16(TwoRegisterIndex, RegisterIndex),
     LoadRstAddress(u16),
+    Alu(AluOperation, RegisterIndex),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub enum AluOperation {
+    Inc, Dec, Add, Adc, Sub, Sbc, And, Xor, Or, Cp, Daa, Scf, Cpl, Ccf
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -212,6 +227,11 @@ impl InstructionRegistry {
         instruction_map.insert(0x1B, build_dec16_instruction(DE));
         instruction_map.insert(0x2B, build_dec16_instruction(HL));
         instruction_map.insert(0x3B, build_dec16_instruction(SP));
+
+        instruction_map.insert(0x09, build_add16_instruction(BC));
+        instruction_map.insert(0x19, build_add16_instruction(DE));
+        instruction_map.insert(0x29, build_add16_instruction(HL));
+        instruction_map.insert(0x39, build_add16_instruction(SP));
 
         instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
@@ -304,6 +324,38 @@ impl InstructionRegistry {
                 (None, None) => None,
             };
         }
+
+        instruction_map = build_alu_instructions(instruction_map, (0x04..=0x3C).step_by(8).collect(), AluOperation::Inc);
+        instruction_map = build_alu_instructions(instruction_map, (0x05..=0x3D).step_by(8).collect(), AluOperation::Dec);
+
+        instruction_map = build_alu_instructions(instruction_map, (0x80..=0x87).collect(), AluOperation::Add);
+        instruction_map.insert(0xC6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Add, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0x88..=0x8F).collect(), AluOperation::Adc);
+        instruction_map.insert(0xCE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Adc, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0x90..=0x97).collect(), AluOperation::Sub);
+        instruction_map.insert(0xD6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Sub, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0x98..=0x9F).collect(), AluOperation::Sbc);
+        instruction_map.insert(0xDE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Sbc, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0xA0..=0xA7).collect(), AluOperation::And);
+        instruction_map.insert(0xE6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::And, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0xA8..=0xAF).collect(), AluOperation::Xor);
+        instruction_map.insert(0xEE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Xor, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0xB0..=0xB7).collect(), AluOperation::Or);
+        instruction_map.insert(0xF6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Or, TempLow));
+
+        instruction_map = build_alu_instructions(instruction_map, (0xB8..=0xBF).collect(), AluOperation::Cp);
+        instruction_map.insert(0xFE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Cp, TempLow));
+
+        instruction_map.insert(0x27, NewInstruction::new().empty().and_alu(AluOperation::Daa, A));
+        instruction_map.insert(0x2F, NewInstruction::new().empty().and_alu(AluOperation::Cpl, A));
+        instruction_map.insert(0x37, NewInstruction::new().empty().and_alu(AluOperation::Scf, A));
+        instruction_map.insert(0x3F, NewInstruction::new().empty().and_alu(AluOperation::Ccf, A));
 
         InstructionRegistry { instruction_map }
     }
@@ -523,4 +575,44 @@ fn build_inc16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
 
 fn build_dec16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
     NewInstruction::new().noop().and_dec16(reg16)
+}
+
+fn build_add16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+    // TODO: Actually split alu instruction instead of using a noop
+    NewInstruction::new().noop().empty().and_add16(reg16)
+}
+
+fn build_alu_instructions(
+    mut instruction_map: std::collections::HashMap<u8, NewInstruction>,
+    opcode_range: Vec<u8>, alu_operation: AluOperation) -> std::collections::HashMap<u8, NewInstruction> {
+    let order = [
+        Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+    ];
+
+    for (reg_index, opcode) in order.iter().zip(opcode_range.iter()) {
+        let mut instruction = NewInstruction::new();
+
+        instruction = match reg_index {
+            Some(reg) => instruction.empty().and_alu(alu_operation, *reg),
+            None => {
+                match alu_operation {
+                    AluOperation::Inc | AluOperation::Dec => {
+                        instruction
+                            .load(AddressSource::Reg(HL), TempLow)
+                            .and_alu(alu_operation, TempLow)
+                            .store(AddressSource::Reg(HL), TempLow)
+                    },
+                    _ => {
+                        instruction
+                            .load(AddressSource::Reg(HL), TempLow)
+                            .and_alu(alu_operation, TempLow)
+                    },
+                }
+            }
+        };
+
+        instruction_map.insert(*opcode, instruction);
+    }
+
+    instruction_map
 }
