@@ -373,6 +373,11 @@ impl Cpu {
                 RegisterOperation::DecReg16(reg) => {
                     self.regs.write(reg, self.regs.read(reg).wrapping_sub(1));
                 },
+                RegisterOperation::SignedAddReg16(reg16, reg) => {
+                    let offset = (self.regs[reg] as i8) as i32;
+                    let orig_val = self.regs.read(reg16) as i32;
+                    self.regs.write(reg16, (orig_val + offset) as u16);
+                },
             }
         });
     }
@@ -483,20 +488,20 @@ impl Cpu {
             //     self.execute_load_reg_reg(memory, opcode);
             // },
 
-            0x18 => self.execute_jr(memory),
+            // 0x18 => self.execute_jr(memory),
             0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
             0x28 => extra_cycles = self.execute_jr_cc(memory, Condition::Z),
             0x30 => extra_cycles = self.execute_jr_cc(memory, Condition::NC),
             0x38 => extra_cycles = self.execute_jr_cc(memory, Condition::C),
 
-            0xC3 => self.execute_jp(memory),
+            // 0xC3 => self.execute_jp(memory),
             0xC2 => extra_cycles = self.execute_jp_cc(memory, Condition::NZ),
             0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
             0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
             0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
             0xE9 => self.regs.write(PC, self.regs.read(HL)),
 
-            0xC9 => self.execute_ret(memory),
+            // 0xC9 => self.execute_ret(memory),
             0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
             0xC8 => extra_cycles = self.execute_ret_cc(memory, Condition::Z),
             0xD0 => extra_cycles = self.execute_ret_cc(memory, Condition::NC),
@@ -506,7 +511,7 @@ impl Cpu {
                 self.execute_ret(memory);
             },
 
-            0xCD => self.execute_call(memory),
+            // 0xCD => self.execute_call(memory),
             0xC4 => extra_cycles = self.execute_call_cc(memory, Condition::NZ),
             0xCC => extra_cycles = self.execute_call_cc(memory, Condition::Z),
             0xD4 => extra_cycles = self.execute_call_cc(memory, Condition::NC),
@@ -1219,10 +1224,10 @@ impl Cpu {
     //     self.write16(memory, dst, val);
     // }
 
-    fn execute_jr(&mut self, memory: &Memory) {
-        let offset = self.read_oper(memory, Immediate8) as i8;
-        self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
-    }
+    // fn execute_jr(&mut self, memory: &Memory) {
+    //     let offset = self.read_oper(memory, Immediate8) as i8;
+    //     self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
+    // }
 
     fn execute_jr_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         // Offset is signed
@@ -1236,10 +1241,10 @@ impl Cpu {
         }
     }
 
-    fn execute_jp(&mut self, memory: &Memory) {
-        let addr = self.read16(memory, Immediate16);
-        self.regs.write(PC, addr);
-    }
+    // fn execute_jp(&mut self, memory: &Memory) {
+    //     let addr = self.read16(memory, Immediate16);
+    //     self.regs.write(PC, addr);
+    // }
 
     fn execute_jp_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         let addr = self.read16(memory, Immediate16);
@@ -1252,12 +1257,12 @@ impl Cpu {
         }
     }
 
-    fn execute_call(&mut self, memory: &mut Memory) {
-        let addr = self.read16(memory, Immediate16);
-        self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-        self.regs.write(PC, addr);
-    }
+    // fn execute_call(&mut self, memory: &mut Memory) {
+    //     let addr = self.read16(memory, Immediate16);
+    //     self.regs.write(SP, self.regs.read(SP) - 2);
+    //     Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+    //     self.regs.write(PC, addr);
+    // }
 
     fn execute_call_cc(&mut self, memory: &mut Memory, condition: Condition) -> u32 {
         let addr = self.read16(memory, Immediate16);
@@ -1274,7 +1279,7 @@ impl Cpu {
 
     fn execute_ret(&mut self, memory: &Memory) {
         self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
-        self.regs.write(SP, self.regs.read(SP) + 2);
+        self.regs.write(SP, self.regs.read(SP).wrapping_add(2));
     }
 
     fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {

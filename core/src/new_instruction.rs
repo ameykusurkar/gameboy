@@ -75,11 +75,15 @@ impl NewInstruction {
     }
 
     fn move_reg16(self, dst: TwoRegisterIndex, src: TwoRegisterIndex) -> Self {
-        self.push(
-            MicroInstruction {
-                memory_operation: Some(MemoryOperation::Noop),
-                register_operation: Some(RegisterOperation::Load16(dst, src)),
-        })
+        self.noop().and_move_reg16(dst, src)
+    }
+
+    fn and_move_reg16(self, dst: TwoRegisterIndex, src: TwoRegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::Load16(dst, src))
+    }
+
+    fn and_signed_add_reg16(self, reg16: TwoRegisterIndex, reg: RegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::SignedAddReg16(reg16, reg))
     }
 
     fn store(self, addr_source: AddressSource, reg: RegisterIndex) -> Self {
@@ -124,6 +128,7 @@ pub enum RegisterOperation {
     Load16(TwoRegisterIndex, TwoRegisterIndex),
     IncReg16(TwoRegisterIndex),
     DecReg16(TwoRegisterIndex),
+    SignedAddReg16(TwoRegisterIndex, RegisterIndex),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -193,6 +198,14 @@ impl InstructionRegistry {
         instruction_map.insert(0xD5, build_push_instruction(DE));
         instruction_map.insert(0xE5, build_push_instruction(HL));
         instruction_map.insert(0xF5, build_push_instruction(AF));
+
+        instruction_map.insert(0xC3, build_jump_instruction());
+
+        instruction_map.insert(0x18, build_jump_relative_instruction());
+
+        instruction_map.insert(0xC9, build_return_instruction());
+
+        instruction_map.insert(0xCD, build_call_instruction());
 
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
@@ -338,4 +351,38 @@ fn build_push_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
         .store(AddressSource::Reg(SP), high_reg)
         .and_dec16(SP)
         .store(AddressSource::Reg(SP), low_reg)
+}
+
+fn build_jump_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .load_imm(TempHigh)
+        .move_reg16(PC, Temp16)
+}
+
+fn build_jump_relative_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .noop().and_signed_add_reg16(PC, TempLow)
+}
+
+fn build_return_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load(AddressSource::Reg(SP), PCLow)
+        .and_inc16(SP)
+        .load(AddressSource::Reg(SP), PCHigh)
+        .and_inc16(SP)
+        .noop()
+}
+
+fn build_call_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .load_imm(TempHigh)
+        .noop()
+        .and_dec16(SP)
+        .store(AddressSource::Reg(SP), PCHigh)
+        .and_dec16(SP)
+        .store(AddressSource::Reg(SP), PCLow)
+        .and_move_reg16(PC, Temp16)
 }
