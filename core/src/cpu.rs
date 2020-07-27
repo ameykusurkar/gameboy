@@ -519,15 +519,15 @@ impl Cpu {
                 self.execute_rst(memory, addr);
             },
 
-            0xC1 => self.execute_pop(memory, BC),
-            0xD1 => self.execute_pop(memory, DE),
-            0xE1 => self.execute_pop(memory, HL),
+            // 0xC1 => self.execute_pop(memory, BC),
+            // 0xD1 => self.execute_pop(memory, DE),
+            // 0xE1 => self.execute_pop(memory, HL),
             0xF1 => self.execute_pop(memory, AF),
 
-            0xC5 => self.execute_push(memory, BC),
-            0xD5 => self.execute_push(memory, DE),
-            0xE5 => self.execute_push(memory, HL),
-            0xF5 => self.execute_push(memory, AF),
+            // 0xC5 => self.execute_push(memory, BC),
+            // 0xD5 => self.execute_push(memory, DE),
+            // 0xE5 => self.execute_push(memory, HL),
+            // 0xF5 => self.execute_push(memory, AF),
 
             0x07 => {
                 self.execute_rlc(memory, A);
@@ -1295,10 +1295,10 @@ impl Cpu {
         self.pc = addr;
     }
 
-    fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
-        self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(index));
-    }
+    // fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
+    //     self.regs.write(SP, self.regs.read(SP) - 2);
+    //     Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(index));
+    // }
 
     fn execute_pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
         let nn = Self::read_mem_u16(memory, self.regs.read(SP));

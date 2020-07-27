@@ -28,6 +28,37 @@ impl NewInstruction {
         self.micro_instructions.pop_front()
     }
 
+    fn append_register_operation(mut self, reg_op: RegisterOperation) -> Self {
+        match self.micro_instructions.pop_back() {
+            Some(mut micro_instruction) => {
+                match micro_instruction {
+                    MicroInstruction { register_operation: None, .. } => {
+                        micro_instruction.register_operation = Some(reg_op);
+                        self.micro_instructions.push_back(micro_instruction);
+                    }
+                    _ => unimplemented!("Cannot add register operation!"),
+                }
+            },
+            None => unimplemented!("No micro instruction found to add register operation!"),
+        }
+
+        self
+    }
+
+    fn noop(self) -> Self {
+        self.push(
+            MicroInstruction {
+                memory_operation: Some(MemoryOperation::Noop),
+                register_operation: None,
+        })
+    }
+
+    fn empty(self) -> Self {
+        self.push(
+            MicroInstruction { memory_operation: None, register_operation: None }
+        )
+    }
+
     fn load(self, addr_source: AddressSource, reg: RegisterIndex) -> Self {
         self.push(MicroInstruction {
             memory_operation: Some(MemoryOperation::Read(addr_source, reg)),
@@ -39,12 +70,8 @@ impl NewInstruction {
         self.load(AddressSource::Immediate, reg)
     }
 
-    fn move_reg(self, dst: RegisterIndex, src: RegisterIndex) -> Self {
-        self.push(
-            MicroInstruction {
-                memory_operation: None,
-                register_operation: Some(RegisterOperation::Load(dst, src)),
-        })
+    fn and_move_reg(self, dst: RegisterIndex, src: RegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::Load(dst, src))
     }
 
     fn move_reg16(self, dst: TwoRegisterIndex, src: TwoRegisterIndex) -> Self {
@@ -61,6 +88,14 @@ impl NewInstruction {
                 memory_operation: Some(MemoryOperation::Write(addr_source, reg)),
                 register_operation: None,
         })
+    }
+
+    fn and_inc16(self, reg16: TwoRegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::IncReg16(reg16))
+    }
+
+    fn and_dec16(self, reg16: TwoRegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::DecReg16(reg16))
     }
 }
 
@@ -149,6 +184,16 @@ impl InstructionRegistry {
         instruction_map.insert(0x32, build_load_rhl_dec_r_instruction(A));
         instruction_map.insert(0x3A, build_load_r_rhl_dec_instruction(A));
 
+        // TODO: POP AF
+        instruction_map.insert(0xC1, build_pop_instruction(BC));
+        instruction_map.insert(0xD1, build_pop_instruction(DE));
+        instruction_map.insert(0xE1, build_pop_instruction(HL));
+
+        instruction_map.insert(0xC5, build_push_instruction(BC));
+        instruction_map.insert(0xD5, build_push_instruction(DE));
+        instruction_map.insert(0xE5, build_push_instruction(HL));
+        instruction_map.insert(0xF5, build_push_instruction(AF));
+
         let order = [
             Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
         ];
@@ -193,7 +238,7 @@ fn build_load_reg_reg16addr_instruction(reg: AddressSource) -> NewInstruction {
 }
 
 fn build_load_r_r_instruction(dst_reg: RegisterIndex, src_reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().move_reg(dst_reg, src_reg)
+    NewInstruction::new().empty().and_move_reg(dst_reg, src_reg)
 }
 
 fn build_load_rr_rr_instruction(dst_reg: TwoRegisterIndex, src_reg: TwoRegisterIndex) -> NewInstruction {
@@ -210,58 +255,26 @@ fn build_load_rhl_r_instruction(reg: RegisterIndex) -> NewInstruction {
 
 fn build_load_rhl_inc_r_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
-        .push(
-            MicroInstruction {
-                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
-                register_operation: None,
-        })
-        .push(
-            MicroInstruction {
-                memory_operation: None,
-                register_operation: Some(RegisterOperation::IncReg16(HL)),
-        })
+        .store(AddressSource::Reg(HL), reg)
+        .empty().and_inc16(HL)
 }
 
 fn build_load_r_rhl_inc_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
-        .push(
-            MicroInstruction {
-                memory_operation: Some(MemoryOperation::Read(AddressSource::Reg(HL), reg)),
-                register_operation: None,
-        })
-        .push(
-            MicroInstruction {
-                memory_operation: None,
-                register_operation: Some(RegisterOperation::IncReg16(HL)),
-        })
+        .load(AddressSource::Reg(HL), reg)
+        .empty().and_inc16(HL)
 }
 
 fn build_load_rhl_dec_r_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
-        .push(
-            MicroInstruction {
-                memory_operation: Some(MemoryOperation::Write(AddressSource::Reg(HL), reg)),
-                register_operation: None,
-        })
-        .push(
-            MicroInstruction {
-                memory_operation: None,
-                register_operation: Some(RegisterOperation::DecReg16(HL)),
-        })
+        .store(AddressSource::Reg(HL), reg)
+        .empty().and_dec16(HL)
 }
 
 fn build_load_r_rhl_dec_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
-        .push(
-            MicroInstruction {
-                memory_operation: Some(MemoryOperation::Read(AddressSource::Reg(HL), reg)),
-                register_operation: None,
-        })
-        .push(
-            MicroInstruction {
-                memory_operation: None,
-                register_operation: Some(RegisterOperation::DecReg16(HL)),
-        })
+        .load(AddressSource::Reg(HL), reg)
+        .empty().and_dec16(HL)
 }
 
 fn build_load_high_addr_a_instruction(reg: RegisterIndex) -> NewInstruction {
@@ -304,4 +317,25 @@ fn build_load_addr16_sp_instruction() -> NewInstruction {
         .load_imm(TempHigh)
         .store(AddressSource::Reg(Temp16), SPLow)
         .store(AddressSource::RegWithOffset(Temp16, 1), SPHigh)
+}
+
+fn build_pop_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+    let (high_reg, low_reg) = reg16.split_index();
+
+    NewInstruction::new()
+        .load(AddressSource::Reg(SP), low_reg)
+        .and_inc16(SP)
+        .load(AddressSource::Reg(SP), high_reg)
+        .and_inc16(SP)
+}
+
+fn build_push_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+    let (high_reg, low_reg) = reg16.split_index();
+
+    NewInstruction::new()
+        .noop()
+        .and_dec16(SP)
+        .store(AddressSource::Reg(SP), high_reg)
+        .and_dec16(SP)
+        .store(AddressSource::Reg(SP), low_reg)
 }
