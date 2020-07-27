@@ -4,7 +4,7 @@ use std::io::Write;
 
 use core::ppu::Ppu;
 use core::registers::RegisterIndex::*;
-use core::registers::TwoRegisterIndex::{HL, SP};
+use core::registers::TwoRegisterIndex::{HL, SP, PC};
 
 use core::emulator::{Emulator, DEBUG};
 
@@ -169,7 +169,7 @@ impl PgeState {
         pge.draw_string(x + 4 * cx, y + 7 * cy, "H", h_color, scale);
         pge.draw_string(x + 6 * cx, y + 7 * cy, "C", c_color, scale);
 
-        pge.draw_string(x, y + 9 * cy, &format!("PC: {:04X}", self.emulator.cpu.pc), &pge::WHITE, scale);
+        pge.draw_string(x, y + 9 * cy, &format!("PC: {:04X}", self.emulator.cpu.regs.read(PC)), &pge::WHITE, scale);
         pge.draw_string(x, y + 10 * cy, &format!("SP: {:04X}", self.emulator.cpu.regs.read(SP)), &pge::WHITE, scale);
 
         pge.draw_string(x, y + 12 * cy, &format!("CYCLES: {}", self.cycles), &pge::WHITE, scale);
@@ -187,12 +187,16 @@ impl PgeState {
         pge.draw_string(x, y + 23 * cy, &format!("LY: {}", self.emulator.memory.cpu_read(0xFF44)), &pge::WHITE, scale);
 
         let start_y = y + 25 * cy;
-        let mut instructions = self.emulator.cpu.disassemble(&self.emulator.memory, self.emulator.cpu.pc, self.emulator.cpu.pc + 10);
+        let mut instructions = self.emulator.cpu.disassemble(
+            &self.emulator.memory,
+            self.emulator.cpu.regs.read(PC),
+            self.emulator.cpu.regs.read(PC) + 10
+        );
         let num_instructions = std::cmp::min(instructions.len(), 5);
         let instructions = instructions.drain(..num_instructions);
         for (i, (addr, repr)) in instructions.enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
-            let color = if addr == self.emulator.cpu.pc { &pge::WHITE } else { &pge::DARK_GREY };
+            let color = if addr == self.emulator.cpu.regs.read(PC) { &pge::WHITE } else { &pge::DARK_GREY };
             pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
         }
     }

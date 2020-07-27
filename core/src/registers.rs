@@ -14,6 +14,7 @@ pub struct Registers {
     h: u8, l: u8,
 
     sp_high: u8, sp_low: u8,
+    pc_high: u8, pc_low: u8,
     temp_high: u8, temp_low: u8,
 }
 
@@ -24,6 +25,7 @@ pub enum RegisterIndex {
     D, E,
     H, L,
     SPHigh, SPLow,
+    PCHigh, PCLow,
     TempHigh, TempLow,
 }
 
@@ -34,6 +36,7 @@ pub enum TwoRegisterIndex {
     DE,
     HL,
     SP,
+    PC,
     Temp16,
 }
 
@@ -53,6 +56,7 @@ impl TwoRegisterIndex {
             TwoRegisterIndex::DE => (D, E),
             TwoRegisterIndex::HL => (H, L),
             TwoRegisterIndex::SP => (SPHigh, SPLow),
+            TwoRegisterIndex::PC => (PCHigh, PCLow),
             TwoRegisterIndex::Temp16 => (TempHigh, TempLow),
         }
     }
@@ -103,6 +107,9 @@ impl std::ops::Index<RegisterIndex> for Registers {
             RegisterIndex::SPHigh => &self.sp_high,
             RegisterIndex::SPLow => &self.sp_low,
 
+            RegisterIndex::PCHigh => &self.pc_high,
+            RegisterIndex::PCLow => &self.pc_low,
+
             RegisterIndex::TempHigh => &self.temp_high,
             RegisterIndex::TempLow => &self.temp_low,
         }
@@ -126,6 +133,9 @@ impl std::ops::IndexMut<RegisterIndex> for Registers {
 
             RegisterIndex::SPHigh => &mut self.sp_high,
             RegisterIndex::SPLow => &mut self.sp_low,
+
+            RegisterIndex::PCHigh => &mut self.pc_high,
+            RegisterIndex::PCLow => &mut self.pc_low,
 
             RegisterIndex::TempHigh => &mut self.temp_high,
             RegisterIndex::TempLow => &mut self.temp_low,

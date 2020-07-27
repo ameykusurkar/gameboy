@@ -37,7 +37,6 @@ const TAC_ADDR: u16  = 0xFF07;
 
 pub struct Cpu {
     pub regs: Registers,
-    pub pc: u16,
     ime: bool,
     remaining_cycles: u32,
     total_clock_cycles: u32,
@@ -181,8 +180,8 @@ impl Operand8<HighPageC> for Cpu {
 
 impl Operand8<Immediate8> for Cpu {
     fn read_oper(&mut self, memory: &Memory, _src: Immediate8) -> u8 {
-        let val = memory.cpu_read(self.pc);
-        self.pc += 1;
+        let val = memory.cpu_read(self.regs.read(PC));
+        self.regs.write(PC, self.regs.read(PC).wrapping_add(1));
         val
     }
 
@@ -242,7 +241,6 @@ impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
             regs: Registers::default(),
-            pc: 0,
             ime: false,
             remaining_cycles: 0,
             total_clock_cycles: 0,
@@ -256,7 +254,7 @@ impl Cpu {
 
     #[allow(dead_code)]
     pub fn skip_bootrom(&mut self, memory: &mut Memory) {
-        self.pc = 0x100;
+        self.regs.write(PC, 0x100);
         self.regs.write(SP, 0xFFFE);
         memory.cpu_write(0xFF50, 1);
     }
@@ -274,7 +272,7 @@ impl Cpu {
                     self.remaining_cycles += 5;
                 }
 
-                let opcode = memory.cpu_read(self.pc);
+                let opcode = memory.cpu_read(self.regs.read(PC));
 
                 match self.instruction_registry.fetch(opcode) {
                     Some(instruction) => {
@@ -285,7 +283,7 @@ impl Cpu {
                         self.current_new_instruction = Some(instruction);
                     },
                     None => {
-                        self.current_instruction = self.fetch_instruction(memory, self.pc);
+                        self.current_instruction = self.fetch_instruction(memory, self.regs.read(PC));
                         self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
                         // For instructions with a conditional jump, the cpu takes extra cycles if
@@ -437,7 +435,7 @@ impl Cpu {
         let mut extra_cycles = 0;
 
         if DEBUG {
-            println!("{:#06x}: {}", self.pc - 1, self.build_instruction_repr(memory, self.pc, self.current_instruction));
+            println!("{:#06x}: {}", self.regs.read(PC) - 1, self.build_instruction_repr(memory, self.regs.read(PC), self.current_instruction));
         }
 
         match opcode {
@@ -496,7 +494,7 @@ impl Cpu {
             0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
             0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
             0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
-            0xE9 => self.pc = self.regs.read(HL),
+            0xE9 => self.regs.write(PC, self.regs.read(HL)),
 
             0xC9 => self.execute_ret(memory),
             0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
@@ -676,7 +674,7 @@ impl Cpu {
         }
 
         if DEBUG {
-            println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.pc, self.total_clock_cycles);
+            println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.regs.read(PC), self.total_clock_cycles);
         }
 
         extra_cycles
@@ -786,8 +784,8 @@ impl Cpu {
         self.ime = false;
         memory.cpu_write(IF_ADDR, set_bit(memory.cpu_read(IF_ADDR), interrupt_no, false));
         self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
-        self.pc = INTERRUPT_ADDRS[interrupt_no as usize];
+        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+        self.regs.write(PC, INTERRUPT_ADDRS[interrupt_no as usize]);
     }
 
     fn execute_prefixed_instruction(&mut self, memory: &mut Memory) {
@@ -1223,7 +1221,7 @@ impl Cpu {
 
     fn execute_jr(&mut self, memory: &Memory) {
         let offset = self.read_oper(memory, Immediate8) as i8;
-        self.pc = ((self.pc as i32) + (offset as i32)) as u16;
+        self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
     }
 
     fn execute_jr_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
@@ -1231,7 +1229,7 @@ impl Cpu {
         let offset = self.read_oper(memory, Immediate8) as i8;
 
         if self.eval_condition(condition) {
-            self.pc = ((self.pc as i32) + (offset as i32)) as u16;
+            self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
             self.current_instruction.cycles.get_extra_cycles()
         } else {
             0
@@ -1240,14 +1238,14 @@ impl Cpu {
 
     fn execute_jp(&mut self, memory: &Memory) {
         let addr = self.read16(memory, Immediate16);
-        self.pc = addr;
+        self.regs.write(PC, addr);
     }
 
     fn execute_jp_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         let addr = self.read16(memory, Immediate16);
 
         if self.eval_condition(condition) {
-            self.pc = addr;
+            self.regs.write(PC, addr);
             self.current_instruction.cycles.get_extra_cycles()
         } else {
             0
@@ -1257,8 +1255,8 @@ impl Cpu {
     fn execute_call(&mut self, memory: &mut Memory) {
         let addr = self.read16(memory, Immediate16);
         self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
-        self.pc = addr;
+        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+        self.regs.write(PC, addr);
     }
 
     fn execute_call_cc(&mut self, memory: &mut Memory, condition: Condition) -> u32 {
@@ -1266,8 +1264,8 @@ impl Cpu {
 
         if self.eval_condition(condition) {
             self.regs.write(SP, self.regs.read(SP) - 2);
-            Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
-            self.pc = addr;
+            Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+            self.regs.write(PC, addr);
             self.current_instruction.cycles.get_extra_cycles()
         } else {
             0
@@ -1275,13 +1273,13 @@ impl Cpu {
     }
 
     fn execute_ret(&mut self, memory: &Memory) {
-        self.pc = Self::read_mem_u16(memory, self.regs.read(SP));
+        self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
         self.regs.write(SP, self.regs.read(SP) + 2);
     }
 
     fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
         if self.eval_condition(condition) {
-            self.pc = Self::read_mem_u16(memory, self.regs.read(SP));
+            self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
             self.regs.write(SP, self.regs.read(SP) + 2);
             self.current_instruction.cycles.get_extra_cycles()
         } else {
@@ -1291,8 +1289,8 @@ impl Cpu {
 
     fn execute_rst(&mut self, memory: &mut Memory, addr: u16) {
         self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.pc);
-        self.pc = addr;
+        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
+        self.regs.write(PC, addr);
     }
 
     // fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
