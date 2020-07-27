@@ -67,14 +67,9 @@ impl ConditionEvaluate for Cpu {
 #[derive(Copy, Clone)]
 struct RegisterHL;
 
-struct RegisterHLI;
-struct RegisterHLD;
-
 struct Immediate8;
 struct Immediate16;
 struct Addr16;
-struct HighPageAddr;
-struct HighPageC;
 
 struct AddrReg16(TwoRegisterIndex);
 
@@ -110,34 +105,6 @@ impl Operand8<RegisterHL> for Cpu {
     }
 }
 
-impl Operand8<RegisterHLI> for Cpu {
-    fn read_oper(&mut self, memory: &Memory, _src: RegisterHLI) -> u8 {
-        let addr = self.regs.read(HL);
-        self.regs.write(HL, addr + 1);
-        memory.cpu_read(addr)
-    }
-
-    fn write_oper(&mut self, memory: &mut Memory, _src: RegisterHLI, val: u8) {
-        let addr = self.regs.read(HL);
-        self.regs.write(HL, addr + 1);
-        memory.cpu_write(addr, val);
-    }
-}
-
-impl Operand8<RegisterHLD> for Cpu {
-    fn read_oper(&mut self, memory: &Memory, _src: RegisterHLD) -> u8 {
-        let addr = self.regs.read(HL);
-        self.regs.write(HL, addr - 1);
-        memory.cpu_read(addr)
-    }
-
-    fn write_oper(&mut self, memory: &mut Memory, _src: RegisterHLD, val: u8) {
-        let addr = self.regs.read(HL);
-        self.regs.write(HL, addr - 1);
-        memory.cpu_write(addr, val);
-    }
-}
-
 impl Operand8<AddrReg16> for Cpu {
     fn read_oper(&mut self, memory: &Memory, src: AddrReg16) -> u8 {
         let AddrReg16(reg) = src;
@@ -148,34 +115,6 @@ impl Operand8<AddrReg16> for Cpu {
     fn write_oper(&mut self, memory: &mut Memory, src: AddrReg16, val: u8) {
         let AddrReg16(reg) = src;
         let addr = self.regs.read(reg);
-        memory.cpu_write(addr, val);
-    }
-}
-
-impl Operand8<HighPageAddr> for Cpu {
-    fn read_oper(&mut self, memory: &Memory, _src: HighPageAddr) -> u8 {
-        let offset = self.read_oper(memory, Immediate8);
-        let addr = 0xFF00 | (offset as u16);
-        memory.cpu_read(addr)
-    }
-
-    fn write_oper(&mut self, memory: &mut Memory, _src: HighPageAddr, val: u8) {
-        let offset = self.read_oper(memory, Immediate8);
-        let addr = 0xFF00 | (offset as u16);
-        memory.cpu_write(addr, val);
-    }
-}
-
-impl Operand8<HighPageC> for Cpu {
-    fn read_oper(&mut self, memory: &Memory, _src: HighPageC) -> u8 {
-        let offset = self.read_oper(memory, C);
-        let addr = 0xFF00 | (offset as u16);
-        memory.cpu_read(addr)
-    }
-
-    fn write_oper(&mut self, memory: &mut Memory, _src: HighPageC, val: u8) {
-        let offset = self.read_oper(memory, C);
-        let addr = 0xFF00 | (offset as u16);
         memory.cpu_write(addr, val);
     }
 }
@@ -281,17 +220,21 @@ impl Cpu {
                         let instruction = instruction.to_owned();
                         // To advance the PC
                         self.read_oper(memory, Immediate8);
-                        self.remaining_cycles += instruction.num_cycles() as u32;
-                        self.current_new_instruction = Some(instruction);
+
+                        if instruction.num_cycles() > 0 {
+                            self.remaining_cycles += instruction.num_cycles() as u32;
+                            self.current_new_instruction = Some(instruction);
+                        } else {
+                            // We don't do anything for a NOOP instruction,
+                            // but add one cycle to simulate fetching the PC
+                            self.remaining_cycles += 1;
+                        }
                     },
                     None => {
                         self.current_instruction = self.fetch_instruction(memory, self.regs.read(PC));
                         self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
-                        // For instructions with a conditional jump, the cpu takes extra cycles if
-                        // the jump does happen, which `execute` determines based on the condition.
-                        let extra_cycles = self.execute(memory);
-                        self.remaining_cycles += extra_cycles;
+                        self.execute(memory);
                     },
                 }
             }
@@ -453,103 +396,18 @@ impl Cpu {
         }
     }
 
-    pub fn execute(&mut self, memory: &mut Memory) -> u32 {
+    pub fn execute(&mut self, memory: &mut Memory) {
         let opcode = self.read_oper(memory, Immediate8);
 
-        let extra_cycles = 0;
-
         if DEBUG {
-            println!("{:#06x}: {}", self.regs.read(PC) - 1, self.build_instruction_repr(memory, self.regs.read(PC), self.current_instruction));
+            println!(
+                "{:#06x}: {}", self.regs.read(PC) - 1,
+                self.build_instruction_repr(memory, self.regs.read(PC), self.current_instruction),
+            );
         }
 
         match opcode {
-            0x00 => (), // NOP
-
-            // 0x01 => self.execute_load16(memory, BC, Immediate16),
-            // 0x11 => self.execute_load16(memory, DE, Immediate16),
-            // 0x21 => self.execute_load16(memory, HL, Immediate16),
-            // 0x31 => self.execute_load16(memory, SP, Immediate16),
-
-            // 0x02 => self.execute_load(memory, AddrReg16(BC), A),
-            // 0x12 => self.execute_load(memory, AddrReg16(DE), A),
-
-            // 0x06 => self.execute_load(memory, B, Immediate8),
-            // 0x0E => self.execute_load(memory, C, Immediate8),
-            // 0x16 => self.execute_load(memory, D, Immediate8),
-            // 0x1E => self.execute_load(memory, E, Immediate8),
-            // 0x26 => self.execute_load(memory, H, Immediate8),
-            // 0x2E => self.execute_load(memory, L, Immediate8),
-            // 0x36 => self.execute_load(memory, RegisterHL, Immediate8),
-            // 0x3E => self.execute_load(memory, A, Immediate8),
-
-            // 0x0A => self.execute_load(memory, A, AddrReg16(BC)),
-            // 0x1A => self.execute_load(memory, A, AddrReg16(DE)),
-
-            // 0x08 => self.write16(memory, Addr16, self.regs.read(SP)),
-
-            // 0xE0 => self.execute_load(memory, HighPageAddr, A),
-            // 0xF0 => self.execute_load(memory, A, HighPageAddr),
-
-            // 0xE2 => self.execute_load(memory, HighPageC, A),
-            // 0xF2 => self.execute_load(memory, A, HighPageC),
-
-            // 0xEA => self.execute_load(memory, Addr16, A),
-            // 0xFA => self.execute_load(memory, A, Addr16),
-
-            // 0x22 => self.execute_load(memory, RegisterHLI, A),
-            // 0x2A => self.execute_load(memory, A, RegisterHLI),
-            // 0x32 => self.execute_load(memory, RegisterHLD, A),
-            // 0x3A => self.execute_load(memory, A, RegisterHLD),
-
-            // 0xF9 => self.regs.write(SP, self.regs.read(HL)),
-
-            // 0x40..=0x75 | 0x77..=0x7F => {
-            //     self.execute_load_reg_reg(memory, opcode);
-            // },
-
-            // 0x18 => self.execute_jr(memory),
-            // 0x20 => extra_cycles = self.execute_jr_cc(memory, Condition::NZ),
-            // 0x28 => extra_cycles = self.execute_jr_cc(memory, Condition::Z),
-            // 0x30 => extra_cycles = self.execute_jr_cc(memory, Condition::NC),
-            // 0x38 => extra_cycles = self.execute_jr_cc(memory, Condition::C),
-
-            // 0xC3 => self.execute_jp(memory),
-            // 0xC2 => extra_cycles = self.execute_jp_cc(memory, Condition::NZ),
-            // 0xCA => extra_cycles = self.execute_jp_cc(memory, Condition::Z),
-            // 0xD2 => extra_cycles = self.execute_jp_cc(memory, Condition::NC),
-            // 0xDA => extra_cycles = self.execute_jp_cc(memory, Condition::C),
-            // 0xE9 => self.regs.write(PC, self.regs.read(HL)),
-
-            // 0xC9 => self.execute_ret(memory),
-            // 0xC0 => extra_cycles = self.execute_ret_cc(memory, Condition::NZ),
-            // 0xC8 => extra_cycles = self.execute_ret_cc(memory, Condition::Z),
-            // 0xD0 => extra_cycles = self.execute_ret_cc(memory, Condition::NC),
-            // 0xD8 => extra_cycles = self.execute_ret_cc(memory, Condition::C),
-            // 0xD9 => {
-            //     self.ime = true;
-            //     self.execute_ret(memory);
-            // },
-
-            // 0xCD => self.execute_call(memory),
-            // 0xC4 => extra_cycles = self.execute_call_cc(memory, Condition::NZ),
-            // 0xCC => extra_cycles = self.execute_call_cc(memory, Condition::Z),
-            // 0xD4 => extra_cycles = self.execute_call_cc(memory, Condition::NC),
-            // 0xDC => extra_cycles = self.execute_call_cc(memory, Condition::C),
-
-            // 0xC7 | 0xD7 | 0xE7 | 0xF7 | 0xCF | 0xDF | 0xEF | 0xFF => {
-            //     let addr = (opcode - 0xC7) as u16;
-            //     self.execute_rst(memory, addr);
-            // },
-
-            // 0xC1 => self.execute_pop(memory, BC),
-            // 0xD1 => self.execute_pop(memory, DE),
-            // 0xE1 => self.execute_pop(memory, HL),
             0xF1 => self.execute_pop(memory, AF),
-
-            // 0xC5 => self.execute_push(memory, BC),
-            // 0xD5 => self.execute_push(memory, DE),
-            // 0xE5 => self.execute_push(memory, HL),
-            // 0xF5 => self.execute_push(memory, AF),
 
             0x07 => {
                 self.execute_rlc(memory, A);
@@ -700,8 +558,6 @@ impl Cpu {
         if DEBUG {
             println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.regs.read(PC), self.total_clock_cycles);
         }
-
-        extra_cycles
     }
 
     pub fn disassemble(&self, memory: &Memory, start_addr: u16, end_addr: u16) -> Vec<(u16, String)> {
@@ -956,23 +812,6 @@ impl Cpu {
         self.write16(memory, dst, result);
         self.regs.write_flags(flags);
     }
-
-    // fn execute_load_reg_reg(&mut self, memory: &mut Memory, opcode: u8) {
-    //     let order = [
-    //         Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
-    //     ];
-
-    //     let opcode_index = opcode - 0x40;
-    //     let dst_index = order[(opcode_index / 0x08) as usize];
-    //     let src_index = order[(opcode_index % 0x08) as usize];
-
-    //     match (dst_index, src_index) {
-    //         (Some(reg), Some(reg1)) => self.execute_load(memory, reg, reg1),
-    //         (None, Some(reg)) => self.execute_load(memory, RegisterHL, reg),
-    //         (Some(reg), None) => self.execute_load(memory, reg, RegisterHL),
-    //         (None, None) => unreachable!(),
-    //     }
-    // }
 
     fn execute_add<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
@@ -1230,97 +1069,6 @@ impl Cpu {
         self.set_flag(SUBTRACT_FLAG, true);
         self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
     }
-
-    // fn execute_load<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
-    // Self: Operand8<D> + Operand8<S> {
-    //     let val = self.read_oper(memory, src);
-    //     self.write_oper(memory, dst, val);
-    // }
-
-    // fn execute_load16<D, S>(&mut self, memory: &mut Memory, dst: D, src: S) where
-    // Self: Operand16<D> + Operand16<S> {
-    //     let val = self.read16(memory, src);
-    //     self.write16(memory, dst, val);
-    // }
-
-    // fn execute_jr(&mut self, memory: &Memory) {
-    //     let offset = self.read_oper(memory, Immediate8) as i8;
-    //     self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
-    // }
-
-    // fn execute_jr_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
-    //     // Offset is signed
-    //     let offset = self.read_oper(memory, Immediate8) as i8;
-
-    //     if self.eval_condition(condition) {
-    //         self.regs.write(PC, ((self.regs.read(PC) as i32) + (offset as i32)) as u16);
-    //         self.current_instruction.cycles.get_extra_cycles()
-    //     } else {
-    //         0
-    //     }
-    // }
-
-    // fn execute_jp(&mut self, memory: &Memory) {
-    //     let addr = self.read16(memory, Immediate16);
-    //     self.regs.write(PC, addr);
-    // }
-
-    // fn execute_jp_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
-    //     let addr = self.read16(memory, Immediate16);
-
-    //     if self.eval_condition(condition) {
-    //         self.regs.write(PC, addr);
-    //         self.current_instruction.cycles.get_extra_cycles()
-    //     } else {
-    //         0
-    //     }
-    // }
-
-    // fn execute_call(&mut self, memory: &mut Memory) {
-    //     let addr = self.read16(memory, Immediate16);
-    //     self.regs.write(SP, self.regs.read(SP) - 2);
-    //     Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-    //     self.regs.write(PC, addr);
-    // }
-
-    // fn execute_call_cc(&mut self, memory: &mut Memory, condition: Condition) -> u32 {
-    //     let addr = self.read16(memory, Immediate16);
-
-    //     if self.eval_condition(condition) {
-    //         self.regs.write(SP, self.regs.read(SP) - 2);
-    //         Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-    //         self.regs.write(PC, addr);
-    //         self.current_instruction.cycles.get_extra_cycles()
-    //     } else {
-    //         0
-    //     }
-    // }
-
-    // fn execute_ret(&mut self, memory: &Memory) {
-    //     self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
-    //     self.regs.write(SP, self.regs.read(SP).wrapping_add(2));
-    // }
-
-    // fn execute_ret_cc(&mut self, memory: &Memory, condition: Condition) -> u32 {
-    //     if self.eval_condition(condition) {
-    //         self.regs.write(PC, Self::read_mem_u16(memory, self.regs.read(SP)));
-    //         self.regs.write(SP, self.regs.read(SP) + 2);
-    //         self.current_instruction.cycles.get_extra_cycles()
-    //     } else {
-    //         0
-    //     }
-    // }
-
-    // fn execute_rst(&mut self, memory: &mut Memory, addr: u16) {
-    //     self.regs.write(SP, self.regs.read(SP) - 2);
-    //     Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-    //     self.regs.write(PC, addr);
-    // }
-
-    // fn execute_push(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
-    //     self.regs.write(SP, self.regs.read(SP) - 2);
-    //     Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(index));
-    // }
 
     fn execute_pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
         let nn = Self::read_mem_u16(memory, self.regs.read(SP));

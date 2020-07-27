@@ -85,8 +85,7 @@ impl NewInstruction {
 
     fn noop(self) -> Self {
         self.push(
-            MicroInstruction::default()
-                .with_memory_operation(MemoryOperation::Noop)
+            MicroInstruction::default().with_memory_operation(MemoryOperation::Noop)
         )
     }
 
@@ -201,6 +200,8 @@ impl InstructionRegistry {
                 NewInstruction::new().load_imm(low_reg).load_imm(high_reg),
             );
         }
+
+        instruction_map.insert(0x00, NewInstruction::new());
 
         instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
