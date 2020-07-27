@@ -196,7 +196,8 @@ pub enum RegisterOperation {
 
 #[derive(Debug, Copy, Clone)]
 pub enum AluOperation {
-    Inc, Dec, Add, Adc, Sub, Sbc, And, Xor, Or, Cp, Daa, Scf, Cpl, Ccf
+    Inc, Dec, Add, Adc, Sub, Sbc, And, Xor, Or, Cp, Daa, Scf, Cpl, Ccf,
+    Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl, Tst(u8), Res(u8), Set(u8),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -209,6 +210,7 @@ pub enum AddressSource {
 
 pub struct InstructionRegistry {
     instruction_map: std::collections::HashMap<u8, NewInstruction>,
+    prefixed_instruction_map: std::collections::HashMap<u8, NewInstruction>,
 }
 
 impl InstructionRegistry {
@@ -225,6 +227,7 @@ impl InstructionRegistry {
         }
 
         instruction_map.insert(0x00, NewInstruction::new());
+        instruction_map.insert(0xCB, NewInstruction::new());
 
         instruction_map.insert(0x03, build_inc16_instruction(BC));
         instruction_map.insert(0x13, build_inc16_instruction(DE));
@@ -368,11 +371,57 @@ impl InstructionRegistry {
         instruction_map.insert(0x37, NewInstruction::new().empty().and_alu(AluOperation::Scf, A));
         instruction_map.insert(0x3F, NewInstruction::new().empty().and_alu(AluOperation::Ccf, A));
 
-        InstructionRegistry { instruction_map }
+        let mut prefixed_instruction_map = std::collections::HashMap::new();
+
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x00..=0x07).collect(), AluOperation::Rlc);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x08..=0x0F).collect(), AluOperation::Rrc);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x10..=0x17).collect(), AluOperation::Rl);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x18..=0x1F).collect(), AluOperation::Rr);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x20..=0x27).collect(), AluOperation::Sla);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x28..=0x2F).collect(), AluOperation::Sra);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x30..=0x37).collect(), AluOperation::Swap);
+        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x38..=0x3F).collect(), AluOperation::Srl);
+
+        for start_opcode in (0x40..=0x7F).step_by(8) {
+            let bit = (start_opcode - 0x40) / 0x08;
+
+            prefixed_instruction_map = build_alu_instructions(
+                prefixed_instruction_map,
+                (start_opcode..start_opcode+8).collect(),
+                AluOperation::Tst(bit),
+            );
+        }
+
+        for start_opcode in (0x80..=0xBF).step_by(8) {
+            let bit = (start_opcode - 0x80) / 0x08;
+
+            prefixed_instruction_map = build_alu_instructions(
+                prefixed_instruction_map,
+                (start_opcode..start_opcode+8).collect(),
+                AluOperation::Res(bit),
+            );
+        }
+
+        for start_opcode in (0xC0..=0xFF).step_by(8) {
+            let bit = (start_opcode - 0xC0) / 0x08;
+
+            prefixed_instruction_map = build_alu_instructions(
+                prefixed_instruction_map,
+                // Use an inclusive range to prevent overflow
+                (start_opcode..=start_opcode+7).collect(),
+                AluOperation::Set(bit as u8),
+            );
+        }
+
+        InstructionRegistry { instruction_map, prefixed_instruction_map }
     }
 
-    pub fn fetch(&self, opcode: u8) -> Option<NewInstruction> {
-        self.instruction_map.get(&opcode).map(|instr| instr.to_owned())
+    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<NewInstruction> {
+        if prefixed_mode {
+            self.prefixed_instruction_map.get(&opcode).map(|instr| instr.to_owned())
+        } else {
+            self.instruction_map.get(&opcode).map(|instr| instr.to_owned())
+        }
     }
 }
 
@@ -613,6 +662,15 @@ fn build_alu_instructions(
                             .and_alu(alu_operation, TempLow)
                             .store(AddressSource::Reg(HL), TempLow)
                     },
+                    AluOperation::Rlc | AluOperation::Rrc | AluOperation::Rl
+                        | AluOperation::Rr | AluOperation::Sla | AluOperation::Sra
+                        | AluOperation::Swap | AluOperation::Srl | AluOperation::Res(_)
+                        | AluOperation::Set(_) => {
+                            instruction
+                                .load(AddressSource::Reg(HL), TempLow)
+                                .and_alu(alu_operation, TempLow)
+                                .store(AddressSource::Reg(HL), TempLow)
+                        },
                     _ => {
                         instruction
                             .load(AddressSource::Reg(HL), TempLow)

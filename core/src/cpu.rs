@@ -45,6 +45,7 @@ pub struct Cpu {
     pub current_instruction: &'static Instruction<'static>,
     current_new_instruction: Option<NewInstruction>,
     instruction_registry: InstructionRegistry,
+    prefixed_mode: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -191,6 +192,7 @@ impl Cpu {
             current_instruction: &INSTRUCTIONS[0],
             current_new_instruction: None,
             instruction_registry: InstructionRegistry::new(),
+            prefixed_mode: false,
         }
     }
 
@@ -208,15 +210,19 @@ impl Cpu {
 
         if !self.halted {
             if self.remaining_cycles == 0 {
-                let interrupt_was_serviced = self.check_and_handle_interrupts(memory);
+                // If we are in prefixed mode, that means that the instruction is not yet complete
+                // TODO: Find a cleaner way to do this
+                if !self.prefixed_mode {
+                    let interrupt_was_serviced = self.check_and_handle_interrupts(memory);
 
-                if interrupt_was_serviced {
-                    self.remaining_cycles += 5;
+                    if interrupt_was_serviced {
+                        self.remaining_cycles += 5;
+                    }
                 }
 
                 let opcode = memory.cpu_read(self.regs.read(PC));
 
-                match self.instruction_registry.fetch(opcode) {
+                match self.instruction_registry.fetch(opcode, self.prefixed_mode) {
                     Some(instruction) => {
                         let instruction = instruction.to_owned();
                         // To advance the PC
@@ -226,9 +232,15 @@ impl Cpu {
                             self.remaining_cycles += instruction.num_cycles() as u32;
                             self.current_new_instruction = Some(instruction);
                         } else {
-                            // We don't do anything for a NOOP instruction,
+                            // We don't do anything for a NOOP/PREFIXED instruction,
                             // but add one cycle to simulate fetching the PC
                             self.remaining_cycles += 1;
+                        }
+
+                        if self.prefixed_mode {
+                            self.prefixed_mode = false;
+                        } else {
+                            self.prefixed_mode = opcode == 0xCB;
                         }
                     },
                     None => {
@@ -236,6 +248,7 @@ impl Cpu {
                         self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
                         self.execute(memory);
+                        self.prefixed_mode = opcode == 0xCB;
                     },
                 }
             }
@@ -352,6 +365,18 @@ impl Cpu {
                         AluOperation::Scf => self.execute_scf(),
                         AluOperation::Cpl => self.execute_cpl(),
                         AluOperation::Ccf => self.execute_ccf(),
+
+                        AluOperation::Rlc => self.execute_rlc(memory, reg),
+                        AluOperation::Rrc => self.execute_rrc(memory, reg),
+                        AluOperation::Rl => self.execute_rl(memory, reg),
+                        AluOperation::Rr => self.execute_rr(memory, reg),
+                        AluOperation::Sla => self.execute_sla(memory, reg),
+                        AluOperation::Sra => self.execute_sra(memory, reg),
+                        AluOperation::Swap => self.execute_swap(memory, reg),
+                        AluOperation::Srl => self.execute_srl(memory, reg),
+                        AluOperation::Tst(bit) => self.execute_tst(memory, bit, reg),
+                        AluOperation::Res(bit) => self.execute_res(memory, bit, reg),
+                        AluOperation::Set(bit) => self.execute_set(memory, bit, reg),
                     }
                 },
             }
@@ -451,7 +476,6 @@ impl Cpu {
             0xE8 => self.execute_add_sp_imm8(memory, SP),
             0xF8 => self.execute_add_sp_imm8(memory, HL),
 
-            0xCB => self.execute_prefixed_instruction(memory),
             0x76 => self.halted = true,
 
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
@@ -568,127 +592,6 @@ impl Cpu {
         self.regs.write(SP, self.regs.read(SP) - 2);
         Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
         self.regs.write(PC, INTERRUPT_ADDRS[interrupt_no as usize]);
-    }
-
-    fn execute_prefixed_instruction(&mut self, memory: &mut Memory) {
-        let opcode = self.read_oper(memory, Immediate8);
-
-        match opcode {
-            0x00 => self.execute_rlc(memory, B),
-            0x01 => self.execute_rlc(memory, C),
-            0x02 => self.execute_rlc(memory, D),
-            0x03 => self.execute_rlc(memory, E),
-            0x04 => self.execute_rlc(memory, H),
-            0x05 => self.execute_rlc(memory, L),
-            0x06 => self.execute_rlc(memory, RegisterHL),
-            0x07 => self.execute_rlc(memory, A),
-
-            0x08 => self.execute_rrc(memory, B),
-            0x09 => self.execute_rrc(memory, C),
-            0x0A => self.execute_rrc(memory, D),
-            0x0B => self.execute_rrc(memory, E),
-            0x0C => self.execute_rrc(memory, H),
-            0x0D => self.execute_rrc(memory, L),
-            0x0E => self.execute_rrc(memory, RegisterHL),
-            0x0F => self.execute_rrc(memory, A),
-
-            0x10 => self.execute_rl(memory, B),
-            0x11 => self.execute_rl(memory, C),
-            0x12 => self.execute_rl(memory, D),
-            0x13 => self.execute_rl(memory, E),
-            0x14 => self.execute_rl(memory, H),
-            0x15 => self.execute_rl(memory, L),
-            0x16 => self.execute_rl(memory, RegisterHL),
-            0x17 => self.execute_rl(memory, A),
-
-            0x18 => self.execute_rr(memory, B),
-            0x19 => self.execute_rr(memory, C),
-            0x1A => self.execute_rr(memory, D),
-            0x1B => self.execute_rr(memory, E),
-            0x1C => self.execute_rr(memory, H),
-            0x1D => self.execute_rr(memory, L),
-            0x1E => self.execute_rr(memory, RegisterHL),
-            0x1F => self.execute_rr(memory, A),
-
-            0x20 => self.execute_sla(memory, B),
-            0x21 => self.execute_sla(memory, C),
-            0x22 => self.execute_sla(memory, D),
-            0x23 => self.execute_sla(memory, E),
-            0x24 => self.execute_sla(memory, H),
-            0x25 => self.execute_sla(memory, L),
-            0x26 => self.execute_sla(memory, RegisterHL),
-            0x27 => self.execute_sla(memory, A),
-
-            0x28 => self.execute_sra(memory, B),
-            0x29 => self.execute_sra(memory, C),
-            0x2A => self.execute_sra(memory, D),
-            0x2B => self.execute_sra(memory, E),
-            0x2C => self.execute_sra(memory, H),
-            0x2D => self.execute_sra(memory, L),
-            0x2E => self.execute_sra(memory, RegisterHL),
-            0x2F => self.execute_sra(memory, A),
-
-            0x30 => self.execute_swap(memory, B),
-            0x31 => self.execute_swap(memory, C),
-            0x32 => self.execute_swap(memory, D),
-            0x33 => self.execute_swap(memory, E),
-            0x34 => self.execute_swap(memory, H),
-            0x35 => self.execute_swap(memory, L),
-            0x36 => self.execute_swap(memory, RegisterHL),
-            0x37 => self.execute_swap(memory, A),
-
-            0x38 => self.execute_srl(memory, B),
-            0x39 => self.execute_srl(memory, C),
-            0x3A => self.execute_srl(memory, D),
-            0x3B => self.execute_srl(memory, E),
-            0x3C => self.execute_srl(memory, H),
-            0x3D => self.execute_srl(memory, L),
-            0x3E => self.execute_srl(memory, RegisterHL),
-            0x3F => self.execute_srl(memory, A),
-
-            0x40..=0x7F => {
-                let bit = (opcode - 0x40) / 0x08;
-                match opcode % 0x08 {
-                    0x00 => self.execute_tst(memory, bit, B),
-                    0x01 => self.execute_tst(memory, bit, C),
-                    0x02 => self.execute_tst(memory, bit, D),
-                    0x03 => self.execute_tst(memory, bit, E),
-                    0x04 => self.execute_tst(memory, bit, H),
-                    0x05 => self.execute_tst(memory, bit, L),
-                    0x06 => self.execute_tst(memory, bit, RegisterHL),
-                    0x07 => self.execute_tst(memory, bit, A),
-                    _    => unreachable!(),
-                }
-            },
-            0x80..=0xBF => {
-                let bit = (opcode - 0x80) / 0x08;
-                match opcode % 0x08 {
-                    0x00 => self.execute_res(memory, bit, B),
-                    0x01 => self.execute_res(memory, bit, C),
-                    0x02 => self.execute_res(memory, bit, D),
-                    0x03 => self.execute_res(memory, bit, E),
-                    0x04 => self.execute_res(memory, bit, H),
-                    0x05 => self.execute_res(memory, bit, L),
-                    0x06 => self.execute_res(memory, bit, RegisterHL),
-                    0x07 => self.execute_res(memory, bit, A),
-                    _    => unreachable!(),
-                }
-            },
-            0xC0..=0xFF => {
-                let bit = (opcode - 0xC0) / 0x08;
-                match opcode % 0x08 {
-                    0x00 => self.execute_set(memory, bit, B),
-                    0x01 => self.execute_set(memory, bit, C),
-                    0x02 => self.execute_set(memory, bit, D),
-                    0x03 => self.execute_set(memory, bit, E),
-                    0x04 => self.execute_set(memory, bit, H),
-                    0x05 => self.execute_set(memory, bit, L),
-                    0x06 => self.execute_set(memory, bit, RegisterHL),
-                    0x07 => self.execute_set(memory, bit, A),
-                    _    => unreachable!(),
-                }
-            },
-        }
     }
 
     fn execute_add16<T>(&mut self, memory: &Memory, src: T) where
