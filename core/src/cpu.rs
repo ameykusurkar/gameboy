@@ -529,16 +529,6 @@ impl Cpu {
             0x37 => self.execute_scf(),
             0x3F => self.execute_ccf(),
 
-            0x03 => self.execute_inc16(BC),
-            0x13 => self.execute_inc16(DE),
-            0x23 => self.execute_inc16(HL),
-            0x33 => self.regs.write(SP, self.regs.read(SP).wrapping_add(1)),
-
-            0x0B => self.execute_dec16(BC),
-            0x1B => self.execute_dec16(DE),
-            0x2B => self.execute_dec16(HL),
-            0x3B => self.regs.write(SP, self.regs.read(SP).wrapping_sub(1)),
-
             0x09 => self.execute_add16(memory, BC),
             0x19 => self.execute_add16(memory, DE),
             0x29 => self.execute_add16(memory, HL),
@@ -787,14 +777,6 @@ impl Cpu {
                 }
             },
         }
-    }
-
-    fn execute_inc16(&mut self, reg: TwoRegisterIndex) {
-        self.regs.write(reg, self.regs.read(reg).wrapping_add(1));
-    }
-
-    fn execute_dec16(&mut self, reg: TwoRegisterIndex) {
-        self.regs.write(reg, self.regs.read(reg).wrapping_sub(1));
     }
 
     fn execute_add16<T>(&mut self, memory: &Memory, src: T) where

@@ -203,6 +203,16 @@ impl InstructionRegistry {
 
         instruction_map.insert(0x00, NewInstruction::new());
 
+        instruction_map.insert(0x03, build_inc16_instruction(BC));
+        instruction_map.insert(0x13, build_inc16_instruction(DE));
+        instruction_map.insert(0x23, build_inc16_instruction(HL));
+        instruction_map.insert(0x33, build_inc16_instruction(SP));
+
+        instruction_map.insert(0x0B, build_dec16_instruction(BC));
+        instruction_map.insert(0x1B, build_dec16_instruction(DE));
+        instruction_map.insert(0x2B, build_dec16_instruction(HL));
+        instruction_map.insert(0x3B, build_dec16_instruction(SP));
+
         instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
         instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
@@ -505,4 +515,12 @@ fn build_reset_instruction(addr: u16) -> NewInstruction {
         .and_dec16(SP)
         .store(AddressSource::Reg(SP), PCLow)
         .and_move_rst_addr(addr)
+}
+
+fn build_inc16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+    NewInstruction::new().noop().and_inc16(reg16)
+}
+
+fn build_dec16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+    NewInstruction::new().noop().and_dec16(reg16)
 }
