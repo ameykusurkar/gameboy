@@ -12,14 +12,21 @@ pub struct Registers {
     b: u8, c: u8,
     d: u8, e: u8,
     h: u8, l: u8,
+
+    sp_high: u8, sp_low: u8,
+    pc_high: u8, pc_low: u8,
+    temp_high: u8, temp_low: u8,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RegisterIndex {
     A, F,
     B, C,
     D, E,
     H, L,
+    SPHigh, SPLow,
+    PCHigh, PCLow,
+    TempHigh, TempLow,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -28,6 +35,9 @@ pub enum TwoRegisterIndex {
     BC,
     DE,
     HL,
+    SP,
+    PC,
+    Temp16,
 }
 
 #[derive(Default, Copy, Clone)]
@@ -39,12 +49,15 @@ pub struct Flags {
 }
 
 impl TwoRegisterIndex {
-    fn split_index(&self) -> (RegisterIndex, RegisterIndex) {
+    pub fn split_index(&self) -> (RegisterIndex, RegisterIndex) {
         match self {
             TwoRegisterIndex::AF => (A, F),
             TwoRegisterIndex::BC => (B, C),
             TwoRegisterIndex::DE => (D, E),
             TwoRegisterIndex::HL => (H, L),
+            TwoRegisterIndex::SP => (SPHigh, SPLow),
+            TwoRegisterIndex::PC => (PCHigh, PCLow),
+            TwoRegisterIndex::Temp16 => (TempHigh, TempLow),
         }
     }
 }
@@ -90,6 +103,15 @@ impl std::ops::Index<RegisterIndex> for Registers {
 
             RegisterIndex::H => &self.h,
             RegisterIndex::L => &self.l,
+
+            RegisterIndex::SPHigh => &self.sp_high,
+            RegisterIndex::SPLow => &self.sp_low,
+
+            RegisterIndex::PCHigh => &self.pc_high,
+            RegisterIndex::PCLow => &self.pc_low,
+
+            RegisterIndex::TempHigh => &self.temp_high,
+            RegisterIndex::TempLow => &self.temp_low,
         }
     }
 }
@@ -108,6 +130,15 @@ impl std::ops::IndexMut<RegisterIndex> for Registers {
 
             RegisterIndex::H => &mut self.h,
             RegisterIndex::L => &mut self.l,
+
+            RegisterIndex::SPHigh => &mut self.sp_high,
+            RegisterIndex::SPLow => &mut self.sp_low,
+
+            RegisterIndex::PCHigh => &mut self.pc_high,
+            RegisterIndex::PCLow => &mut self.pc_low,
+
+            RegisterIndex::TempHigh => &mut self.temp_high,
+            RegisterIndex::TempLow => &mut self.temp_low,
         }
     }
 }

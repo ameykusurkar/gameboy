@@ -112,3 +112,11 @@ fn it_passes_cpu_test_11() {
 
     assert_eq!("11-op a,(hl)\n\n\nPassed\n", output);
 }
+
+#[test]
+fn it_passes_instr_timing_test() {
+    let rom = read_rom("tests/roms/instr_timing.gb");
+    let output = run_test_rom(rom, 7_000_000);
+
+    assert_eq!("instr_timing\n\n\nPassed\n", output);
+}

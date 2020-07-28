@@ -3,6 +3,7 @@ pub mod ppu;
 pub mod registers;
 pub mod memory;
 pub mod instruction;
+pub mod new_instruction;
 pub mod joypad;
 pub mod serial_transfer;
 pub mod utils;
