@@ -66,12 +66,7 @@ impl ConditionEvaluate for Cpu {
     }
 }
 
-#[derive(Copy, Clone)]
-struct RegisterHL;
-
 struct Immediate8;
-struct Immediate16;
-struct Addr16;
 
 struct AddrReg16(TwoRegisterIndex);
 
@@ -92,18 +87,6 @@ impl Operand8<RegisterIndex> for Cpu {
 
     fn write_oper(&mut self, _memory: &mut Memory, src: RegisterIndex, val: u8) {
         self.regs[src] = val;
-    }
-}
-
-impl Operand8<RegisterHL> for Cpu {
-    fn read_oper(&mut self, memory: &Memory, _src: RegisterHL) -> u8 {
-        let addr = self.regs.read(HL);
-        memory.cpu_read(addr)
-    }
-
-    fn write_oper(&mut self, memory: &mut Memory, _src: RegisterHL, val: u8) {
-        let addr = self.regs.read(HL);
-        memory.cpu_write(addr, val);
     }
 }
 
@@ -131,18 +114,6 @@ impl Operand8<Immediate8> for Cpu {
     fn write_oper(&mut self, _memory: &mut Memory, _src: Immediate8, _val: u8) {}
 }
 
-impl Operand8<Addr16> for Cpu {
-    fn read_oper(&mut self, memory: &Memory, _src: Addr16) -> u8 {
-        let addr = self.read16(memory, Immediate16);
-        memory.cpu_read(addr)
-    }
-
-    fn write_oper(&mut self, memory: &mut Memory, _src: Addr16, val: u8) {
-        let addr = self.read16(memory, Immediate16);
-        memory.cpu_write(addr, val);
-    }
-}
-
 impl Operand16<TwoRegisterIndex> for Cpu {
     fn read16(&mut self, _memory: &Memory, src: TwoRegisterIndex) -> u16 {
         self.regs.read(src)
@@ -150,33 +121,6 @@ impl Operand16<TwoRegisterIndex> for Cpu {
 
     fn write16(&mut self, _memory: &mut Memory, src: TwoRegisterIndex, val: u16) {
         self.regs.write(src, val);
-    }
-}
-
-impl Operand16<Immediate16> for Cpu {
-    fn read16(&mut self, memory: &Memory, _src: Immediate16) -> u16 {
-        let lsb = self.read_oper(memory, Immediate8) as u16;
-        let msb = self.read_oper(memory, Immediate8) as u16;
-        (msb << 8) | lsb
-    }
-
-    fn write16(&mut self, _memory: &mut Memory, _src: Immediate16, _val: u16) {}
-}
-
-impl Operand16<Addr16> for Cpu {
-    fn read16(&mut self, memory: &Memory, _src: Addr16) -> u16 {
-        let addr = self.read16(memory, Immediate16);
-        let lsb = memory.cpu_read(addr) as u16;
-        let msb = memory.cpu_read(addr + 1) as u16;
-        (msb << 8) | lsb
-    }
-
-    fn write16(&mut self, memory: &mut Memory, _src: Addr16, val: u16) {
-        let addr = self.read16(memory, Immediate16);
-        let lsb = (val & 0x00FF) as u8;
-        let msb = ((val & 0xFF00) >> 8) as u8;
-        memory.cpu_write(addr, lsb);
-        memory.cpu_write(addr + 1, msb);
     }
 }
 
