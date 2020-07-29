@@ -319,6 +319,23 @@ impl Cpu {
                         AluOperation::Tst(bit) => self.execute_tst(memory, bit, reg),
                         AluOperation::Res(bit) => self.execute_res(memory, bit, reg),
                         AluOperation::Set(bit) => self.execute_set(memory, bit, reg),
+
+                        AluOperation::Rlca => {
+                            self.execute_rlc(memory, reg);
+                            self.set_flag(ZERO_FLAG, false);
+                        },
+                        AluOperation::Rrca => {
+                            self.execute_rrc(memory, reg);
+                            self.set_flag(ZERO_FLAG, false);
+                        },
+                        AluOperation::Rla => {
+                            self.execute_rl(memory, reg);
+                            self.set_flag(ZERO_FLAG, false);
+                        },
+                        AluOperation::Rra => {
+                            self.execute_rr(memory, reg);
+                            self.set_flag(ZERO_FLAG, false);
+                        },
                     }
                 },
             }
@@ -394,23 +411,6 @@ impl Cpu {
 
         match opcode {
             0xF1 => self.execute_pop(memory, AF),
-
-            0x07 => {
-                self.execute_rlc(memory, A);
-                self.set_flag(ZERO_FLAG, false);
-            },
-            0x0F => {
-                self.execute_rrc(memory, A);
-                self.set_flag(ZERO_FLAG, false);
-            },
-            0x17 => {
-                self.execute_rl(memory, A);
-                self.set_flag(ZERO_FLAG, false);
-            },
-            0x1F => {
-                self.execute_rr(memory, A);
-                self.set_flag(ZERO_FLAG, false);
-            },
 
             0xE8 => self.execute_add_sp_imm8(memory, SP),
             0xF8 => self.execute_add_sp_imm8(memory, HL),

@@ -198,6 +198,7 @@ pub enum RegisterOperation {
 pub enum AluOperation {
     Inc, Dec, Add, Adc, Sub, Sbc, And, Xor, Or, Cp, Daa, Scf, Cpl, Ccf,
     Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl, Tst(u8), Res(u8), Set(u8),
+    Rlca, Rrca, Rla, Rra,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -365,6 +366,11 @@ impl InstructionRegistry {
 
         instruction_map = build_alu_instructions(instruction_map, (0xB8..=0xBF).collect(), AluOperation::Cp);
         instruction_map.insert(0xFE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Cp, TempLow));
+
+        instruction_map.insert(0x07, NewInstruction::new().empty().and_alu(AluOperation::Rlca, A));
+        instruction_map.insert(0x0F, NewInstruction::new().empty().and_alu(AluOperation::Rrca, A));
+        instruction_map.insert(0x17, NewInstruction::new().empty().and_alu(AluOperation::Rla, A));
+        instruction_map.insert(0x1F, NewInstruction::new().empty().and_alu(AluOperation::Rra, A));
 
         instruction_map.insert(0x27, NewInstruction::new().empty().and_alu(AluOperation::Daa, A));
         instruction_map.insert(0x2F, NewInstruction::new().empty().and_alu(AluOperation::Cpl, A));
