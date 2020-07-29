@@ -345,6 +345,10 @@ impl Cpu {
             self.ime = val;
         });
 
+        if micro_instruction.set_halted {
+            self.halted = true;
+        }
+
         micro_instruction.check_condition.map_or(true, |condition| {
             self.eval_condition(condition)
         })
@@ -414,8 +418,6 @@ impl Cpu {
 
             0xE8 => self.execute_add_sp_imm8(memory, SP),
             0xF8 => self.execute_add_sp_imm8(memory, HL),
-
-            0x76 => self.halted = true,
 
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }

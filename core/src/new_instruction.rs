@@ -101,6 +101,18 @@ impl NewInstruction {
         self.push(MicroInstruction::default())
     }
 
+    fn and_halt(mut self) -> Self {
+        match self.micro_instructions.pop_back() {
+            Some(mut micro_instruction) => {
+                micro_instruction.set_halted = true;
+                self.micro_instructions.push_back(micro_instruction);
+            },
+            None => unimplemented!("No micro instruction found to set halted!"),
+        }
+
+        self
+    }
+
     fn load(self, addr_source: AddressSource, reg: RegisterIndex) -> Self {
         self.push(
             MicroInstruction::default()
@@ -162,6 +174,7 @@ pub struct MicroInstruction {
     pub register_operation: Option<RegisterOperation>,
     pub check_condition: Option<Condition>,
     pub set_interrupts: Option<bool>,
+    pub set_halted: bool,
 }
 
 impl MicroInstruction {
@@ -376,6 +389,8 @@ impl InstructionRegistry {
         instruction_map.insert(0x2F, NewInstruction::new().empty().and_alu(AluOperation::Cpl, A));
         instruction_map.insert(0x37, NewInstruction::new().empty().and_alu(AluOperation::Scf, A));
         instruction_map.insert(0x3F, NewInstruction::new().empty().and_alu(AluOperation::Ccf, A));
+
+        instruction_map.insert(0x76, NewInstruction::new().empty().and_halt());
 
         let mut prefixed_instruction_map = std::collections::HashMap::new();
 
