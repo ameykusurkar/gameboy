@@ -13,6 +13,7 @@ pub struct Memory {
     pub joypad: Joypad,
     pub sound_controller: SoundController,
     pub serial_transfer: SerialTransfer,
+    pub div: u16,
 }
 
 pub trait MemoryAccess {
@@ -32,6 +33,7 @@ impl Memory {
             joypad: Joypad::default(),
             sound_controller: SoundController::new(),
             serial_transfer: SerialTransfer::new(),
+            div: 0,
         }
     }
 
@@ -41,6 +43,10 @@ impl Memory {
 
     fn is_bootrom_active(&self) -> bool {
         (self.memory[0xFF50] & 0x01) == 0
+    }
+
+    pub fn div_cycle(&mut self) {
+        self.div = self.div.wrapping_add(4);
     }
 
     pub fn cpu_read(&self, addr: u16) -> u8 {
@@ -61,6 +67,9 @@ impl Memory {
             self.joypad.read(addr as u16)
         } else if addr == 0xFF01 || addr == 0xFF02 {
             self.serial_transfer.read(addr as u16)
+        } else if addr == 0xFF04 {
+            let top_bits = self.div & 0xFF00;
+            (top_bits >> 8) as u8
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else {
@@ -96,6 +105,9 @@ impl Memory {
             },
             0xFF01 | 0xFF02 => {
                 self.serial_transfer.write(addr, val);
+            },
+            0xFF04 => {
+                self.div = 0x00;
             },
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
