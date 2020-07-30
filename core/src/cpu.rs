@@ -91,21 +91,21 @@ impl Operand8<RegisterIndex> for Cpu {
 impl Operand8<AddrReg16> for Cpu {
     fn read_oper(&mut self, memory: &Memory, src: AddrReg16) -> u8 {
         let AddrReg16(reg) = src;
-        let addr = self.regs.read(reg);
+        let addr = self.regs.read16(reg);
         memory.cpu_read(addr)
     }
 
     fn write_oper(&mut self, memory: &mut Memory, src: AddrReg16, val: u8) {
         let AddrReg16(reg) = src;
-        let addr = self.regs.read(reg);
+        let addr = self.regs.read16(reg);
         memory.cpu_write(addr, val);
     }
 }
 
 impl Operand8<Immediate8> for Cpu {
     fn read_oper(&mut self, memory: &Memory, _src: Immediate8) -> u8 {
-        let val = memory.cpu_read(self.regs.read(PC));
-        self.regs.write(PC, self.regs.read(PC).wrapping_add(1));
+        let val = memory.cpu_read(self.regs.read16(PC));
+        self.regs.write16(PC, self.regs.read16(PC).wrapping_add(1));
         val
     }
 
@@ -114,11 +114,11 @@ impl Operand8<Immediate8> for Cpu {
 
 impl Operand16<TwoRegisterIndex> for Cpu {
     fn read16(&mut self, _memory: &Memory, src: TwoRegisterIndex) -> u16 {
-        self.regs.read(src)
+        self.regs.read16(src)
     }
 
     fn write16(&mut self, _memory: &mut Memory, src: TwoRegisterIndex, val: u16) {
-        self.regs.write(src, val);
+        self.regs.write16(src, val);
     }
 }
 
@@ -140,8 +140,8 @@ impl Cpu {
 
     #[allow(dead_code)]
     pub fn skip_bootrom(&mut self, memory: &mut Memory) {
-        self.regs.write(PC, 0x100);
-        self.regs.write(SP, 0xFFFE);
+        self.regs.write16(PC, 0x100);
+        self.regs.write16(SP, 0xFFFE);
         memory.cpu_write(0xFF50, 1);
     }
 
@@ -162,7 +162,7 @@ impl Cpu {
                     }
                 }
 
-                let opcode = memory.cpu_read(self.regs.read(PC));
+                let opcode = memory.cpu_read(self.regs.read16(PC));
 
                 match self.instruction_registry.fetch(opcode, self.prefixed_mode) {
                     Some(instruction) => {
@@ -186,7 +186,7 @@ impl Cpu {
                         }
                     },
                     None => {
-                        self.current_instruction = self.fetch_instruction(memory, self.regs.read(PC));
+                        self.current_instruction = self.fetch_instruction(memory, self.regs.read16(PC));
                         self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
 
                         self.execute(memory);
@@ -240,7 +240,7 @@ impl Cpu {
                         },
                         AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
                         AddressSource::RegWithOffset(reg, offset) => {
-                            let addr = self.regs.read(reg) + offset;
+                            let addr = self.regs.read16(reg) + offset;
                             memory.cpu_read(addr)
                         },
                     };
@@ -253,9 +253,9 @@ impl Cpu {
                         AddressSource::HighPage(src_reg) => {
                             0xFF00 | self.regs[src_reg] as u16
                         },
-                        AddressSource::Reg(reg) => self.regs.read(reg),
+                        AddressSource::Reg(reg) => self.regs.read16(reg),
                         AddressSource::RegWithOffset(reg, offset) => {
-                            self.regs.read(reg) + offset
+                            self.regs.read16(reg) + offset
                         },
                     };
 
@@ -272,13 +272,13 @@ impl Cpu {
                     self.write_oper(memory, dst, val);
                 }
                 RegisterOperation::Load16(dst, src) => {
-                    self.regs.write(dst, self.regs.read(src));
+                    self.regs.write16(dst, self.regs.read16(src));
                 },
                 RegisterOperation::IncReg16(reg) => {
-                    self.regs.write(reg, self.regs.read(reg).wrapping_add(1));
+                    self.regs.write16(reg, self.regs.read16(reg).wrapping_add(1));
                 },
                 RegisterOperation::DecReg16(reg) => {
-                    self.regs.write(reg, self.regs.read(reg).wrapping_sub(1));
+                    self.regs.write16(reg, self.regs.read16(reg).wrapping_sub(1));
                 },
                 RegisterOperation::AddReg16(reg) => {
                     self.execute_add16(memory, reg);
@@ -288,11 +288,11 @@ impl Cpu {
                 },
                 RegisterOperation::SignedAddReg16(reg16, reg) => {
                     let offset = (self.regs[reg] as i8) as i32;
-                    let orig_val = self.regs.read(reg16) as i32;
-                    self.regs.write(reg16, (orig_val + offset) as u16);
+                    let orig_val = self.regs.read16(reg16) as i32;
+                    self.regs.write16(reg16, (orig_val + offset) as u16);
                 },
                 RegisterOperation::LoadRstAddress(addr) => {
-                    self.regs.write(PC, addr);
+                    self.regs.write16(PC, addr);
                 },
                 RegisterOperation::Alu(alu_operation, reg) => {
                     match alu_operation {
@@ -411,8 +411,8 @@ impl Cpu {
 
         if DEBUG {
             println!(
-                "{:#06x}: {}", self.regs.read(PC) - 1,
-                self.build_instruction_repr(memory, self.regs.read(PC), self.current_instruction),
+                "{:#06x}: {}", self.regs.read16(PC) - 1,
+                self.build_instruction_repr(memory, self.regs.read16(PC), self.current_instruction),
             );
         }
 
@@ -423,7 +423,7 @@ impl Cpu {
         }
 
         if DEBUG {
-            println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.regs.read(PC), self.total_clock_cycles);
+            println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.regs.read16(PC), self.total_clock_cycles);
         }
     }
 
@@ -530,16 +530,16 @@ impl Cpu {
         // This routine should take 5 machine cycles
         self.ime = false;
         memory.cpu_write(IF_ADDR, set_bit(memory.cpu_read(IF_ADDR), interrupt_no, false));
-        self.regs.write(SP, self.regs.read(SP) - 2);
-        Self::write_mem_u16(memory, self.regs.read(SP), self.regs.read(PC));
-        self.regs.write(PC, INTERRUPT_ADDRS[interrupt_no as usize]);
+        self.regs.write16(SP, self.regs.read16(SP) - 2);
+        Self::write_mem_u16(memory, self.regs.read16(SP), self.regs.read16(PC));
+        self.regs.write16(PC, INTERRUPT_ADDRS[interrupt_no as usize]);
     }
 
     fn execute_add16<T>(&mut self, memory: &Memory, src: T) where
     Self: Operand16<T> {
         let old_zero = read_bit(self.regs[F], ZERO_FLAG);
-        let (result, flags) = add_u16(self.regs.read(HL), self.read16(memory, src));
-        self.regs.write(HL, result);
+        let (result, flags) = add_u16(self.regs.read16(HL), self.read16(memory, src));
+        self.regs.write16(HL, result);
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
     }
 
@@ -809,15 +809,15 @@ impl Cpu {
     }
 
     fn execute_pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
-        let nn = Self::read_mem_u16(memory, self.regs.read(SP));
-        self.regs.write(index, nn);
-        self.regs.write(SP, self.regs.read(SP) + 2);
+        let nn = Self::read_mem_u16(memory, self.regs.read16(SP));
+        self.regs.write16(index, nn);
+        self.regs.write16(SP, self.regs.read16(SP) + 2);
     }
 
     fn sum_sp_n(&mut self, n: u8) -> (u16, Flags) {
         // n is a signed value
         let n = n as i8;
-        let sp = self.regs.read(SP) as i32;
+        let sp = self.regs.read16(SP) as i32;
 
         let result = sp + (n as i32);
         let (half_carry, carry) = if n < 0 {

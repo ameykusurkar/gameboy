@@ -63,7 +63,7 @@ impl TwoRegisterIndex {
 }
 
 impl Registers {
-    pub fn write(&mut self, index: TwoRegisterIndex, val: u16) {
+    pub fn write16(&mut self, index: TwoRegisterIndex, val: u16) {
         let (high, low) = index.split_index();
         self[high] = ((val & 0xFF00) >> 8) as u8;
         match low {
@@ -73,7 +73,7 @@ impl Registers {
         };
     }
 
-    pub fn read(&self, index: TwoRegisterIndex) -> u16 {
+    pub fn read16(&self, index: TwoRegisterIndex) -> u16 {
         let (high, low) = index.split_index();
         ((self[high] as u16) << 8) | self[low] as u16
     }
