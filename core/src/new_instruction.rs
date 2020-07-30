@@ -163,6 +163,10 @@ impl NewInstruction {
         self.append_register_operation(RegisterOperation::AddReg16(reg16))
     }
 
+    fn and_add_sp(self, reg16: TwoRegisterIndex, reg: RegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::AddSP8(reg16, reg))
+    }
+
     fn and_alu(self, alu_operation: AluOperation, reg: RegisterIndex) -> Self {
         self.append_register_operation(RegisterOperation::Alu(alu_operation, reg))
     }
@@ -202,6 +206,7 @@ pub enum RegisterOperation {
     IncReg16(TwoRegisterIndex),
     DecReg16(TwoRegisterIndex),
     AddReg16(TwoRegisterIndex),
+    AddSP8(TwoRegisterIndex, RegisterIndex),
     SignedAddReg16(TwoRegisterIndex, RegisterIndex),
     LoadRstAddress(u16),
     Alu(AluOperation, RegisterIndex),
@@ -257,6 +262,9 @@ impl InstructionRegistry {
         instruction_map.insert(0x19, build_add16_instruction(DE));
         instruction_map.insert(0x29, build_add16_instruction(HL));
         instruction_map.insert(0x39, build_add16_instruction(SP));
+
+        instruction_map.insert(0xE8, build_add_sp_n_instruction());
+        instruction_map.insert(0xF8, build_add_hl_sp_n_instruction());
 
         instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
@@ -661,6 +669,19 @@ fn build_dec16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
 fn build_add16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
     // TODO: Actually split alu instruction instead of using a noop
     NewInstruction::new().noop().empty().and_add16(reg16)
+}
+
+fn build_add_sp_n_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .noop().and_add_sp(SP, TempLow)
+        .noop()
+}
+
+fn build_add_hl_sp_n_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .noop().and_add_sp(HL, TempLow)
 }
 
 fn build_alu_instructions(

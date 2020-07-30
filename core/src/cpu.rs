@@ -283,6 +283,9 @@ impl Cpu {
                 RegisterOperation::AddReg16(reg) => {
                     self.execute_add16(memory, reg);
                 },
+                RegisterOperation::AddSP8(reg16, reg) => {
+                    self.execute_add_sp(memory, reg16, reg);
+                },
                 RegisterOperation::SignedAddReg16(reg16, reg) => {
                     let offset = (self.regs[reg] as i8) as i32;
                     let orig_val = self.regs.read(reg16) as i32;
@@ -416,9 +419,6 @@ impl Cpu {
         match opcode {
             0xF1 => self.execute_pop(memory, AF),
 
-            0xE8 => self.execute_add_sp_imm8(memory, SP),
-            0xF8 => self.execute_add_sp_imm8(memory, HL),
-
             _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
         }
 
@@ -543,9 +543,9 @@ impl Cpu {
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
     }
 
-    fn execute_add_sp_imm8<T>(&mut self, memory: &mut Memory, dst: T) where
+    fn execute_add_sp<T>(&mut self, memory: &mut Memory, dst: T, src: RegisterIndex) where
     Self: Operand16<T> {
-        let n = self.read_oper(memory, Immediate8);
+        let n = self.regs[src];
         let (result, flags) = self.sum_sp_n(n);
         self.write16(memory, dst, result);
         self.regs.write_flags(flags);
