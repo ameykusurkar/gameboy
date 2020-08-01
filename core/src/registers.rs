@@ -66,16 +66,38 @@ impl Registers {
     pub fn write16(&mut self, index: TwoRegisterIndex, val: u16) {
         let (high, low) = index.split_index();
         self.write(high, ((val & 0xFF00) >> 8) as u8);
-        match low {
-            // Bits 0-3 of the flags register are unused and always stay zeroed
-            F => self.write(low, (val & 0x00F0) as u8),
-            _ => self.write(low, (val & 0x00FF) as u8),
-        };
+        self.write(low, (val & 0x00FF) as u8);
     }
 
     pub fn read16(&self, index: TwoRegisterIndex) -> u16 {
         let (high, low) = index.split_index();
         ((self.read(high) as u16) << 8) | self.read(low) as u16
+    }
+
+    pub fn write(&mut self, index: RegisterIndex, val: u8) {
+        match index {
+            RegisterIndex::A => self.a = val,
+            // Bits 0-3 of the flags register are unused and always stay zeroed
+            RegisterIndex::F => self.f = val & 0xF0,
+
+            RegisterIndex::B => self.b = val,
+            RegisterIndex::C => self.c = val,
+
+            RegisterIndex::D => self.d = val,
+            RegisterIndex::E => self.e = val,
+
+            RegisterIndex::H => self.h = val,
+            RegisterIndex::L => self.l = val,
+
+            RegisterIndex::SPHigh => self.sp_high = val,
+            RegisterIndex::SPLow => self.sp_low = val,
+
+            RegisterIndex::PCHigh => self.pc_high = val,
+            RegisterIndex::PCLow => self.pc_low = val,
+
+            RegisterIndex::TempHigh => self.temp_high = val,
+            RegisterIndex::TempLow => self.temp_low = val,
+        }
     }
 
     pub fn read(&self, index: RegisterIndex) -> u8 {
@@ -100,31 +122,6 @@ impl Registers {
 
             RegisterIndex::TempHigh => self.temp_high,
             RegisterIndex::TempLow => self.temp_low,
-        }
-    }
-
-    pub fn write(&mut self, index: RegisterIndex, val: u8) {
-        match index {
-            RegisterIndex::A => self.a = val,
-            RegisterIndex::F => self.f = val,
-
-            RegisterIndex::B => self.b = val,
-            RegisterIndex::C => self.c = val,
-
-            RegisterIndex::D => self.d = val,
-            RegisterIndex::E => self.e = val,
-
-            RegisterIndex::H => self.h = val,
-            RegisterIndex::L => self.l = val,
-
-            RegisterIndex::SPHigh => self.sp_high = val,
-            RegisterIndex::SPLow => self.sp_low = val,
-
-            RegisterIndex::PCHigh => self.pc_high = val,
-            RegisterIndex::PCLow => self.pc_low = val,
-
-            RegisterIndex::TempHigh => self.temp_high = val,
-            RegisterIndex::TempLow => self.temp_low = val,
         }
     }
 
