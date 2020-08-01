@@ -160,13 +160,11 @@ impl Cpu {
                     }
                 }
 
-                let opcode = memory.cpu_read(self.regs.read16(PC));
+                let opcode = self.read_oper(memory, Immediate8);
 
                 match self.instruction_registry.fetch(opcode, self.prefixed_mode) {
                     Some(instruction) => {
                         let instruction = instruction.to_owned();
-                        // To advance the PC
-                        self.read_oper(memory, Immediate8);
 
                         if instruction.num_cycles() > 0 {
                             self.remaining_cycles += instruction.num_cycles() as u32;
