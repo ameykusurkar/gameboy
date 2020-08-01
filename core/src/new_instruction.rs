@@ -299,10 +299,10 @@ impl InstructionRegistry {
         instruction_map.insert(0x32, build_load_rhl_dec_r_instruction(A));
         instruction_map.insert(0x3A, build_load_r_rhl_dec_instruction(A));
 
-        // TODO: POP AF
         instruction_map.insert(0xC1, build_pop_instruction(BC));
         instruction_map.insert(0xD1, build_pop_instruction(DE));
         instruction_map.insert(0xE1, build_pop_instruction(HL));
+        instruction_map.insert(0xF1, build_pop_instruction(AF));
 
         instruction_map.insert(0xC5, build_push_instruction(BC));
         instruction_map.insert(0xD5, build_push_instruction(DE));

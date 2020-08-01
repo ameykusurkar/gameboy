@@ -9,14 +9,12 @@ use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 use crate::memory::Memory;
 use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
-use crate::instruction::CycleCount::*;
 use crate::new_instruction::{
     NewInstruction, MicroInstruction, InstructionRegistry,
     MemoryOperation, AddressSource, RegisterOperation,
     AluOperation,
 };
 
-use crate::emulator::DEBUG;
 use crate::utils::{read_bit, set_bit};
 
 // Address of the interrupt enable register
@@ -185,13 +183,7 @@ impl Cpu {
                             self.prefixed_mode = opcode == 0xCB;
                         }
                     },
-                    None => {
-                        self.current_instruction = self.fetch_instruction(memory, self.regs.read16(PC));
-                        self.remaining_cycles += self.cycles_for_instruction(self.current_instruction);
-
-                        self.execute(memory);
-                        self.prefixed_mode = opcode == 0xCB;
-                    },
+                    None => unimplemented!("Unimplemented opcode {:02x}, prefixed: {}", opcode, self.prefixed_mode),
                 }
             }
 
@@ -368,16 +360,6 @@ impl Cpu {
         }
     }
 
-    // Finds the number of cycles required for the given instruction. If the instruction
-    // is a conditional jump, this does not take into account the extra cycles required
-    // for the jump: that is determined by the `execute` method.
-    fn cycles_for_instruction(&self, instruction: &Instruction) -> u32 {
-        match instruction.cycles {
-            Fixed(cycles) => cycles,
-            Jump(_, cycles_without_jump) => cycles_without_jump,
-        }
-    }
-
     fn update_timers(&mut self, memory: &mut Memory) {
         memory.div_cycle();
 
@@ -403,27 +385,6 @@ impl Cpu {
                     memory.cpu_write(TIMA_ADDR, tima + 1);
                 }
             }
-        }
-    }
-
-    pub fn execute(&mut self, memory: &mut Memory) {
-        let opcode = self.read_oper(memory, Immediate8);
-
-        if DEBUG {
-            println!(
-                "{:#06x}: {}", self.regs.read16(PC) - 1,
-                self.build_instruction_repr(memory, self.regs.read16(PC), self.current_instruction),
-            );
-        }
-
-        match opcode {
-            0xF1 => self.execute_pop(memory, AF),
-
-            _ => panic!("Unimplemented opcode {:02x}, {:?}", opcode, self.current_instruction),
-        }
-
-        if DEBUG {
-            println!("{:02x?}, PC: {:#06x}, Cycles: {}", self.regs, self.regs.read16(PC), self.total_clock_cycles);
         }
     }
 
@@ -808,12 +769,6 @@ impl Cpu {
         self.set_flag(HALF_CARRY_FLAG, (old & 0xF) == 0);
     }
 
-    fn execute_pop(&mut self, memory: &mut Memory, index: TwoRegisterIndex) {
-        let nn = Self::read_mem_u16(memory, self.regs.read16(SP));
-        self.regs.write16(index, nn);
-        self.regs.write16(SP, self.regs.read16(SP) + 2);
-    }
-
     fn sum_sp_n(&mut self, n: u8) -> (u16, Flags) {
         // n is a signed value
         let n = n as i8;
@@ -833,12 +788,6 @@ impl Cpu {
         };
 
         (result as u16, Flags { half_carry, carry, ..Flags::default() })
-    }
-
-    fn read_mem_u16(memory: &Memory, addr: u16) -> u16 {
-        let lsb = memory.cpu_read(addr) as u16;
-        let msb = memory.cpu_read(addr + 1) as u16;
-        (msb << 8) | lsb
     }
 
     fn write_mem_u16(memory: &mut Memory, addr: u16, val: u16) {
