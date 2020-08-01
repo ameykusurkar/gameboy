@@ -65,81 +65,75 @@ impl TwoRegisterIndex {
 impl Registers {
     pub fn write16(&mut self, index: TwoRegisterIndex, val: u16) {
         let (high, low) = index.split_index();
-        self[high] = ((val & 0xFF00) >> 8) as u8;
+        self.write(high, ((val & 0xFF00) >> 8) as u8);
         match low {
             // Bits 0-3 of the flags register are unused and always stay zeroed
-            F => self[low] = (val & 0x00F0) as u8,
-            _ => self[low] = (val & 0x00FF) as u8,
+            F => self.write(low, (val & 0x00F0) as u8),
+            _ => self.write(low, (val & 0x00FF) as u8),
         };
     }
 
     pub fn read16(&self, index: TwoRegisterIndex) -> u16 {
         let (high, low) = index.split_index();
-        ((self[high] as u16) << 8) | self[low] as u16
+        ((self.read(high) as u16) << 8) | self.read(low) as u16
+    }
+
+    pub fn read(&self, index: RegisterIndex) -> u8 {
+        match index {
+            RegisterIndex::A => self.a,
+            RegisterIndex::F => self.f,
+
+            RegisterIndex::B => self.b,
+            RegisterIndex::C => self.c,
+
+            RegisterIndex::D => self.d,
+            RegisterIndex::E => self.e,
+
+            RegisterIndex::H => self.h,
+            RegisterIndex::L => self.l,
+
+            RegisterIndex::SPHigh => self.sp_high,
+            RegisterIndex::SPLow => self.sp_low,
+
+            RegisterIndex::PCHigh => self.pc_high,
+            RegisterIndex::PCLow => self.pc_low,
+
+            RegisterIndex::TempHigh => self.temp_high,
+            RegisterIndex::TempLow => self.temp_low,
+        }
+    }
+
+    pub fn write(&mut self, index: RegisterIndex, val: u8) {
+        match index {
+            RegisterIndex::A => self.a = val,
+            RegisterIndex::F => self.f = val,
+
+            RegisterIndex::B => self.b = val,
+            RegisterIndex::C => self.c = val,
+
+            RegisterIndex::D => self.d = val,
+            RegisterIndex::E => self.e = val,
+
+            RegisterIndex::H => self.h = val,
+            RegisterIndex::L => self.l = val,
+
+            RegisterIndex::SPHigh => self.sp_high = val,
+            RegisterIndex::SPLow => self.sp_low = val,
+
+            RegisterIndex::PCHigh => self.pc_high = val,
+            RegisterIndex::PCLow => self.pc_low = val,
+
+            RegisterIndex::TempHigh => self.temp_high = val,
+            RegisterIndex::TempLow => self.temp_low = val,
+        }
     }
 
     pub fn write_flags(&mut self, flags: Flags) {
-        self[F] = u8::from(flags);
+        self.write(F, u8::from(flags));
     }
 
     pub fn read_flags(&self) -> Flags {
-        Flags::from(self[F])
-    }
-}
-
-impl std::ops::Index<RegisterIndex> for Registers {
-    type Output = u8;
-
-    fn index(&self, index: RegisterIndex) -> &Self::Output {
-        match index {
-            RegisterIndex::A => &self.a,
-            RegisterIndex::F => &self.f,
-
-            RegisterIndex::B => &self.b,
-            RegisterIndex::C => &self.c,
-
-            RegisterIndex::D => &self.d,
-            RegisterIndex::E => &self.e,
-
-            RegisterIndex::H => &self.h,
-            RegisterIndex::L => &self.l,
-
-            RegisterIndex::SPHigh => &self.sp_high,
-            RegisterIndex::SPLow => &self.sp_low,
-
-            RegisterIndex::PCHigh => &self.pc_high,
-            RegisterIndex::PCLow => &self.pc_low,
-
-            RegisterIndex::TempHigh => &self.temp_high,
-            RegisterIndex::TempLow => &self.temp_low,
-        }
-    }
-}
-
-impl std::ops::IndexMut<RegisterIndex> for Registers {
-    fn index_mut(&mut self, index: RegisterIndex) -> &mut Self::Output {
-        match index {
-            RegisterIndex::A => &mut self.a,
-            RegisterIndex::F => &mut self.f,
-
-            RegisterIndex::B => &mut self.b,
-            RegisterIndex::C => &mut self.c,
-
-            RegisterIndex::D => &mut self.d,
-            RegisterIndex::E => &mut self.e,
-
-            RegisterIndex::H => &mut self.h,
-            RegisterIndex::L => &mut self.l,
-
-            RegisterIndex::SPHigh => &mut self.sp_high,
-            RegisterIndex::SPLow => &mut self.sp_low,
-
-            RegisterIndex::PCHigh => &mut self.pc_high,
-            RegisterIndex::PCLow => &mut self.pc_low,
-
-            RegisterIndex::TempHigh => &mut self.temp_high,
-            RegisterIndex::TempLow => &mut self.temp_low,
-        }
+        Flags::from(self.read(F))
     }
 }
 

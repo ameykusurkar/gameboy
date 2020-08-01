@@ -56,10 +56,10 @@ trait ConditionEvaluate {
 impl ConditionEvaluate for Cpu {
     fn eval_condition(&self, condition: Condition) -> bool {
         match condition {
-            Condition::NZ => !read_bit(self.regs[F], ZERO_FLAG),
-            Condition::Z => read_bit(self.regs[F], ZERO_FLAG),
-            Condition::NC => !read_bit(self.regs[F], CARRY_FLAG),
-            Condition::C => read_bit(self.regs[F], CARRY_FLAG),
+            Condition::NZ => !read_bit(self.regs.read(F), ZERO_FLAG),
+            Condition::Z => read_bit(self.regs.read(F), ZERO_FLAG),
+            Condition::NC => !read_bit(self.regs.read(F), CARRY_FLAG),
+            Condition::C => read_bit(self.regs.read(F), CARRY_FLAG),
         }
     }
 }
@@ -80,11 +80,11 @@ trait Operand16<T> {
 
 impl Operand8<RegisterIndex> for Cpu {
     fn read_oper(&mut self, _memory: &Memory, src: RegisterIndex) -> u8 {
-        self.regs[src]
+        self.regs.read(src)
     }
 
     fn write_oper(&mut self, _memory: &mut Memory, src: RegisterIndex, val: u8) {
-        self.regs[src] = val;
+        self.regs.write(src, val);
     }
 }
 
@@ -236,7 +236,7 @@ impl Cpu {
                     let val = match address_source {
                         AddressSource::Immediate => self.read_oper(memory, Immediate8),
                         AddressSource::HighPage(src_reg) => {
-                            memory.cpu_read(0xFF00 | self.regs[src_reg] as u16)
+                            memory.cpu_read(0xFF00 | self.regs.read(src_reg) as u16)
                         },
                         AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
                         AddressSource::RegWithOffset(reg, offset) => {
@@ -245,13 +245,13 @@ impl Cpu {
                         },
                     };
 
-                    self.regs[mem_reg] = val;
+                    self.regs.write(mem_reg, val);
                 },
                 MemoryOperation::Write(address_source, mem_reg) => {
                     let addr = match address_source {
                         AddressSource::Immediate => panic!(),
                         AddressSource::HighPage(src_reg) => {
-                            0xFF00 | self.regs[src_reg] as u16
+                            0xFF00 | self.regs.read(src_reg) as u16
                         },
                         AddressSource::Reg(reg) => self.regs.read16(reg),
                         AddressSource::RegWithOffset(reg, offset) => {
@@ -259,7 +259,7 @@ impl Cpu {
                         },
                     };
 
-                    memory.cpu_write(addr, self.regs[mem_reg]);
+                    memory.cpu_write(addr, self.regs.read(mem_reg));
                 },
                 MemoryOperation::Noop => (),
             }
@@ -287,7 +287,7 @@ impl Cpu {
                     self.execute_add_sp(memory, reg16, reg);
                 },
                 RegisterOperation::SignedAddReg16(reg16, reg) => {
-                    let offset = (self.regs[reg] as i8) as i32;
+                    let offset = (self.regs.read(reg) as i8) as i32;
                     let orig_val = self.regs.read16(reg16) as i32;
                     self.regs.write16(reg16, (orig_val + offset) as u16);
                 },
@@ -537,7 +537,7 @@ impl Cpu {
 
     fn execute_add16<T>(&mut self, memory: &Memory, src: T) where
     Self: Operand16<T> {
-        let old_zero = read_bit(self.regs[F], ZERO_FLAG);
+        let old_zero = read_bit(self.regs.read(F), ZERO_FLAG);
         let (result, flags) = add_u16(self.regs.read16(HL), self.read16(memory, src));
         self.regs.write16(HL, result);
         self.regs.write_flags(Flags { zero: old_zero, ..flags });
@@ -545,7 +545,7 @@ impl Cpu {
 
     fn execute_add_sp<T>(&mut self, memory: &mut Memory, dst: T, src: RegisterIndex) where
     Self: Operand16<T> {
-        let n = self.regs[src];
+        let n = self.regs.read(src);
         let (result, flags) = self.sum_sp_n(n);
         self.write16(memory, dst, result);
         self.regs.write_flags(flags);
@@ -554,43 +554,43 @@ impl Cpu {
     fn execute_add<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (result, flags) = add_u8(self.regs[A], val);
-        self.regs[A] = result;
+        let (result, flags) = add_u8(self.regs.read(A), val);
+        self.regs.write(A, result);
         self.regs.write_flags(flags);
     }
 
     fn execute_adc<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (result, flags) = adc_u8(self.regs[A], val, old_carry);
-        self.regs[A] = result;
+        let old_carry = read_bit(self.regs.read(F), CARRY_FLAG);
+        let (result, flags) = adc_u8(self.regs.read(A), val, old_carry);
+        self.regs.write(A, result);
         self.regs.write_flags(flags);
     }
 
     fn execute_sub<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (result, flags) = sub_u8(self.regs[A], val);
-        self.regs[A] = result;
+        let (result, flags) = sub_u8(self.regs.read(A), val);
+        self.regs.write(A, result);
         self.regs.write_flags(flags);
     }
 
     fn execute_sbc<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let old_carry = read_bit(self.regs[F], CARRY_FLAG);
-        let (result, flags) = sbc_u8(self.regs[A], val, old_carry);
-        self.regs[A] = result;
+        let old_carry = read_bit(self.regs.read(F), CARRY_FLAG);
+        let (result, flags) = sbc_u8(self.regs.read(A), val, old_carry);
+        self.regs.write(A, result);
         self.regs.write_flags(flags);
     }
 
     fn execute_and<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        self.regs[A] &= val;
+        self.regs.write(A, self.regs.read(A) & val);
         self.regs.write_flags(Flags {
-            zero: self.regs[A] == 0,
+            zero: self.regs.read(A) == 0,
             half_carry: true,
             ..Flags::default()
         });
@@ -599,9 +599,9 @@ impl Cpu {
     fn execute_xor<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        self.regs[A] ^= val;
+        self.regs.write(A, self.regs.read(A) ^ val);
         self.regs.write_flags(Flags {
-            zero: self.regs[A] == 0,
+            zero: self.regs.read(A) == 0,
             ..Flags::default()
         });
     }
@@ -609,9 +609,9 @@ impl Cpu {
     fn execute_or<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        self.regs[A] |= val;
+        self.regs.write(A, self.regs.read(A) | val);
         self.regs.write_flags(Flags {
-            zero: self.regs[A] == 0,
+            zero: self.regs.read(A) == 0,
             ..Flags::default()
         });
     }
@@ -619,38 +619,38 @@ impl Cpu {
     fn execute_cp<T>(&mut self, memory: &Memory, src: T) where
         Self: Operand8<T> {
         let val = self.read_oper(memory, src);
-        let (_, flags) = sub_u8(self.regs[A], val);
+        let (_, flags) = sub_u8(self.regs.read(A), val);
         self.regs.write_flags(flags);
     }
 
     fn execute_daa(&mut self) {
-        let val = self.regs[A];
+        let val = self.regs.read(A);
         let mut correction = 0;
-        let mut carry = read_bit(self.regs[F], CARRY_FLAG);
-        if read_bit(self.regs[F], HALF_CARRY_FLAG)
-            || (!read_bit(self.regs[F], SUBTRACT_FLAG) && ((val & 0x0F) > 0x09)) {
+        let mut carry = read_bit(self.regs.read(F), CARRY_FLAG);
+        if read_bit(self.regs.read(F), HALF_CARRY_FLAG)
+            || (!read_bit(self.regs.read(F), SUBTRACT_FLAG) && ((val & 0x0F) > 0x09)) {
             correction |= 0x06;
         }
 
-        if read_bit(self.regs[F], CARRY_FLAG)
-            || (!read_bit(self.regs[F], SUBTRACT_FLAG) && (val > 0x99)) {
+        if read_bit(self.regs.read(F), CARRY_FLAG)
+            || (!read_bit(self.regs.read(F), SUBTRACT_FLAG) && (val > 0x99)) {
             correction |= 0x60;
             carry = true;
         }
 
-        if read_bit(self.regs[F], SUBTRACT_FLAG) {
-            self.regs[A] = self.regs[A].wrapping_sub(correction);
+        if read_bit(self.regs.read(F), SUBTRACT_FLAG) {
+            self.regs.write(A, self.regs.read(A).wrapping_sub(correction));
         } else {
-            self.regs[A] = self.regs[A].wrapping_add(correction);
+            self.regs.write(A, self.regs.read(A).wrapping_add(correction));
         }
 
-        self.set_flag(ZERO_FLAG, self.regs[A] == 0);
+        self.set_flag(ZERO_FLAG, self.regs.read(A) == 0);
         self.set_flag(HALF_CARRY_FLAG, false);
         self.set_flag(CARRY_FLAG, carry);
     }
 
     fn execute_cpl(&mut self) {
-        self.regs[A] ^= 0xFF;
+        self.regs.write(A, self.regs.read(A) ^ 0xFF);
         self.set_flag(SUBTRACT_FLAG, true);
         self.set_flag(HALF_CARRY_FLAG, true);
     }
@@ -662,7 +662,7 @@ impl Cpu {
     }
 
     fn execute_ccf(&mut self) {
-        let old_carry = read_bit(self.regs[F], CARRY_FLAG);
+        let old_carry = read_bit(self.regs.read(F), CARRY_FLAG);
         self.set_flag(SUBTRACT_FLAG, false);
         self.set_flag(HALF_CARRY_FLAG, false);
         self.set_flag(CARRY_FLAG, old_carry ^ true);
@@ -694,7 +694,7 @@ impl Cpu {
 
     fn execute_rl<T: Copy>(&mut self, memory: &mut Memory, src: T) where
         Self: Operand8<T> {
-        let carry = read_bit(self.regs[F], CARRY_FLAG);
+        let carry = read_bit(self.regs.read(F), CARRY_FLAG);
         let val = self.read_oper(memory, src);
         let (result, carry) = rotate_left_through_carry(val, carry);
         self.write_oper(memory, src, result);
@@ -707,7 +707,7 @@ impl Cpu {
 
     fn execute_rr<T: Copy>(&mut self, memory: &mut Memory, src: T) where
         Self: Operand8<T> {
-        let carry = read_bit(self.regs[F], CARRY_FLAG);
+        let carry = read_bit(self.regs.read(F), CARRY_FLAG);
         let val = self.read_oper(memory, src);
         let (result, carry) = rotate_right_through_carry(val, carry);
         self.write_oper(memory, src, result);
@@ -849,7 +849,7 @@ impl Cpu {
     }
 
     fn set_flag(&mut self, flag_bit: u8, val: bool) {
-        self.regs[F] = set_bit(self.regs[F], flag_bit, val);
+        self.regs.write(F, set_bit(self.regs.read(F), flag_bit, val));
     }
 }
 

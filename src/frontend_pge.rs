@@ -145,17 +145,17 @@ impl PgeState {
         let (cx, cy) = (scale * 8 + 2, scale * 8 + 2);
         pge.draw_string(x, y, "REGISTERS", &pge::WHITE, scale);
 
-        pge.draw_string(x, y + cy, &format!("A: {:02X}", self.emulator.cpu.regs[A]), &pge::WHITE, scale);
+        pge.draw_string(x, y + cy, &format!("A: {:02X}", self.emulator.cpu.regs.read(A)), &pge::WHITE, scale);
         pge.draw_string(x + 6 * cx, y + cy, &format!("(HL): {:02X}", self.emulator.memory.cpu_read(self.emulator.cpu.regs.read16(HL))), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 2 * cy, &format!("B: {:02X}", self.emulator.cpu.regs[B]), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + 2 * cy, &format!("C:    {:02X}", self.emulator.cpu.regs[C]), &pge::WHITE, scale);
+        pge.draw_string(x, y + 2 * cy, &format!("B: {:02X}", self.emulator.cpu.regs.read(B)), &pge::WHITE, scale);
+        pge.draw_string(x + 6 * cx, y + 2 * cy, &format!("C:    {:02X}", self.emulator.cpu.regs.read(C)), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 3 * cy, &format!("D: {:02X}", self.emulator.cpu.regs[D]), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + 3 * cy, &format!("E:    {:02X}", self.emulator.cpu.regs[E]), &pge::WHITE, scale);
+        pge.draw_string(x, y + 3 * cy, &format!("D: {:02X}", self.emulator.cpu.regs.read(D)), &pge::WHITE, scale);
+        pge.draw_string(x + 6 * cx, y + 3 * cy, &format!("E:    {:02X}", self.emulator.cpu.regs.read(E)), &pge::WHITE, scale);
 
-        pge.draw_string(x, y + 4 * cy, &format!("H: {:02X}", self.emulator.cpu.regs[H]), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + 4 * cy, &format!("L:    {:02X}", self.emulator.cpu.regs[L]), &pge::WHITE, scale);
+        pge.draw_string(x, y + 4 * cy, &format!("H: {:02X}", self.emulator.cpu.regs.read(H)), &pge::WHITE, scale);
+        pge.draw_string(x + 6 * cx, y + 4 * cy, &format!("L:    {:02X}", self.emulator.cpu.regs.read(L)), &pge::WHITE, scale);
 
         pge.draw_string(x, y + 6 * cy, "FLAGS", &pge::WHITE, scale);
 
