@@ -101,6 +101,18 @@ impl NewInstruction {
         self.push(MicroInstruction::default())
     }
 
+    fn and_halt(mut self) -> Self {
+        match self.micro_instructions.pop_back() {
+            Some(mut micro_instruction) => {
+                micro_instruction.set_halted = true;
+                self.micro_instructions.push_back(micro_instruction);
+            },
+            None => unimplemented!("No micro instruction found to set halted!"),
+        }
+
+        self
+    }
+
     fn load(self, addr_source: AddressSource, reg: RegisterIndex) -> Self {
         self.push(
             MicroInstruction::default()
@@ -151,6 +163,10 @@ impl NewInstruction {
         self.append_register_operation(RegisterOperation::AddReg16(reg16))
     }
 
+    fn and_add_sp(self, reg16: TwoRegisterIndex, reg: RegisterIndex) -> Self {
+        self.append_register_operation(RegisterOperation::AddSP8(reg16, reg))
+    }
+
     fn and_alu(self, alu_operation: AluOperation, reg: RegisterIndex) -> Self {
         self.append_register_operation(RegisterOperation::Alu(alu_operation, reg))
     }
@@ -162,6 +178,7 @@ pub struct MicroInstruction {
     pub register_operation: Option<RegisterOperation>,
     pub check_condition: Option<Condition>,
     pub set_interrupts: Option<bool>,
+    pub set_halted: bool,
 }
 
 impl MicroInstruction {
@@ -189,6 +206,7 @@ pub enum RegisterOperation {
     IncReg16(TwoRegisterIndex),
     DecReg16(TwoRegisterIndex),
     AddReg16(TwoRegisterIndex),
+    AddSP8(TwoRegisterIndex, RegisterIndex),
     SignedAddReg16(TwoRegisterIndex, RegisterIndex),
     LoadRstAddress(u16),
     Alu(AluOperation, RegisterIndex),
@@ -198,6 +216,7 @@ pub enum RegisterOperation {
 pub enum AluOperation {
     Inc, Dec, Add, Adc, Sub, Sbc, And, Xor, Or, Cp, Daa, Scf, Cpl, Ccf,
     Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl, Tst(u8), Res(u8), Set(u8),
+    Rlca, Rrca, Rla, Rra,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -244,6 +263,9 @@ impl InstructionRegistry {
         instruction_map.insert(0x29, build_add16_instruction(HL));
         instruction_map.insert(0x39, build_add16_instruction(SP));
 
+        instruction_map.insert(0xE8, build_add_sp_n_instruction());
+        instruction_map.insert(0xF8, build_add_hl_sp_n_instruction());
+
         instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
         instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
@@ -277,10 +299,10 @@ impl InstructionRegistry {
         instruction_map.insert(0x32, build_load_rhl_dec_r_instruction(A));
         instruction_map.insert(0x3A, build_load_r_rhl_dec_instruction(A));
 
-        // TODO: POP AF
         instruction_map.insert(0xC1, build_pop_instruction(BC));
         instruction_map.insert(0xD1, build_pop_instruction(DE));
         instruction_map.insert(0xE1, build_pop_instruction(HL));
+        instruction_map.insert(0xF1, build_pop_instruction(AF));
 
         instruction_map.insert(0xC5, build_push_instruction(BC));
         instruction_map.insert(0xD5, build_push_instruction(DE));
@@ -366,10 +388,17 @@ impl InstructionRegistry {
         instruction_map = build_alu_instructions(instruction_map, (0xB8..=0xBF).collect(), AluOperation::Cp);
         instruction_map.insert(0xFE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Cp, TempLow));
 
+        instruction_map.insert(0x07, NewInstruction::new().empty().and_alu(AluOperation::Rlca, A));
+        instruction_map.insert(0x0F, NewInstruction::new().empty().and_alu(AluOperation::Rrca, A));
+        instruction_map.insert(0x17, NewInstruction::new().empty().and_alu(AluOperation::Rla, A));
+        instruction_map.insert(0x1F, NewInstruction::new().empty().and_alu(AluOperation::Rra, A));
+
         instruction_map.insert(0x27, NewInstruction::new().empty().and_alu(AluOperation::Daa, A));
         instruction_map.insert(0x2F, NewInstruction::new().empty().and_alu(AluOperation::Cpl, A));
         instruction_map.insert(0x37, NewInstruction::new().empty().and_alu(AluOperation::Scf, A));
         instruction_map.insert(0x3F, NewInstruction::new().empty().and_alu(AluOperation::Ccf, A));
+
+        instruction_map.insert(0x76, NewInstruction::new().empty().and_halt());
 
         let mut prefixed_instruction_map = std::collections::HashMap::new();
 
@@ -640,6 +669,19 @@ fn build_dec16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
 fn build_add16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
     // TODO: Actually split alu instruction instead of using a noop
     NewInstruction::new().noop().empty().and_add16(reg16)
+}
+
+fn build_add_sp_n_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .noop().and_add_sp(SP, TempLow)
+        .noop()
+}
+
+fn build_add_hl_sp_n_instruction() -> NewInstruction {
+    NewInstruction::new()
+        .load_imm(TempLow)
+        .noop().and_add_sp(HL, TempLow)
 }
 
 fn build_alu_instructions(
