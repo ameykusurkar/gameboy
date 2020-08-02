@@ -164,7 +164,6 @@ impl Memory {
             // DMA Transfer
             0xFF46 => {
                 let start_addr = (val as u16) << 8;
-                println!("TRIG Mode: {:?}, DMA: {:?}", self.memory_mode, self.dma_state);
                 self.memory_mode = MemoryMode::DmaTriggered(start_addr);
             },
             _ => self.memory[addr as usize] = val,

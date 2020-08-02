@@ -102,7 +102,7 @@ impl MemoryAccess for Ppu {
     fn read(&self, addr: u16) -> u8 {
         match addr {
             LCDC_ADDR => self.regs.lcdc,
-            STAT_ADDR => self.regs.stat,
+            STAT_ADDR => self.regs.stat | 0b1000_0000,
             SCY_ADDR => self.regs.scy,
             SCX_ADDR => self.regs.scx,
             LY_ADDR => self.regs.ly,
@@ -132,7 +132,21 @@ impl MemoryAccess for Ppu {
 
     fn write(&mut self, addr: u16, byte: u8) {
         match addr {
-            LCDC_ADDR => self.regs.lcdc = byte,
+            LCDC_ADDR => {
+                let prev_lcd_on = self.lcd_enabled();
+
+                self.regs.lcdc = byte;
+
+                let curr_lcd_on = self.lcd_enabled();
+
+                if !prev_lcd_on && curr_lcd_on {
+                    self.switch_on_lcd();
+                }
+
+                if prev_lcd_on && !curr_lcd_on {
+                    self.switch_off_lcd();
+                }
+            },
             STAT_ADDR => self.regs.stat = byte,
             SCY_ADDR => self.regs.scy = byte,
             SCX_ADDR => self.regs.scx = byte,
@@ -176,6 +190,16 @@ impl Ppu {
         read_bit(self.regs.lcdc, 7)
     }
 
+    fn switch_on_lcd(&mut self) {
+        self.cycles = OAM_SEARCH_CYCLES + PIXEL_TRANSFER_CYCLES;
+    }
+
+    fn switch_off_lcd(&mut self) {
+        self.set_lcd_mode(LcdMode::HBlank);
+        self.scanline = 0;
+        self.regs.ly = 0;
+    }
+
     fn vram_blocked(&self) -> bool {
         self.lcd_enabled() && self.get_lcd_mode() == LcdMode::PixelTransfer
     }
@@ -190,6 +214,10 @@ impl Ppu {
     }
 
     pub fn clock(&mut self, interrupt_flags: &mut u8) {
+        if !self.lcd_enabled() {
+            return;
+        }
+
         let old_mode = Self::compute_lcd_mode(self.cycles, self.scanline);
 
         // Pixel transfer lasts 43 machine cycles, but we will be done in 40
