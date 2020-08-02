@@ -26,7 +26,6 @@ impl Emulator {
     pub fn clock(&mut self) {
         self.cpu.step(&mut self.memory);
         self.ppu.clock(&mut self.memory);
-        self.memory.sound_controller.clock();
         self.memory.clock();
     }
 

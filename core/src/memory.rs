@@ -52,6 +52,17 @@ impl Memory {
     }
 
     pub fn clock(&mut self) {
+        self.sound_controller.clock();
+
+        self.dma_transfer_cycle();
+        self.update_memory_mode();
+    }
+
+    pub fn load_bootrom(&mut self, buffer: &[u8]) {
+        self.bootrom.copy_from_slice(buffer);
+    }
+
+    fn dma_transfer_cycle(&mut self) {
         if let Some(DmaState(start_addr, cycle)) = self.dma_state {
             if cycle % 4 == 0 {
                 let offset = cycle / 4;
@@ -66,7 +77,9 @@ impl Memory {
                 Some(DmaState(start_addr, cycle + 1))
             }
         }
+    }
 
+    fn update_memory_mode(&mut self) {
         match self.memory_mode {
             MemoryMode::Normal => (),
             MemoryMode::DmaTriggered(start_addr) => {
@@ -77,10 +90,6 @@ impl Memory {
                 self.memory_mode = MemoryMode::Normal;
             },
         }
-    }
-
-    pub fn load_bootrom(&mut self, buffer: &[u8]) {
-        self.bootrom.copy_from_slice(buffer);
     }
 
     fn is_bootrom_active(&self) -> bool {
