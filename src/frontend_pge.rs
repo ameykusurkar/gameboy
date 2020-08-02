@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
 
-use core::ppu::Ppu;
 use core::registers::RegisterIndex::*;
 use core::registers::TwoRegisterIndex::{HL, SP, PC};
 
@@ -86,7 +85,7 @@ impl PgeState {
     fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let width = MAP_WIDTH;
         let height = MAP_HEIGHT;
-        let pixel_buffer = Ppu::get_background_map(&self.emulator.memory);
+        let pixel_buffer = self.emulator.memory.ppu.get_background_map();
 
         let mut background_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -95,7 +94,7 @@ impl PgeState {
             background_map_sprite.set_pixel(x as i32, y as i32, &Self::color(*pixel));
         }
 
-        let pixel_buffer = Ppu::get_window_map(&self.emulator.memory);
+        let pixel_buffer = self.emulator.memory.ppu.get_window_map();
         let mut window_map_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
             let x = i % width;
@@ -112,7 +111,7 @@ impl PgeState {
 
     fn draw_tileset(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (16 * 8, 24 * 8);
-        let pixel_buffer = Ppu::get_tileset(&self.emulator.memory);
+        let pixel_buffer = self.emulator.memory.ppu.get_tileset();
 
         let mut tileset_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -127,7 +126,7 @@ impl PgeState {
 
     fn draw_sprites_map(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
         let (width, height) = (10 * 8, 4 * 8);
-        let pixel_buffer = Ppu::get_sprites(&self.emulator.memory);
+        let pixel_buffer = self.emulator.memory.ppu.get_sprites();
 
         let mut sprites_sprite = pge::Sprite::new(width, height);
         for (i, pixel) in pixel_buffer.iter().enumerate() {
@@ -260,10 +259,10 @@ impl pge::State for PgeState {
         if !self.single_step_mode {
             loop {
                 self.clock();
-                if self.emulator.ppu.frame_complete { break };
+                if self.emulator.memory.ppu.frame_complete { break };
             }
 
-            self.emulator.ppu.frame_complete = false;
+            self.emulator.memory.ppu.frame_complete = false;
         } else if step_pressed {
             self.clock();
         }

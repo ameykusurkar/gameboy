@@ -148,7 +148,7 @@ impl FrontendSdl {
             {
                 let mut device = audio_device.lock();
 
-                if device.emulator.ppu.frame_complete {
+                if device.emulator.memory.ppu.frame_complete {
                     // TODO: Trigger joypad interrupt
                     device.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
                     device.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
@@ -178,7 +178,7 @@ impl FrontendSdl {
                         canvas.present();
                     }
 
-                    device.emulator.ppu.frame_complete = false;
+                    device.emulator.memory.ppu.frame_complete = false;
                     Self::save_external_ram(&mut device.emulator.memory, &save_path);
                 }
             }
