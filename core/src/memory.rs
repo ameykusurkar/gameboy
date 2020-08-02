@@ -1,4 +1,4 @@
-use crate::ppu::LcdMode;
+use crate::ppu::{LcdMode, LCDC_ADDR};
 use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
@@ -14,7 +14,19 @@ pub struct Memory {
     pub sound_controller: SoundController,
     pub serial_transfer: SerialTransfer,
     pub div: u16,
+    memory_mode: MemoryMode,
+    dma_state: Option<DmaState>,
 }
+
+#[derive(Debug)]
+enum MemoryMode {
+    Normal,
+    DmaTriggered(u16),
+    DmaNoop(u16),
+}
+
+#[derive(Debug)]
+struct DmaState(u16, usize);
 
 pub trait MemoryAccess {
     fn read(&self, addr: u16) -> u8;
@@ -34,6 +46,36 @@ impl Memory {
             sound_controller: SoundController::new(),
             serial_transfer: SerialTransfer::new(),
             div: 0,
+            memory_mode: MemoryMode::Normal,
+            dma_state: None,
+        }
+    }
+
+    pub fn clock(&mut self) {
+        if let Some(DmaState(start_addr, cycle)) = self.dma_state {
+            if cycle % 4 == 0 {
+                let offset = cycle / 4;
+                let dst_addr = (0xFE00 + offset) as usize;
+                let src_addr = start_addr as usize + offset;
+                self.memory[dst_addr] = self.memory[src_addr];
+            }
+
+            self.dma_state = if cycle == 159 {
+                None
+            } else {
+                Some(DmaState(start_addr, cycle + 1))
+            }
+        }
+
+        match self.memory_mode {
+            MemoryMode::Normal => (),
+            MemoryMode::DmaTriggered(start_addr) => {
+                self.memory_mode = MemoryMode::DmaNoop(start_addr);
+            }
+            MemoryMode::DmaNoop(start_addr) => {
+                self.dma_state = Some(DmaState(start_addr, 0));
+                self.memory_mode = MemoryMode::Normal;
+            },
         }
     }
 
@@ -51,6 +93,10 @@ impl Memory {
 
     pub fn cpu_read(&self, addr: u16) -> u8 {
         let addr = addr as usize;
+
+        if self.dma_state.is_some() && addr < 0xFF00 {
+            return 0xFF;
+        }
 
         // TODO: Refactor how memory access is delegated
         if addr < 0x100 && self.is_bootrom_active() {
@@ -78,6 +124,10 @@ impl Memory {
     }
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
+        if self.dma_state.is_some() && addr < 0xFF00 {
+            return;
+        }
+
         match addr {
             // Cartridge
             0x0000..=0x7FFF => {
@@ -114,11 +164,8 @@ impl Memory {
             },
             // DMA Transfer
             0xFF46 => {
-                // A write to this address indicates a request to copy memory to
-                // the OAM. Technically this takes 40 machine cycles, but for now
-                // we will do it instantly.
-                let start = (val as usize) * 0x100;
-                self.memory.copy_within(start..start+0xA0, 0xFE00);
+                let start_addr = (val as u16) << 8;
+                self.memory_mode = MemoryMode::DmaTriggered(start_addr);
             },
             _ => self.memory[addr as usize] = val,
         }
@@ -139,11 +186,11 @@ impl Memory {
 
     fn oam_blocked(&self) -> bool {
         let lcd_mode = self.get_lcd_mode();
-        self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer && lcd_mode == LcdMode::OAMSearch)
+        self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer || lcd_mode == LcdMode::OAMSearch)
     }
 
     pub fn lcd_enabled(&self) -> bool {
-        read_bit(self.memory[0xFF40], 7)
+        read_bit(self.memory[LCDC_ADDR as usize], 7)
     }
 
     pub fn ppu_read(&self, addr: u16) -> u8 {

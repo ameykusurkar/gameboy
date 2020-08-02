@@ -25,7 +25,7 @@ pub const FRAME_CYCLES: u32 = SCANLINE_CYCLES * LINES_PER_FRAME;
 const SPRITES_PER_LINE: usize = 10;
 
 // Video I/O Register addresses
-const LCDC_ADDR: u16 = 0xFF40;
+pub const LCDC_ADDR: u16 = 0xFF40;
 const STAT_ADDR: u16 = 0xFF41;
 const SCY_ADDR: u16  = 0xFF42;
 const SCX_ADDR: u16  = 0xFF43;

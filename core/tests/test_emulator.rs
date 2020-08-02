@@ -25,6 +25,7 @@ impl TestEmulator {
         self.cpu.step(&mut self.memory);
         self.ppu.clock(&mut self.memory);
         self.memory.sound_controller.clock();
+        self.memory.clock();
     }
 
     fn raw_serial_buffer(&self) -> &[u8] {

@@ -27,6 +27,7 @@ impl Emulator {
         self.cpu.step(&mut self.memory);
         self.ppu.clock(&mut self.memory);
         self.memory.sound_controller.clock();
+        self.memory.clock();
     }
 
     pub fn get_screen_buffer(&self) -> Option<&[PixelColor]> {
