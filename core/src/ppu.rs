@@ -1,7 +1,5 @@
-use crate::memory::Memory;
+use crate::memory::MemoryAccess;
 use crate::utils::{read_bit, set_bit};
-
-use crate::cpu::IF_ADDR;
 
 const NUM_PIXELS_IN_LINE: usize = 8;
 const NUM_LINES_IN_TILE: usize = 8;
@@ -37,6 +35,20 @@ const OBP1_ADDR: u16 = 0xFF49;
 const WY_ADDR: u16   = 0xFF4A;
 const WX_ADDR: u16   = 0xFF4B;
 
+pub const PPU_REGISTER_ADDRS: [u16; 11] = [
+    LCDC_ADDR,
+    STAT_ADDR,
+    SCY_ADDR,
+    SCX_ADDR,
+    LY_ADDR,
+    LYC_ADDR,
+    BGP_ADDR,
+    OBP0_ADDR,
+    OBP1_ADDR,
+    WY_ADDR,
+    WX_ADDR,
+];
+
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum LcdMode {
     HBlank,
@@ -66,6 +78,98 @@ pub struct Ppu {
     scanline: u32,
     visible_sprites: Vec<Sprite>,
     pub frame_complete: bool,
+    regs: PpuRegisters,
+    pub oam: [u8; 160],
+    pub vram: [u8; 8192],
+}
+
+#[derive(Default)]
+struct PpuRegisters {
+    lcdc: u8,
+    stat: u8,
+    scy: u8,
+    scx: u8,
+    ly: u8,
+    lyc: u8,
+    bgp: u8,
+    obp0: u8,
+    obp1: u8,
+    wy: u8,
+    wx: u8,
+}
+
+impl MemoryAccess for Ppu {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            LCDC_ADDR => self.regs.lcdc,
+            STAT_ADDR => self.regs.stat | 0b1000_0000,
+            SCY_ADDR => self.regs.scy,
+            SCX_ADDR => self.regs.scx,
+            LY_ADDR => self.regs.ly,
+            LYC_ADDR => self.regs.lyc,
+            BGP_ADDR => self.regs.bgp,
+            OBP0_ADDR => self.regs.obp0,
+            OBP1_ADDR => self.regs.obp1,
+            WY_ADDR => self.regs.wy,
+            WX_ADDR => self.regs.wx,
+            0xFE00..=0xFE9F => {
+                if self.oam_blocked() {
+                    0xFF
+                } else {
+                    self.oam[(addr as usize) - 0xFE00]
+                }
+            },
+            0x8000..=0x9FFF => {
+                if self.vram_blocked() {
+                    0xFF
+                } else {
+                    self.vram[(addr as usize) - 0x8000]
+                }
+            },
+            _ => panic!("Invalid ppu addr: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8) {
+        match addr {
+            LCDC_ADDR => {
+                let prev_lcd_on = self.lcd_enabled();
+
+                self.regs.lcdc = byte;
+
+                let curr_lcd_on = self.lcd_enabled();
+
+                if !prev_lcd_on && curr_lcd_on {
+                    self.switch_on_lcd();
+                }
+
+                if prev_lcd_on && !curr_lcd_on {
+                    self.switch_off_lcd();
+                }
+            },
+            STAT_ADDR => self.regs.stat = byte,
+            SCY_ADDR => self.regs.scy = byte,
+            SCX_ADDR => self.regs.scx = byte,
+            LY_ADDR => self.regs.ly = byte,
+            LYC_ADDR => self.regs.lyc = byte,
+            BGP_ADDR => self.regs.bgp = byte,
+            OBP0_ADDR => self.regs.obp0 = byte,
+            OBP1_ADDR => self.regs.obp1 = byte,
+            WY_ADDR => self.regs.wy = byte,
+            WX_ADDR => self.regs.wx = byte,
+            0xFE00..=0xFE9F => {
+                if !self.oam_blocked() {
+                    self.oam[(addr as usize) - 0xFE00] = byte;
+                }
+            },
+            0x8000..=0x9FFF => {
+                if !self.vram_blocked() {
+                    self.vram[(addr as usize) - 0x8000] = byte;
+                }
+            },
+            _ => panic!("Invalid ppu addr: {:04x}", addr),
+        }
+    }
 }
 
 impl Ppu {
@@ -76,52 +180,86 @@ impl Ppu {
             scanline: 0,
             visible_sprites: Vec::new(),
             frame_complete: false,
+            regs: PpuRegisters::default(),
+            oam: [0; 160],
+            vram: [0; 8192],
         }
     }
 
-    pub fn clock(&mut self, memory: &mut Memory) {
-        let old_mode = Self::get_lcd_mode(self.cycles, self.scanline);
+    pub fn lcd_enabled(&self) -> bool {
+        read_bit(self.regs.lcdc, 7)
+    }
+
+    fn switch_on_lcd(&mut self) {
+        self.cycles = OAM_SEARCH_CYCLES + PIXEL_TRANSFER_CYCLES;
+    }
+
+    fn switch_off_lcd(&mut self) {
+        self.set_lcd_mode(LcdMode::HBlank);
+        self.scanline = 0;
+        self.regs.ly = 0;
+    }
+
+    fn vram_blocked(&self) -> bool {
+        self.lcd_enabled() && self.get_lcd_mode() == LcdMode::PixelTransfer
+    }
+
+    fn oam_blocked(&self) -> bool {
+        let lcd_mode = self.get_lcd_mode();
+        self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer || lcd_mode == LcdMode::OAMSearch)
+    }
+
+    pub fn vram_read_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
+        &self.vram[(start_addr - 0x8000)..(end_addr - 0x8000)]
+    }
+
+    pub fn clock(&mut self, interrupt_flags: &mut u8) {
+        if !self.lcd_enabled() {
+            return;
+        }
+
+        let old_mode = Self::compute_lcd_mode(self.cycles, self.scanline);
 
         // Pixel transfer lasts 43 machine cycles, but we will be done in 40
         if old_mode == LcdMode::PixelTransfer && (self.cycles - OAM_SEARCH_CYCLES) < 40 {
-            self.update_screen(memory);
+            self.update_screen();
         }
 
         self.cycles = (self.cycles + 1) % SCANLINE_CYCLES;
         if self.cycles == 0 {
             self.scanline = (self.scanline + 1) % LINES_PER_FRAME;
 
-            memory.ppu_write(LY_ADDR, self.scanline as u8);
+            self.write(LY_ADDR, self.scanline as u8);
 
-            let line_is_match = memory.ppu_read(LY_ADDR) == memory.ppu_read(LYC_ADDR);
-            let status = memory.ppu_read(STAT_ADDR);
-            memory.ppu_write(STAT_ADDR, set_bit(status, 2, line_is_match));
+            let line_is_match = self.read(LY_ADDR) == self.read(LYC_ADDR);
+            let status = self.read(STAT_ADDR);
+            self.write(STAT_ADDR, set_bit(status, 2, line_is_match));
 
             // Request interrupt if scanline matches the requested one
             if line_is_match && read_bit(status, 6) {
-                Self::set_status_interrupt(memory);
+                Self::set_status_interrupt(interrupt_flags);
             }
         }
 
-        let mode = Self::get_lcd_mode(self.cycles, self.scanline);
+        let mode = Self::compute_lcd_mode(self.cycles, self.scanline);
 
         if mode != old_mode {
-            Self::set_lcd_mode(memory, mode);
+            self.set_lcd_mode(mode);
 
             match mode {
                 LcdMode::VBlank => {
-                    Self::set_vblank_interrupt(memory);
+                    Self::set_vblank_interrupt(interrupt_flags);
                     self.frame_complete = true;
                     self.screen_buffer.flip();
                 },
                 LcdMode::PixelTransfer => {
-                    self.visible_sprites = Self::compute_sprites_for_line(memory, self.scanline);
+                    self.visible_sprites = self.compute_sprites_for_line(self.scanline);
                 },
                 _ => (),
             }
 
-            if Self::status_interrupt_enabled(memory, mode) {
-                Self::set_status_interrupt(memory);
+            if self.status_interrupt_enabled(mode) {
+                Self::set_status_interrupt(interrupt_flags);
             }
         }
     }
@@ -130,19 +268,26 @@ impl Ppu {
         self.screen_buffer.get_secondary()
     }
 
-    fn update_screen(&mut self, memory: &Memory) {
-        let scroll_x = memory.ppu_read(SCX_ADDR);
-        let scroll_y = memory.ppu_read(SCY_ADDR);
+    pub fn get_lcd_mode(&self) -> LcdMode {
+        match self.read(STAT_ADDR) & 0b11 {
+            0 => LcdMode::HBlank,
+            1 => LcdMode::VBlank,
+            2 => LcdMode::OAMSearch,
+            3 => LcdMode::PixelTransfer,
+            _ => panic!("Not a valid LCD mode!"),
+        }
+    }
 
-        let window_x = memory.ppu_read(WX_ADDR).wrapping_sub(7);
-        let window_y = memory.ppu_read(WY_ADDR);
+    fn update_screen(&mut self) {
+        let scroll_x = self.read(SCX_ADDR);
+        let scroll_y = self.read(SCY_ADDR);
 
-        let bg_map = Self::get_background_map_memory(memory);
-        let window_map = Self::get_window_map_memory(memory);
+        let window_x = self.read(WX_ADDR).wrapping_sub(7);
+        let window_y = self.read(WY_ADDR);
 
-        let background_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 0);
-        let window_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 5);
-        let sprites_enabled = read_bit(memory.ppu_read(LCDC_ADDR), 1);
+        let background_enabled = read_bit(self.read(LCDC_ADDR), 0);
+        let window_enabled = read_bit(self.read(LCDC_ADDR), 5);
+        let sprites_enabled = read_bit(self.read(LCDC_ADDR), 1);
 
         // We are drawing 4 pixels per cycle
         let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
@@ -151,11 +296,10 @@ impl Ppu {
             let mut background_pixel = 0;
 
             if background_enabled {
-                background_pixel = Self::get_background_pixel(
-                    memory,
+                background_pixel = self.get_background_pixel(
                     (x as u8).wrapping_add(scroll_x),
                     (self.scanline as u8).wrapping_add(scroll_y),
-                    bg_map,
+                    self.get_background_map_memory(),
                 );
             }
 
@@ -165,8 +309,8 @@ impl Ppu {
                     && (window_y..LCD_WIDTH as u8).contains(&y);
 
                 if should_draw {
-                    background_pixel = Self::get_background_pixel(
-                        memory, x - window_x, y - window_y, window_map,
+                    background_pixel = self.get_background_pixel(
+                        x - window_x, y - window_y, self.get_window_map_memory(),
                     );
                 }
             }
@@ -177,7 +321,7 @@ impl Ppu {
                 // Finds first non-transparent sprite pixel, if any
                 self.get_sprites_at_x(x as u8).iter()
                     .filter(|sprite| !(sprite.priority && (1..=3).contains(&background_pixel)))
-                    .find_map(|sprite| Self::get_sprite_pixel(sprite, memory, x as u8, self.scanline as u8))
+                    .find_map(|sprite| self.get_sprite_pixel(sprite, x as u8, self.scanline as u8))
                     .map(|sprite_pixel| pixel = PixelColor::SpritePixel(sprite_pixel));
             }
 
@@ -193,8 +337,8 @@ impl Ppu {
         }).collect()
     }
 
-    fn get_sprite_pixel(sprite: &Sprite, memory: &Memory, x: u8, y: u8) -> Option<u8> {
-        let tile = Self::get_sprite_tile(memory, sprite.tile_no);
+    fn get_sprite_pixel(&self, sprite: &Sprite, x: u8, y: u8) -> Option<u8> {
+        let tile = self.get_sprite_tile(sprite.tile_no);
         let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
         let (mut line_x, mut line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
 
@@ -213,17 +357,16 @@ impl Ppu {
         }
 
         let palette = match sprite.palette_no {
-            0 => memory.ppu_read(OBP0_ADDR),
-            1 => memory.ppu_read(OBP1_ADDR),
+            0 => self.read(OBP0_ADDR),
+            1 => self.read(OBP1_ADDR),
             _ => panic!("Invalid palette_no: {}", sprite.palette_no),
         };
 
         Some(pixel_map(pixel_data, palette))
     }
 
-    fn compute_sprites_for_line(memory: &Memory, line_no: u32) -> Vec<Sprite> {
-        let sprites = memory.ppu_read_range(0xFE00..0xFEA0).chunks(4)
-            .map(|bytes| Sprite::from(bytes));
+    fn compute_sprites_for_line(&self, line_no: u32) -> Vec<Sprite> {
+        let sprites = self.oam.chunks(4).map(|bytes| Sprite::from(bytes));
 
         let mut sprites_on_line_enumerated: Vec<_> = sprites.filter(|sprite| {
             let y_start = sprite.y as i32 - 16;
@@ -237,13 +380,13 @@ impl Ppu {
         sprites_on_line_enumerated.drain(0..num_sprites).map(|(_, s)| s).collect()
     }
 
-    fn get_background_pixel(memory: &Memory, x: u8, y: u8, map: &[u8]) -> u8 {
+    fn get_background_pixel(&self, x: u8, y: u8, map: &[u8]) -> u8 {
         let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
         let tileset_index = map[tile_y * 32 + tile_x];
         let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
 
-        let tile = Self::get_tile(memory, tileset_index);
-        let background_palette = memory.ppu_read(BGP_ADDR);
+        let tile = self.get_tile(tileset_index);
+        let background_palette = self.read(BGP_ADDR);
         Self::get_tile_pixel(tile, line_x, line_y, background_palette)
     }
 
@@ -252,38 +395,38 @@ impl Ppu {
         pixel_map(pixel_data, palette)
     }
 
-    fn get_sprite_tile(memory: &Memory, tile_index: u8) -> &[u8] {
+    fn get_sprite_tile(&self, tile_index: u8) -> &[u8] {
         let start_index = 0x8000 + (tile_index as usize * TILE_NUM_BYTES);
-        memory.ppu_read_range(start_index..start_index+TILE_NUM_BYTES)
+        self.vram_read_range(start_index, start_index+TILE_NUM_BYTES)
     }
 
-    fn get_tile(memory: &Memory, tile_index: u8) -> &[u8] {
-        let start_index = if read_bit(memory.ppu_read(LCDC_ADDR), 4) {
+    fn get_tile(&self, tile_index: u8) -> &[u8] {
+        let start_index = if read_bit(self.read(LCDC_ADDR), 4) {
             0x8000 + (tile_index as usize * TILE_NUM_BYTES)
         } else {
             ((0x9000 as i32) + ((tile_index as i8) as i32 * TILE_NUM_BYTES as i32)) as usize
         };
 
-        memory.ppu_read_range(start_index..start_index+TILE_NUM_BYTES)
+        self.vram_read_range(start_index, start_index+TILE_NUM_BYTES)
     }
 
-    fn get_background_map_memory(memory: &Memory) -> &[u8] {
-        if read_bit(memory.ppu_read(LCDC_ADDR), 3) {
-            memory.ppu_read_range(0x9C00..0xA000)
+    fn get_background_map_memory(&self) -> &[u8] {
+        if read_bit(self.read(LCDC_ADDR), 3) {
+            self.vram_read_range(0x9C00, 0xA000)
         } else {
-            memory.ppu_read_range(0x9800..0x9C00)
+            self.vram_read_range(0x9800, 0x9C00)
         }
     }
 
-    fn get_window_map_memory(memory: &Memory) -> &[u8] {
-        if read_bit(memory.ppu_read(LCDC_ADDR), 6) {
-            memory.ppu_read_range(0x9C00..0xA000)
+    fn get_window_map_memory(&self) -> &[u8] {
+        if read_bit(self.read(LCDC_ADDR), 6) {
+            self.vram_read_range(0x9C00, 0xA000)
         } else {
-            memory.ppu_read_range(0x9800..0x9C00)
+            self.vram_read_range(0x9800, 0x9C00)
         }
     }
 
-    fn get_lcd_mode(cycles: u32, scanline: u32) -> LcdMode {
+    fn compute_lcd_mode(cycles: u32, scanline: u32) -> LcdMode {
         if scanline >= LCD_HEIGHT {
             LcdMode::VBlank
         } else if cycles < OAM_SEARCH_CYCLES {
@@ -295,8 +438,8 @@ impl Ppu {
         }
     }
 
-    fn status_interrupt_enabled(memory: &Memory, mode: LcdMode) -> bool {
-        let status = memory.ppu_read(STAT_ADDR);
+    fn status_interrupt_enabled(&self, mode: LcdMode) -> bool {
+        let status = self.read(STAT_ADDR);
 
         match mode {
             LcdMode::HBlank => read_bit(status, 3),
@@ -306,17 +449,15 @@ impl Ppu {
         }
     }
 
-    fn set_status_interrupt(memory: &mut Memory) {
-        let interrupt_flags = memory.ppu_read(IF_ADDR);
-        memory.ppu_write(IF_ADDR, interrupt_flags | 2);
+    fn set_status_interrupt(interrupt_flags: &mut u8) {
+        *interrupt_flags |= 2;
     }
 
-    fn set_vblank_interrupt(memory: &mut Memory) {
-        let interrupt_flags = memory.ppu_read(IF_ADDR);
-        memory.ppu_write(IF_ADDR, interrupt_flags | 1);
+    fn set_vblank_interrupt(interrupt_flags: &mut u8) {
+        *interrupt_flags |= 1;
     }
 
-    fn set_lcd_mode(memory: &mut Memory, mode: LcdMode) {
+    fn set_lcd_mode(&mut self, mode: LcdMode) {
         let mode_bits = match mode {
             LcdMode::HBlank => 0,
             LcdMode::VBlank => 1,
@@ -324,37 +465,37 @@ impl Ppu {
             LcdMode::PixelTransfer => 3,
         };
 
-        let mut status = memory.ppu_read(STAT_ADDR);
+        let mut status = self.read(STAT_ADDR);
         status = set_bit(status, 0, mode_bits & 0x1 > 0);
         status = set_bit(status, 1, mode_bits & 0x2 > 0);
-        memory.ppu_write(STAT_ADDR, status);
+        self.write(STAT_ADDR, status);
     }
 
-    pub fn get_background_map(memory: &Memory) -> Vec<u8> {
-        let background_map_memory = Self::get_background_map_memory(memory);
-        Self::get_map_data(memory, background_map_memory)
+    pub fn get_background_map(&self) -> Vec<u8> {
+        let background_map_memory = self.get_background_map_memory();
+        self.get_map_data(background_map_memory)
     }
 
-    pub fn get_window_map(memory: &Memory) -> Vec<u8> {
-        let window_map_memory = Self::get_window_map_memory(memory);
-        Self::get_map_data(memory, window_map_memory)
+    pub fn get_window_map(&self) -> Vec<u8> {
+        let window_map_memory = self.get_window_map_memory();
+        self.get_map_data(window_map_memory)
     }
 
-    pub fn get_map_data(memory: &Memory, map: &[u8]) -> Vec<u8> {
+    pub fn get_map_data(&self, map: &[u8]) -> Vec<u8> {
         (0..MAP_WIDTH * MAP_HEIGHT).map(|i| {
             let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
             // Since we are using u8, x and y should automatically wrap around 256
-            Self::get_background_pixel(memory, x as u8, y as u8, map)
+            self.get_background_pixel(x as u8, y as u8, map)
         }).collect()
     }
 
-    pub fn get_tileset(memory: &Memory) -> Vec<u8> {
+    pub fn get_tileset(&self) -> Vec<u8> {
         let num_tiles = 16 * 24;
         let num_pixels_in_tile = NUM_LINES_IN_TILE * NUM_PIXELS_IN_LINE;
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
-        let palette = memory.ppu_read(BGP_ADDR);
-        for (tile_index, tile) in memory.ppu_read_range(0x8000..0x9800).chunks(TILE_NUM_BYTES).enumerate() {
+        let palette = self.read(BGP_ADDR);
+        for (tile_index, tile) in self.vram_read_range(0x8000, 0x9800).chunks(TILE_NUM_BYTES).enumerate() {
             for p in 0..num_pixels_in_tile {
                 let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
                 let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
@@ -367,18 +508,17 @@ impl Ppu {
         pixels
     }
 
-    pub fn get_sprites(memory: &Memory) -> Vec<u8> {
-        let sprite_data = memory.ppu_read_range(0xFE00..0xFEA0);
+    pub fn get_sprites(&self) -> Vec<u8> {
         let num_tiles = 10 * 4;
         let num_pixels_in_tile = NUM_LINES_IN_TILE * NUM_PIXELS_IN_LINE;
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
         // TODO: Use sprite palette!
-        let palette = memory.ppu_read(BGP_ADDR);
+        let palette = self.read(BGP_ADDR);
 
-        for (sprite_index, sprite) in sprite_data.chunks(4).enumerate() {
+        for (sprite_index, sprite) in self.oam.chunks(4).enumerate() {
             let tileset_index = sprite[2];
-            let tile = Self::get_sprite_tile(memory, tileset_index);
+            let tile = self.get_sprite_tile(tileset_index);
 
             for p in 0..num_pixels_in_tile {
                 let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);

@@ -1,28 +1,37 @@
-use crate::ppu::LcdMode;
+use crate::ppu::{Ppu, PPU_REGISTER_ADDRS};
+use crate::cpu::IF_ADDR;
 use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
 use crate::sound_controller::SoundController;
 
-use crate::utils::read_bit;
-
 pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
+    pub ppu: Ppu,
     pub joypad: Joypad,
     pub sound_controller: SoundController,
     pub serial_transfer: SerialTransfer,
     pub div: u16,
+    memory_mode: MemoryMode,
+    dma_state: Option<DmaState>,
 }
+
+#[derive(Debug)]
+enum MemoryMode {
+    Normal,
+    DmaTriggered(u16),
+    DmaNoop(u16),
+}
+
+#[derive(Debug)]
+struct DmaState(u16, usize);
 
 pub trait MemoryAccess {
     fn read(&self, addr: u16) -> u8;
     fn write(&mut self, addr: u16, byte: u8);
 }
-
-const VRAM_RANGE: std::ops::Range<usize> = 0x8000..0xA000;
-const OAM_RANGE: std::ops::Range<usize>  = 0xFE00..0xFEA0;
 
 impl Memory {
     pub fn new(rom: Vec<u8>, external_ram: Option<Vec<u8>>) -> Memory {
@@ -31,14 +40,56 @@ impl Memory {
             memory: [0; 1 << 16],
             bootrom: [0; 256],
             joypad: Joypad::default(),
+            ppu: Ppu::new(),
             sound_controller: SoundController::new(),
             serial_transfer: SerialTransfer::new(),
             div: 0,
+            memory_mode: MemoryMode::Normal,
+            dma_state: None,
         }
+    }
+
+    pub fn clock(&mut self) {
+        self.ppu.clock(&mut self.memory[IF_ADDR as usize]);
+        self.sound_controller.clock();
+
+        self.dma_transfer_cycle();
+        self.update_memory_mode();
     }
 
     pub fn load_bootrom(&mut self, buffer: &[u8]) {
         self.bootrom.copy_from_slice(buffer);
+    }
+
+    fn dma_transfer_cycle(&mut self) {
+        if let Some(DmaState(start_addr, cycle)) = self.dma_state {
+            let src_addr = start_addr + cycle as u16;
+            let byte = match src_addr {
+                0x8000..=0x9FFF => self.ppu.vram[src_addr as usize - 0x8000],
+                _ => self.memory[src_addr as usize],
+            };
+
+            self.ppu.oam[cycle] = byte;
+
+            self.dma_state = if cycle == 159 {
+                None
+            } else {
+                Some(DmaState(start_addr, cycle + 1))
+            }
+        }
+    }
+
+    fn update_memory_mode(&mut self) {
+        match self.memory_mode {
+            MemoryMode::Normal => (),
+            MemoryMode::DmaTriggered(start_addr) => {
+                self.memory_mode = MemoryMode::DmaNoop(start_addr);
+            }
+            MemoryMode::DmaNoop(start_addr) => {
+                self.dma_state = Some(DmaState(start_addr, 0));
+                self.memory_mode = MemoryMode::Normal;
+            },
+        }
     }
 
     fn is_bootrom_active(&self) -> bool {
@@ -52,6 +103,10 @@ impl Memory {
     pub fn cpu_read(&self, addr: u16) -> u8 {
         let addr = addr as usize;
 
+        if self.dma_state.is_some() && addr < 0xFF00 {
+            return 0xFF;
+        }
+
         // TODO: Refactor how memory access is delegated
         if addr < 0x100 && self.is_bootrom_active() {
             self.bootrom[addr]
@@ -59,10 +114,6 @@ impl Memory {
             self.cartridge.read(addr as u16)
         } else if (0xA000..0xC000).contains(&addr) {
             self.cartridge.read(addr as u16)
-        } else if VRAM_RANGE.contains(&addr) && self.vram_blocked() {
-            0xFF
-        } else if OAM_RANGE.contains(&addr) && self.oam_blocked() {
-            0xFF
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
         } else if addr == 0xFF01 || addr == 0xFF02 {
@@ -72,32 +123,26 @@ impl Memory {
             (top_bits >> 8) as u8
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
+        } else if Self::is_ppu_addr(addr as u16) {
+            self.ppu.read(addr as u16)
         } else {
             self.memory[addr]
         }
     }
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
+        if self.dma_state.is_some() && addr < 0xFF00 {
+            return;
+        }
+
         match addr {
             // Cartridge
             0x0000..=0x7FFF => {
                 self.cartridge.write(addr, val);
             },
-            // VRAM
-            0x8000..=0x9FFF => {
-                if !self.vram_blocked() {
-                    self.memory[addr as usize] = val;
-                }
-            },
             // External RAM, also handled by cartridge
             0xA000..=0xBFFF => {
                 self.cartridge.write(addr, val);
-            },
-            // OAM
-            0xFE00..=0xFE9F => {
-                if !self.oam_blocked() {
-                    self.memory[addr as usize] = val;
-                }
             },
             // Joypad
             0xFF00 => {
@@ -112,13 +157,13 @@ impl Memory {
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
             },
+            _ if Self::is_ppu_addr(addr) => {
+                self.ppu.write(addr, val);
+            },
             // DMA Transfer
             0xFF46 => {
-                // A write to this address indicates a request to copy memory to
-                // the OAM. Technically this takes 40 machine cycles, but for now
-                // we will do it instantly.
-                let start = (val as usize) * 0x100;
-                self.memory.copy_within(start..start+0xA0, 0xFE00);
+                let start_addr = (val as u16) << 8;
+                self.memory_mode = MemoryMode::DmaTriggered(start_addr);
             },
             _ => self.memory[addr as usize] = val,
         }
@@ -133,39 +178,10 @@ impl Memory {
             || (0xFF30..=0xFF3F).contains(&addr)
     }
 
-    fn vram_blocked(&self) -> bool {
-        self.lcd_enabled() && self.get_lcd_mode() == LcdMode::PixelTransfer
-    }
-
-    fn oam_blocked(&self) -> bool {
-        let lcd_mode = self.get_lcd_mode();
-        self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer && lcd_mode == LcdMode::OAMSearch)
-    }
-
-    pub fn lcd_enabled(&self) -> bool {
-        read_bit(self.memory[0xFF40], 7)
-    }
-
-    pub fn ppu_read(&self, addr: u16) -> u8 {
-        self.memory[addr as usize]
-    }
-
-    pub fn ppu_read_range(&self, addr_range: std::ops::Range<usize>) -> &[u8] {
-        &self.memory[addr_range]
-    }
-
-    pub fn ppu_write(&mut self, addr: u16, val: u8) {
-        self.memory[addr as usize] = val;
-    }
-
-    pub fn get_lcd_mode(&self) -> LcdMode {
-        match self.memory[0xFF41] & 0b11 {
-            0 => LcdMode::HBlank,
-            1 => LcdMode::VBlank,
-            2 => LcdMode::OAMSearch,
-            3 => LcdMode::PixelTransfer,
-            _ => panic!("Not a valid LCD mode!"),
-        }
+    fn is_ppu_addr(addr: u16) -> bool {
+        PPU_REGISTER_ADDRS.contains(&addr)
+            || (0x8000..=0x9FFF).contains(&addr)
+            || (0xFE00..=0xFE9F).contains(&addr)
     }
 
     pub fn get_external_ram(&self) -> Option<&[u8]> {
