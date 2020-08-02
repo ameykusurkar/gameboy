@@ -80,7 +80,6 @@ impl Memory {
     }
 
     fn update_memory_mode(&mut self) {
-        // println!("Mode: {:?}, DMA: {:?}", self.memory_mode, self.dma_state);
         match self.memory_mode {
             MemoryMode::Normal => (),
             MemoryMode::DmaTriggered(start_addr) => {

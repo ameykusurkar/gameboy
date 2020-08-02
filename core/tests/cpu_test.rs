@@ -76,7 +76,7 @@ fn it_passes_cpu_test_06() {
 #[test]
 fn it_passes_cpu_test_07() {
     let rom = read_rom("tests/roms/cpu_instrs/07-jr,jp,call,ret,rst.gb");
-    let output = run_test_rom(rom, 6_600_000);
+    let output = run_test_rom(rom, 6_700_000);
 
     assert_eq!("07-jr,jp,call,ret,rst\n\n\nPassed\n", output);
 }

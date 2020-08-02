@@ -64,12 +64,12 @@ impl EmulatorState {
 
     #[wasm_bindgen(js_name = isFrameComplete)]
     pub fn is_frame_complete(&self) -> bool {
-        self.emulator.ppu.frame_complete
+        self.emulator.memory.ppu.frame_complete
     }
 
     #[wasm_bindgen(js_name = markFrameAsComplete)]
     pub fn mark_frame_as_complete(&mut self) {
-        self.emulator.ppu.frame_complete = false;
+        self.emulator.memory.ppu.frame_complete = false;
     }
 
     pub fn clock(&mut self) {
