@@ -5,6 +5,8 @@ use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
 use crate::sound_controller::SoundController;
 
+const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;
+
 pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
@@ -102,11 +104,11 @@ impl Memory {
     }
 
     pub fn cpu_read(&self, addr: u16) -> u8 {
-        let addr = addr as usize;
-
-        if self.dma_state.is_some() && addr < 0xFF00 {
+        if self.dma_state.is_some() && OAM_RANGE.contains(&addr) {
             return 0xFF;
         }
+
+        let addr = addr as usize;
 
         // TODO: Refactor how memory access is delegated
         if addr < 0x100 && self.is_bootrom_active() {
@@ -132,7 +134,7 @@ impl Memory {
     }
 
     pub fn cpu_write(&mut self, addr: u16, val: u8) {
-        if self.dma_state.is_some() && addr < 0xFF00 {
+        if self.dma_state.is_some() && OAM_RANGE.contains(&addr) {
             return;
         }
 
@@ -182,7 +184,7 @@ impl Memory {
     fn is_ppu_addr(addr: u16) -> bool {
         PPU_REGISTER_ADDRS.contains(&addr)
             || (0x8000..=0x9FFF).contains(&addr)
-            || (0xFE00..=0xFE9F).contains(&addr)
+            || (OAM_RANGE).contains(&addr)
     }
 
     pub fn get_external_ram(&self) -> Option<&[u8]> {
