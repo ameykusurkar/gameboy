@@ -35,7 +35,10 @@ const OBP1_ADDR: u16 = 0xFF49;
 const WY_ADDR: u16   = 0xFF4A;
 const WX_ADDR: u16   = 0xFF4B;
 
-pub const PPU_REGISTER_ADDRS: [u16; 11] = [
+const BGPI_ADDR: u16 = 0xFF68;
+const BGPD_ADDR: u16 = 0xFF68;
+
+pub const PPU_REGISTER_ADDRS: [u16; 13] = [
     LCDC_ADDR,
     STAT_ADDR,
     SCY_ADDR,
@@ -47,6 +50,8 @@ pub const PPU_REGISTER_ADDRS: [u16; 11] = [
     OBP1_ADDR,
     WY_ADDR,
     WX_ADDR,
+    BGPI_ADDR,
+    BGPD_ADDR,
 ];
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
@@ -59,7 +64,7 @@ pub enum LcdMode {
 
 #[derive(Copy, Clone)]
 pub enum PixelColor {
-    BackgroundPixel(u8),
+    BackgroundPixel(u8, u8, u8),
     SpritePixel(u8),
 }
 
@@ -96,6 +101,30 @@ struct PpuRegisters {
     obp1: u8,
     wy: u8,
     wx: u8,
+    bgpi: u8,
+    bgpd: u8,
+}
+
+struct ColorPalette {
+    bytes: [u16; 4],
+}
+
+impl ColorPalette {
+    fn new() -> Self {
+        Self {
+            bytes: [0; 4],
+        }
+    }
+
+    fn get_color(&self, index: usize) -> (u8, u8, u8) {
+        let color = self.bytes[index];
+
+        let r =  color & 0b0000_0000_0001_1111;
+        let g = (color & 0b0000_0011_1110_0000) >> 5;
+        let b = (color & 0b0111_1100_0000_0000) >> 10;
+
+        (r as u8, g as u8, b as u8)
+    }
 }
 
 impl MemoryAccess for Ppu {
@@ -112,6 +141,8 @@ impl MemoryAccess for Ppu {
             OBP1_ADDR => self.regs.obp1,
             WY_ADDR => self.regs.wy,
             WX_ADDR => self.regs.wx,
+            BGPI_ADDR => self.regs.bgpi,
+            BGPD_ADDR => self.regs.bgpd,
             0xFE00..=0xFE9F => {
                 if self.oam_blocked() {
                     0xFF
@@ -157,6 +188,16 @@ impl MemoryAccess for Ppu {
             OBP1_ADDR => self.regs.obp1 = byte,
             WY_ADDR => self.regs.wy = byte,
             WX_ADDR => self.regs.wx = byte,
+            BGPI_ADDR => self.regs.bgpi = byte,
+            BGPD_ADDR => {
+                self.regs.bgpd = byte;
+                let auto_increment = read_bit(self.regs.bgpi, 7);
+
+                if auto_increment {
+                    let index = self.regs.bgpi & 0b0001_1111;
+                    self.regs.bgpi = ((index + 1) % 0x40) | (1 << 7);
+                }
+            },
             0xFE00..=0xFE9F => {
                 if !self.oam_blocked() {
                     self.oam[(addr as usize) - 0xFE00] = byte;
@@ -380,13 +421,15 @@ impl Ppu {
         sprites_on_line_enumerated.drain(0..num_sprites).map(|(_, s)| s).collect()
     }
 
-    fn get_background_pixel(&self, x: u8, y: u8, map: &[u8]) -> u8 {
+    fn get_background_pixel(&self, x: u8, y: u8, map: &[u8]) -> PixelColor {
         let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
         let tileset_index = map[tile_y * 32 + tile_x];
         let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
 
         let tile = self.get_tile(tileset_index);
+
         let background_palette = self.read(BGP_ADDR);
+        let background_palette_index = self.read(BGPI_ADDR) & 0b0001_1111;
         Self::get_tile_pixel(tile, line_x, line_y, background_palette)
     }
 
@@ -541,7 +584,7 @@ struct DoubleBuffer {
 impl DoubleBuffer {
     fn new() -> DoubleBuffer {
         DoubleBuffer {
-            buffer: [PixelColor::BackgroundPixel(0); (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
+            buffer: [PixelColor::BackgroundPixel(0, 0, 0); (LCD_WIDTH * LCD_HEIGHT * 2) as usize],
             index: 0,
         }
     }
