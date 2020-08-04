@@ -419,19 +419,13 @@ impl Ppu {
     }
 
     fn get_background_map_memory(&self) -> &[u8] {
-        if read_bit(self.read(LCDC_ADDR), 3) {
-            self.vram.read_background_map_range(0x9C00, 0xA000)
-        } else {
-            self.vram.read_background_map_range(0x9800, 0x9C00)
-        }
+        let map_no = read_bit(self.read(LCDC_ADDR), 3) as usize;
+        self.vram.read_background_map(map_no)
     }
 
     fn get_window_map_memory(&self) -> &[u8] {
-        if read_bit(self.read(LCDC_ADDR), 6) {
-            self.vram.read_background_map_range(0x9C00, 0xA000)
-        } else {
-            self.vram.read_background_map_range(0x9800, 0x9C00)
-        }
+        let map_no = read_bit(self.read(LCDC_ADDR), 6) as usize;
+        self.vram.read_background_map(map_no)
     }
 
     fn compute_lcd_mode(cycles: u32, scanline: u32) -> LcdMode {
@@ -633,7 +627,8 @@ impl Vram {
         &self.tile_data[(start_addr - 0x8000)..(end_addr - 0x8000)]
     }
 
-    fn read_background_map_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
-        &self.background_maps[(start_addr - 0x9800)..(end_addr - 0x9800)]
+    fn read_background_map(&self, map_no: usize) -> &[u8] {
+        let addr_start = map_no * 0x400;
+        &self.background_maps[addr_start..addr_start+0x400]
     }
 }
