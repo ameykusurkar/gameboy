@@ -65,7 +65,8 @@ impl Memory {
         if let Some(DmaState(start_addr, cycle)) = self.dma_state {
             let src_addr = start_addr + cycle as u16;
             let byte = match src_addr {
-                0x8000..=0x9FFF => self.ppu.vram[src_addr as usize - 0x8000],
+                0x8000..=0x97FF => self.ppu.vram.tile_data[src_addr as usize - 0x8000],
+                0x9800..=0x9FFF => self.ppu.vram.background_maps[src_addr as usize - 0x9800],
                 _ => self.memory[src_addr as usize],
             };
 

@@ -80,7 +80,7 @@ pub struct Ppu {
     pub frame_complete: bool,
     regs: PpuRegisters,
     pub oam: [u8; 160],
-    pub vram: [u8; 8192],
+    pub vram: Vram,
 }
 
 #[derive(Default)]
@@ -119,11 +119,18 @@ impl MemoryAccess for Ppu {
                     self.oam[(addr as usize) - 0xFE00]
                 }
             },
-            0x8000..=0x9FFF => {
+            0x8000..=0x97FF => {
                 if self.vram_blocked() {
                     0xFF
                 } else {
-                    self.vram[(addr as usize) - 0x8000]
+                    self.vram.tile_data[(addr as usize) - 0x8000]
+                }
+            },
+            0x9800..=0x9FFF => {
+                if self.vram_blocked() {
+                    0xFF
+                } else {
+                    self.vram.background_maps[(addr as usize) - 0x9800]
                 }
             },
             _ => panic!("Invalid ppu addr: {:04x}", addr),
@@ -162,9 +169,14 @@ impl MemoryAccess for Ppu {
                     self.oam[(addr as usize) - 0xFE00] = byte;
                 }
             },
-            0x8000..=0x9FFF => {
+            0x8000..=0x97FF => {
                 if !self.vram_blocked() {
-                    self.vram[(addr as usize) - 0x8000] = byte;
+                    self.vram.tile_data[(addr as usize) - 0x8000] = byte;
+                }
+            },
+            0x9800..=0x9FFF => {
+                if !self.vram_blocked() {
+                    self.vram.background_maps[(addr as usize) - 0x9800] = byte;
                 }
             },
             _ => panic!("Invalid ppu addr: {:04x}", addr),
@@ -182,7 +194,7 @@ impl Ppu {
             frame_complete: false,
             regs: PpuRegisters::default(),
             oam: [0; 160],
-            vram: [0; 8192],
+            vram: Vram::new(),
         }
     }
 
@@ -207,10 +219,6 @@ impl Ppu {
     fn oam_blocked(&self) -> bool {
         let lcd_mode = self.get_lcd_mode();
         self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer || lcd_mode == LcdMode::OAMSearch)
-    }
-
-    pub fn vram_read_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
-        &self.vram[(start_addr - 0x8000)..(end_addr - 0x8000)]
     }
 
     pub fn clock(&mut self, interrupt_flags: &mut u8) {
@@ -397,7 +405,7 @@ impl Ppu {
 
     fn get_sprite_tile(&self, tile_index: u8) -> &[u8] {
         let start_index = 0x8000 + (tile_index as usize * TILE_NUM_BYTES);
-        self.vram_read_range(start_index, start_index+TILE_NUM_BYTES)
+        self.vram.read_tile_data_range(start_index, start_index+TILE_NUM_BYTES)
     }
 
     fn get_tile(&self, tile_index: u8) -> &[u8] {
@@ -407,22 +415,22 @@ impl Ppu {
             ((0x9000 as i32) + ((tile_index as i8) as i32 * TILE_NUM_BYTES as i32)) as usize
         };
 
-        self.vram_read_range(start_index, start_index+TILE_NUM_BYTES)
+        self.vram.read_tile_data_range(start_index, start_index+TILE_NUM_BYTES)
     }
 
     fn get_background_map_memory(&self) -> &[u8] {
         if read_bit(self.read(LCDC_ADDR), 3) {
-            self.vram_read_range(0x9C00, 0xA000)
+            self.vram.read_background_map_range(0x9C00, 0xA000)
         } else {
-            self.vram_read_range(0x9800, 0x9C00)
+            self.vram.read_background_map_range(0x9800, 0x9C00)
         }
     }
 
     fn get_window_map_memory(&self) -> &[u8] {
         if read_bit(self.read(LCDC_ADDR), 6) {
-            self.vram_read_range(0x9C00, 0xA000)
+            self.vram.read_background_map_range(0x9C00, 0xA000)
         } else {
-            self.vram_read_range(0x9800, 0x9C00)
+            self.vram.read_background_map_range(0x9800, 0x9C00)
         }
     }
 
@@ -495,7 +503,7 @@ impl Ppu {
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
         let palette = self.read(BGP_ADDR);
-        for (tile_index, tile) in self.vram_read_range(0x8000, 0x9800).chunks(TILE_NUM_BYTES).enumerate() {
+        for (tile_index, tile) in self.vram.read_tile_data_range(0x8000, 0x9800).chunks(TILE_NUM_BYTES).enumerate() {
             for p in 0..num_pixels_in_tile {
                 let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
                 let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
@@ -606,4 +614,26 @@ fn pixel_map(color_number: u8, palette: u8) -> u8 {
     let high_bit = read_bit(palette, color_number * 2 + 1) as u8;
     let low_bit = read_bit(palette, color_number * 2) as u8;
     high_bit << 1 | low_bit
+}
+
+pub struct Vram {
+    pub tile_data: [u8; 0x1800],
+    pub background_maps: [u8; 0x800],
+}
+
+impl Vram {
+    fn new() -> Self {
+        Self {
+            tile_data: [0; 0x1800],
+            background_maps: [0; 2048],
+        }
+    }
+
+    fn read_tile_data_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
+        &self.tile_data[(start_addr - 0x8000)..(end_addr - 0x8000)]
+    }
+
+    fn read_background_map_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
+        &self.background_maps[(start_addr - 0x9800)..(end_addr - 0x9800)]
+    }
 }
