@@ -64,6 +64,8 @@ impl Memory {
     fn dma_transfer_cycle(&mut self) {
         if let Some(DmaState(start_addr, cycle)) = self.dma_state {
             let src_addr = start_addr + cycle as u16;
+
+            // TODO: Delegate ppu address logic to vram
             let byte = match src_addr {
                 0x8000..=0x97FF => self.ppu.vram.tile_data[src_addr as usize - 0x8000],
                 0x9800..=0x9FFF => self.ppu.vram.background_maps[src_addr as usize - 0x9800],
