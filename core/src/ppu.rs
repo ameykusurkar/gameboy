@@ -335,7 +335,10 @@ impl Ppu {
                 }
             }
 
-            let mut pixel = PixelColor::BackgroundPixel(background_pixel.0);
+            let background_palette = self.read(BGP_ADDR);
+            let mut pixel = PixelColor::BackgroundPixel(
+                background_pixel.with_color(background_palette).0
+            );
 
             if sprites_enabled {
                 // Finds first non-transparent sprite pixel, if any
@@ -404,10 +407,8 @@ impl Ppu {
         let tileset_index = self.vram.get_tile_number(x, y, map_no);
         let tile = self.vram.get_tile(tileset_index, self.get_pattern_table());
 
-        let background_palette = self.read(BGP_ADDR);
-
         let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
-        Self::get_tile_pixel(&tile, line_x, line_y, background_palette)
+        tile.pixel_at(line_x, line_y)
     }
 
     fn get_tile_pixel(tile: &Tile, line_x: u8, line_y: u8, palette: u8) -> PixelData {
@@ -487,10 +488,12 @@ impl Ppu {
 
     // TODO: Iterator over x, y
     pub fn get_map_data(&self, map_no: usize) -> Vec<u8> {
+        let palette = self.read(BGP_ADDR);
+
         (0..MAP_WIDTH * MAP_HEIGHT).map(|i| {
             let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
             // Since we are using u8, x and y should automatically wrap around 256
-            self.get_background_pixel(x as u8, y as u8, map_no).0
+            self.get_background_pixel(x as u8, y as u8, map_no).with_color(palette).0
         }).collect()
     }
 
