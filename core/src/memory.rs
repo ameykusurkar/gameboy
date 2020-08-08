@@ -1,4 +1,9 @@
-use crate::ppu::{Ppu, PPU_REGISTER_ADDR_RANGE};
+use crate::ppu::{
+    Ppu,
+    PPU_REGISTER_ADDR_RANGE,
+    CGB_PPU_REGISTER_ADDR_RANGE,
+    VBK_ADDR,
+};
 use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
@@ -23,7 +28,7 @@ const IF_ADDR: u16 = 0xFF0F;
 pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
-    bootrom: [u8; 256],
+    bootrom: Vec<u8>,
     work_ram: WorkRam,
     pub ppu: Ppu,
     pub joypad: Joypad,
@@ -55,7 +60,7 @@ impl Memory {
         Memory {
             cartridge: Cartridge::new(rom, external_ram),
             memory: [0; 1 << 16],
-            bootrom: [0; 256],
+            bootrom: Vec::new(),
             work_ram: WorkRam::new(),
             joypad: Joypad::default(),
             ppu: Ppu::new(),
@@ -69,15 +74,16 @@ impl Memory {
     }
 
     pub fn clock(&mut self) {
-        self.ppu.clock(&mut self.io_registers.interrupt_flags);
+        let is_cgb = self.is_cgb();
+        self.ppu.clock(&mut self.io_registers.interrupt_flags, is_cgb);
         self.sound_controller.clock();
 
         self.dma_transfer_cycle();
         self.update_memory_mode();
     }
 
-    pub fn load_bootrom(&mut self, buffer: &[u8]) {
-        self.bootrom.copy_from_slice(buffer);
+    pub fn load_bootrom(&mut self, bootrom: Vec<u8>) {
+        self.bootrom = bootrom;
     }
 
     fn dma_transfer_cycle(&mut self) {
@@ -137,6 +143,8 @@ impl Memory {
 
         // TODO: Refactor how memory access is delegated
         if addr < 0x100 && self.is_bootrom_active() {
+            self.bootrom[addr]
+        } else if (0x200..0x900).contains(&addr) && self.is_bootrom_active() && self.is_cgb() {
             self.bootrom[addr]
         } else if (0x0000..0x8000).contains(&addr) {
             self.cartridge.read(addr as u16)
@@ -226,6 +234,8 @@ impl Memory {
             || (OAM_RANGE).contains(&addr)
             // TODO: Move DMA logic (0xFF46) to PPU?
             || (PPU_REGISTER_ADDR_RANGE.contains(&addr) && addr != 0xFF46)
+            || CGB_PPU_REGISTER_ADDR_RANGE.contains(&addr)
+            || addr == VBK_ADDR
     }
 
     fn is_io_addr(addr: u16) -> bool {
@@ -330,7 +340,6 @@ impl WorkRam {
         }
     }
 
-
     fn bank_offset(&self, cgb: bool) -> usize {
         let bank_no = if cgb && self.bank_no > 0 {
             self.bank_no
@@ -346,7 +355,7 @@ impl WorkRam {
             0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000],
             0xD000..=0xDFFF => {
                 let offset = self.bank_offset(cgb);
-                self.buffer[addr as usize + offset - 0xC000]
+                self.buffer[addr as usize + offset - 0xD000]
             }
             _ => unreachable!("Invalid work ram address: {:04x}", addr),
         }
@@ -357,7 +366,7 @@ impl WorkRam {
             0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000] = byte,
             0xD000..=0xDFFF => {
                 let offset = self.bank_offset(cgb);
-                self.buffer[addr as usize + offset - 0xC000] = byte;
+                self.buffer[addr as usize + offset - 0xD000] = byte;
             }
             _ => unreachable!("Invalid work ram address: {:04x}", addr),
         }

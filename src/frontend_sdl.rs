@@ -24,22 +24,7 @@ const SCALE: u32 = 3;
 const TIME_PER_CLOCK: f32 = 1.0 / MACHINE_CYCLES_PER_SECOND as f32;
 const TIME_PER_SAMPLE: f32 = 1.0 / 44100.0;
 
-const BLUE_PALETTE: [(u8, u8, u8); 4] = [
-    (0xFF, 0xFF, 0xFF),
-    (0x63, 0xA5, 0xFF),
-    (0x00, 0x00, 0xFF),
-    (0x00, 0x00, 0x00),
-];
-
-const RED_PALETTE: [(u8, u8, u8); 4] = [
-    (0xFF, 0xFF, 0xFF),
-    (0xFF, 0x84, 0x84),
-    (0x94, 0x3A, 0x3A),
-    (0x00, 0x00, 0x00),
-];
-
-#[allow(dead_code)]
-const FANCY_PALETTE: [(u8, u8, u8); 4] = [
+const MONOCHROME_PALETTE: [(u8, u8, u8); 4] = [
     (255, 228, 204),
     (240, 100, 120),
     (48, 51, 107),
@@ -200,8 +185,8 @@ impl FrontendSdl {
 
     fn color(pixel: PixelColor) -> (u8, u8, u8) {
         match pixel {
-            PixelColor::BackgroundPixel(p) => BLUE_PALETTE[p as usize],
-            PixelColor::SpritePixel(p) => RED_PALETTE[p as usize],
+            PixelColor::Monochrome(p) => MONOCHROME_PALETTE[p as usize],
+            PixelColor::Color(r, g, b) => (r << 3, g << 3, b << 3),
         }
     }
 }
