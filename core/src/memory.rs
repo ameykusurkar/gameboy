@@ -11,6 +11,7 @@ pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
+    work_ram: WorkRam,
     pub ppu: Ppu,
     pub joypad: Joypad,
     pub sound_controller: SoundController,
@@ -41,6 +42,7 @@ impl Memory {
             cartridge: Cartridge::new(rom, external_ram),
             memory: [0; 1 << 16],
             bootrom: [0; 256],
+            work_ram: WorkRam::new(),
             joypad: Joypad::default(),
             ppu: Ppu::new(),
             sound_controller: SoundController::new(),
@@ -68,6 +70,7 @@ impl Memory {
             let src_addr = start_addr + cycle as u16;
 
             let byte = match src_addr {
+                0xC000..=0xDFFF => self.work_ram.read(src_addr),
                 0x8000..=0x9FFF => self.ppu.dma_read(src_addr),
                 _ => self.memory[src_addr as usize],
             };
@@ -120,6 +123,8 @@ impl Memory {
             self.cartridge.read(addr as u16)
         } else if (0xA000..0xC000).contains(&addr) {
             self.cartridge.read(addr as u16)
+        } else if (0xC000..=0xDFFF).contains(&addr) {
+            self.work_ram.read(addr as u16)
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
         } else if addr == 0xFF01 || addr == 0xFF02 {
@@ -149,6 +154,9 @@ impl Memory {
             // External RAM, also handled by cartridge
             0xA000..=0xBFFF => {
                 self.cartridge.write(addr, val);
+            },
+            0xC000..=0xDFFF => {
+                self.work_ram.write(addr as u16, val)
             },
             // Joypad
             0xFF00 => {
@@ -201,5 +209,37 @@ impl Memory {
 
     pub fn mark_external_ram_as_saved(&mut self) {
         self.cartridge.mbc.mark_ram_as_saved()
+    }
+}
+
+const WRAM_BANK_SIZE: usize = 0x1000;
+
+struct WorkRam {
+    buffer: [u8; WRAM_BANK_SIZE * 8],
+}
+
+impl WorkRam {
+    fn new() -> Self {
+        Self {
+            buffer: [0; WRAM_BANK_SIZE * 8],
+        }
+    }
+}
+
+impl MemoryAccess for WorkRam {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000],
+            0xD000..=0xDFFF => self.buffer[addr as usize - 0xC000],
+            _ => unreachable!("Invalid work ram address: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8) {
+        match addr {
+            0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000] = byte,
+            0xD000..=0xDFFF => self.buffer[addr as usize - 0xC000] = byte,
+            _ => unreachable!("Invalid work ram address: {:04x}", addr),
+        }
     }
 }
