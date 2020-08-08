@@ -4,6 +4,7 @@ use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
 use crate::sound_controller::SoundController;
+use crate::utils::read_bit;
 
 const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;
 
@@ -70,7 +71,7 @@ impl Memory {
             let src_addr = start_addr + cycle as u16;
 
             let byte = match src_addr {
-                0xC000..=0xDFFF => self.work_ram.read(src_addr),
+                0xC000..=0xDFFF => self.work_ram.read(src_addr, self.is_cgb()),
                 0x8000..=0x9FFF => self.ppu.dma_read(src_addr),
                 _ => self.memory[src_addr as usize],
             };
@@ -102,6 +103,10 @@ impl Memory {
         (self.memory[0xFF50] & 0x01) == 0
     }
 
+    pub fn is_cgb(&self) -> bool {
+        read_bit(self.cartridge.read(0x0143), 7)
+    }
+
     pub fn div_cycle(&mut self) {
         self.div = self.div.wrapping_add(4);
     }
@@ -124,7 +129,7 @@ impl Memory {
         } else if (0xA000..0xC000).contains(&addr) {
             self.cartridge.read(addr as u16)
         } else if (0xC000..=0xDFFF).contains(&addr) {
-            self.work_ram.read(addr as u16)
+            self.work_ram.read(addr as u16, self.is_cgb())
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
         } else if addr == 0xFF01 || addr == 0xFF02 {
@@ -132,6 +137,8 @@ impl Memory {
         } else if addr == 0xFF04 {
             let top_bits = self.div & 0xFF00;
             (top_bits >> 8) as u8
+        } else if addr == 0xFF70 {
+            (self.work_ram.bank_no & 0b0000_0111) as u8
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else if Self::is_ppu_addr(addr as u16) {
@@ -156,7 +163,7 @@ impl Memory {
                 self.cartridge.write(addr, val);
             },
             0xC000..=0xDFFF => {
-                self.work_ram.write(addr as u16, val)
+                self.work_ram.write(addr as u16, val, self.is_cgb())
             },
             // Joypad
             0xFF00 => {
@@ -167,6 +174,9 @@ impl Memory {
             },
             0xFF04 => {
                 self.div = 0x00;
+            },
+            0xFF70 => {
+                self.work_ram.bank_no = (val & 0b0000_0111) as usize;
             },
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
@@ -216,29 +226,46 @@ const WRAM_BANK_SIZE: usize = 0x1000;
 
 struct WorkRam {
     buffer: [u8; WRAM_BANK_SIZE * 8],
+    bank_no: usize,
 }
 
 impl WorkRam {
     fn new() -> Self {
         Self {
             buffer: [0; WRAM_BANK_SIZE * 8],
+            bank_no: 0,
         }
     }
-}
 
-impl MemoryAccess for WorkRam {
-    fn read(&self, addr: u16) -> u8 {
+
+    fn bank_offset(&self, cgb: bool) -> usize {
+        let bank_no = if cgb && self.bank_no > 0 {
+            self.bank_no
+        } else {
+            1
+        };
+
+        bank_no * WRAM_BANK_SIZE
+    }
+
+    fn read(&self, addr: u16, cgb: bool) -> u8 {
         match addr {
             0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000],
-            0xD000..=0xDFFF => self.buffer[addr as usize - 0xC000],
+            0xD000..=0xDFFF => {
+                let offset = self.bank_offset(cgb);
+                self.buffer[addr as usize + offset - 0xC000]
+            }
             _ => unreachable!("Invalid work ram address: {:04x}", addr),
         }
     }
 
-    fn write(&mut self, addr: u16, byte: u8) {
+    fn write(&mut self, addr: u16, byte: u8, cgb: bool) {
         match addr {
             0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000] = byte,
-            0xD000..=0xDFFF => self.buffer[addr as usize - 0xC000] = byte,
+            0xD000..=0xDFFF => {
+                let offset = self.bank_offset(cgb);
+                self.buffer[addr as usize + offset - 0xC000] = byte;
+            }
             _ => unreachable!("Invalid work ram address: {:04x}", addr),
         }
     }
