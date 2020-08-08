@@ -24,6 +24,7 @@ pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
     bootrom: [u8; 256],
+    work_ram: WorkRam,
     pub ppu: Ppu,
     pub joypad: Joypad,
     pub sound_controller: SoundController,
@@ -55,6 +56,7 @@ impl Memory {
             cartridge: Cartridge::new(rom, external_ram),
             memory: [0; 1 << 16],
             bootrom: [0; 256],
+            work_ram: WorkRam::new(),
             joypad: Joypad::default(),
             ppu: Ppu::new(),
             sound_controller: SoundController::new(),
@@ -83,6 +85,7 @@ impl Memory {
             let src_addr = start_addr + cycle as u16;
 
             let byte = match src_addr {
+                0xC000..=0xDFFF => self.work_ram.read(src_addr, self.is_cgb()),
                 0x8000..=0x9FFF => self.ppu.dma_read(src_addr),
                 _ => self.memory[src_addr as usize],
             };
@@ -114,6 +117,10 @@ impl Memory {
         (self.memory[0xFF50] & 0x01) == 0
     }
 
+    pub fn is_cgb(&self) -> bool {
+        read_bit(self.cartridge.read(0x0143), 7)
+    }
+
     pub fn div_cycle(&mut self) {
         self.div = self.div.wrapping_add(4);
     }
@@ -135,6 +142,8 @@ impl Memory {
             self.cartridge.read(addr as u16)
         } else if (0xA000..0xC000).contains(&addr) {
             self.cartridge.read(addr as u16)
+        } else if (0xC000..=0xDFFF).contains(&addr) {
+            self.work_ram.read(addr as u16, self.is_cgb())
         } else if addr == 0xFF00 {
             self.joypad.read(addr as u16)
         } else if addr == 0xFF01 || addr == 0xFF02 {
@@ -144,6 +153,8 @@ impl Memory {
             (top_bits >> 8) as u8
         } else if Self::is_io_addr(addr as u16) {
             self.io_registers.read(addr as u16)
+        } else if addr == 0xFF70 {
+            (self.work_ram.bank_no & 0b0000_0111) as u8
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else if Self::is_ppu_addr(addr as u16) {
@@ -167,6 +178,9 @@ impl Memory {
             0xA000..=0xBFFF => {
                 self.cartridge.write(addr, val);
             },
+            0xC000..=0xDFFF => {
+                self.work_ram.write(addr as u16, val, self.is_cgb())
+            },
             // Joypad
             0xFF00 => {
                 self.joypad.write(addr, val);
@@ -179,6 +193,9 @@ impl Memory {
             },
             _ if Self::is_io_addr(addr) => {
                 self.io_registers.write(addr, val);
+            },
+            0xFF70 => {
+                self.work_ram.bank_no = (val & 0b0000_0111) as usize;
             },
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
@@ -294,6 +311,55 @@ impl MemoryAccess for IoRegisters {
             IE_ADDR => self.interrupt_enable = byte,
             IF_ADDR => self.interrupt_flags = byte,
             _ => unreachable!("Invalid IO address: {:04x}", addr),
+        }
+    }
+}
+
+const WRAM_BANK_SIZE: usize = 0x1000;
+
+struct WorkRam {
+    buffer: [u8; WRAM_BANK_SIZE * 8],
+    bank_no: usize,
+}
+
+impl WorkRam {
+    fn new() -> Self {
+        Self {
+            buffer: [0; WRAM_BANK_SIZE * 8],
+            bank_no: 0,
+        }
+    }
+
+
+    fn bank_offset(&self, cgb: bool) -> usize {
+        let bank_no = if cgb && self.bank_no > 0 {
+            self.bank_no
+        } else {
+            1
+        };
+
+        bank_no * WRAM_BANK_SIZE
+    }
+
+    fn read(&self, addr: u16, cgb: bool) -> u8 {
+        match addr {
+            0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000],
+            0xD000..=0xDFFF => {
+                let offset = self.bank_offset(cgb);
+                self.buffer[addr as usize + offset - 0xC000]
+            }
+            _ => unreachable!("Invalid work ram address: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8, cgb: bool) {
+        match addr {
+            0xC000..=0xCFFF => self.buffer[addr as usize - 0xC000] = byte,
+            0xD000..=0xDFFF => {
+                let offset = self.bank_offset(cgb);
+                self.buffer[addr as usize + offset - 0xC000] = byte;
+            }
+            _ => unreachable!("Invalid work ram address: {:04x}", addr),
         }
     }
 }
