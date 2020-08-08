@@ -202,6 +202,18 @@ impl Ppu {
         read_bit(self.regs.lcdc, 7)
     }
 
+    pub fn dma_read(&mut self, addr: u16) -> u8 {
+        match addr {
+            0x8000..=0x97FF => self.vram.tile_data[addr as usize - 0x8000],
+            0x9800..=0x9FFF => self.vram.background_maps[addr as usize - 0x9800],
+            _ => unreachable!("Invalid address for PPU: {:04x}", addr),
+        }
+    }
+
+    pub fn dma_write(&mut self, oam_offset: usize, byte: u8) {
+        self.oam[oam_offset] = byte;
+    }
+
     fn switch_on_lcd(&mut self) {
         self.cycles = OAM_SEARCH_CYCLES + PIXEL_TRANSFER_CYCLES;
     }
@@ -590,8 +602,8 @@ impl std::convert::From<&[u8]> for Sprite {
 }
 
 pub struct Vram {
-    pub tile_data: [u8; 0x1800],
-    pub background_maps: [u8; 0x800],
+    tile_data: [u8; 0x1800],
+    background_maps: [u8; 0x800],
 }
 
 impl Vram {
