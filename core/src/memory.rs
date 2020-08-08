@@ -64,12 +64,13 @@ impl Memory {
     fn dma_transfer_cycle(&mut self) {
         if let Some(DmaState(start_addr, cycle)) = self.dma_state {
             let src_addr = start_addr + cycle as u16;
+
             let byte = match src_addr {
-                0x8000..=0x9FFF => self.ppu.vram[src_addr as usize - 0x8000],
+                0x8000..=0x9FFF => self.ppu.dma_read(src_addr),
                 _ => self.memory[src_addr as usize],
             };
 
-            self.ppu.oam[cycle] = byte;
+            self.ppu.dma_write(cycle, byte);
 
             self.dma_state = if cycle == 159 {
                 None

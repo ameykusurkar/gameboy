@@ -80,7 +80,7 @@ pub struct Ppu {
     pub frame_complete: bool,
     regs: PpuRegisters,
     pub oam: [u8; 160],
-    pub vram: [u8; 8192],
+    pub vram: Vram,
 }
 
 #[derive(Default)]
@@ -119,11 +119,18 @@ impl MemoryAccess for Ppu {
                     self.oam[(addr as usize) - 0xFE00]
                 }
             },
-            0x8000..=0x9FFF => {
+            0x8000..=0x97FF => {
                 if self.vram_blocked() {
                     0xFF
                 } else {
-                    self.vram[(addr as usize) - 0x8000]
+                    self.vram.tile_data[(addr as usize) - 0x8000]
+                }
+            },
+            0x9800..=0x9FFF => {
+                if self.vram_blocked() {
+                    0xFF
+                } else {
+                    self.vram.background_maps[(addr as usize) - 0x9800]
                 }
             },
             _ => panic!("Invalid ppu addr: {:04x}", addr),
@@ -162,9 +169,14 @@ impl MemoryAccess for Ppu {
                     self.oam[(addr as usize) - 0xFE00] = byte;
                 }
             },
-            0x8000..=0x9FFF => {
+            0x8000..=0x97FF => {
                 if !self.vram_blocked() {
-                    self.vram[(addr as usize) - 0x8000] = byte;
+                    self.vram.tile_data[(addr as usize) - 0x8000] = byte;
+                }
+            },
+            0x9800..=0x9FFF => {
+                if !self.vram_blocked() {
+                    self.vram.background_maps[(addr as usize) - 0x9800] = byte;
                 }
             },
             _ => panic!("Invalid ppu addr: {:04x}", addr),
@@ -182,12 +194,24 @@ impl Ppu {
             frame_complete: false,
             regs: PpuRegisters::default(),
             oam: [0; 160],
-            vram: [0; 8192],
+            vram: Vram::new(),
         }
     }
 
     pub fn lcd_enabled(&self) -> bool {
         read_bit(self.regs.lcdc, 7)
+    }
+
+    pub fn dma_read(&mut self, addr: u16) -> u8 {
+        match addr {
+            0x8000..=0x97FF => self.vram.tile_data[addr as usize - 0x8000],
+            0x9800..=0x9FFF => self.vram.background_maps[addr as usize - 0x9800],
+            _ => unreachable!("Invalid address for PPU: {:04x}", addr),
+        }
+    }
+
+    pub fn dma_write(&mut self, oam_offset: usize, byte: u8) {
+        self.oam[oam_offset] = byte;
     }
 
     fn switch_on_lcd(&mut self) {
@@ -207,10 +231,6 @@ impl Ppu {
     fn oam_blocked(&self) -> bool {
         let lcd_mode = self.get_lcd_mode();
         self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer || lcd_mode == LcdMode::OAMSearch)
-    }
-
-    pub fn vram_read_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
-        &self.vram[(start_addr - 0x8000)..(end_addr - 0x8000)]
     }
 
     pub fn clock(&mut self, interrupt_flags: &mut u8) {
@@ -293,13 +313,13 @@ impl Ppu {
         let start_x = (self.cycles - OAM_SEARCH_CYCLES) * 4;
 
         for x in start_x..(start_x + 4) {
-            let mut background_pixel = 0;
+            let mut background_pixel = PixelData(0);
 
             if background_enabled {
                 background_pixel = self.get_background_pixel(
                     (x as u8).wrapping_add(scroll_x),
                     (self.scanline as u8).wrapping_add(scroll_y),
-                    self.get_background_map_memory(),
+                    self.get_background_map_no(),
                 );
             }
 
@@ -310,17 +330,17 @@ impl Ppu {
 
                 if should_draw {
                     background_pixel = self.get_background_pixel(
-                        x - window_x, y - window_y, self.get_window_map_memory(),
+                        x - window_x, y - window_y, self.get_window_map_no(),
                     );
                 }
             }
 
-            let mut pixel = PixelColor::BackgroundPixel(background_pixel);
+            let mut pixel = PixelColor::BackgroundPixel(background_pixel.0);
 
             if sprites_enabled {
                 // Finds first non-transparent sprite pixel, if any
                 self.get_sprites_at_x(x as u8).iter()
-                    .filter(|sprite| !(sprite.priority && (1..=3).contains(&background_pixel)))
+                    .filter(|sprite| !(sprite.priority && (1..=3).contains(&background_pixel.0)))
                     .find_map(|sprite| self.get_sprite_pixel(sprite, x as u8, self.scanline as u8))
                     .map(|sprite_pixel| pixel = PixelColor::SpritePixel(sprite_pixel));
             }
@@ -349,9 +369,9 @@ impl Ppu {
             line_y = 7 - line_y;
         }
 
-        let pixel_data = get_tile_pixel_data(tile, line_x, line_y);
+        let pixel_data = tile.pixel_at(line_x, line_y);
 
-        if pixel_data == 0x00 {
+        if pixel_data.0 == 0x00 {
             // 0 maps to transparency, so background color is used
             return None;
         }
@@ -362,7 +382,7 @@ impl Ppu {
             _ => panic!("Invalid palette_no: {}", sprite.palette_no),
         };
 
-        Some(pixel_map(pixel_data, palette))
+        Some(pixel_data.with_color(palette).0)
     }
 
     fn compute_sprites_for_line(&self, line_no: u32) -> Vec<Sprite> {
@@ -380,50 +400,34 @@ impl Ppu {
         sprites_on_line_enumerated.drain(0..num_sprites).map(|(_, s)| s).collect()
     }
 
-    fn get_background_pixel(&self, x: u8, y: u8, map: &[u8]) -> u8 {
-        let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
-        let tileset_index = map[tile_y * 32 + tile_x];
-        let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
+    fn get_background_pixel(&self, x: u8, y: u8, map_no: usize) -> PixelData {
+        let tileset_index = self.vram.get_tile_number(x, y, map_no);
+        let tile = self.vram.get_tile(tileset_index, self.get_pattern_table());
 
-        let tile = self.get_tile(tileset_index);
         let background_palette = self.read(BGP_ADDR);
-        Self::get_tile_pixel(tile, line_x, line_y, background_palette)
+
+        let (line_x, line_y) = (x % NUM_PIXELS_IN_LINE as u8, y % NUM_PIXELS_IN_LINE as u8);
+        Self::get_tile_pixel(&tile, line_x, line_y, background_palette)
     }
 
-    fn get_tile_pixel(tile: &[u8], line_x: u8, line_y: u8, palette: u8) -> u8 {
-        let pixel_data = get_tile_pixel_data(tile, line_x, line_y);
-        pixel_map(pixel_data, palette)
+    fn get_tile_pixel(tile: &Tile, line_x: u8, line_y: u8, palette: u8) -> PixelData {
+        tile.pixel_at(line_x, line_y).with_color(palette)
     }
 
-    fn get_sprite_tile(&self, tile_index: u8) -> &[u8] {
-        let start_index = 0x8000 + (tile_index as usize * TILE_NUM_BYTES);
-        self.vram_read_range(start_index, start_index+TILE_NUM_BYTES)
+    fn get_sprite_tile(&self, tile_index: u8) -> Tile {
+        self.vram.get_tile(tile_index, 1)
     }
 
-    fn get_tile(&self, tile_index: u8) -> &[u8] {
-        let start_index = if read_bit(self.read(LCDC_ADDR), 4) {
-            0x8000 + (tile_index as usize * TILE_NUM_BYTES)
-        } else {
-            ((0x9000 as i32) + ((tile_index as i8) as i32 * TILE_NUM_BYTES as i32)) as usize
-        };
-
-        self.vram_read_range(start_index, start_index+TILE_NUM_BYTES)
+    fn get_pattern_table(&self) -> usize {
+        read_bit(self.read(LCDC_ADDR), 4) as usize
     }
 
-    fn get_background_map_memory(&self) -> &[u8] {
-        if read_bit(self.read(LCDC_ADDR), 3) {
-            self.vram_read_range(0x9C00, 0xA000)
-        } else {
-            self.vram_read_range(0x9800, 0x9C00)
-        }
+    fn get_background_map_no(&self) -> usize {
+        read_bit(self.read(LCDC_ADDR), 3) as usize
     }
 
-    fn get_window_map_memory(&self) -> &[u8] {
-        if read_bit(self.read(LCDC_ADDR), 6) {
-            self.vram_read_range(0x9C00, 0xA000)
-        } else {
-            self.vram_read_range(0x9800, 0x9C00)
-        }
+    fn get_window_map_no(&self) -> usize {
+        read_bit(self.read(LCDC_ADDR), 6) as usize
     }
 
     fn compute_lcd_mode(cycles: u32, scanline: u32) -> LcdMode {
@@ -472,20 +476,21 @@ impl Ppu {
     }
 
     pub fn get_background_map(&self) -> Vec<u8> {
-        let background_map_memory = self.get_background_map_memory();
-        self.get_map_data(background_map_memory)
+        let background_map_no = self.get_background_map_no();
+        self.get_map_data(background_map_no)
     }
 
     pub fn get_window_map(&self) -> Vec<u8> {
-        let window_map_memory = self.get_window_map_memory();
-        self.get_map_data(window_map_memory)
+        let window_map_no = self.get_window_map_no();
+        self.get_map_data(window_map_no)
     }
 
-    pub fn get_map_data(&self, map: &[u8]) -> Vec<u8> {
+    // TODO: Iterator over x, y
+    pub fn get_map_data(&self, map_no: usize) -> Vec<u8> {
         (0..MAP_WIDTH * MAP_HEIGHT).map(|i| {
             let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
             // Since we are using u8, x and y should automatically wrap around 256
-            self.get_background_pixel(x as u8, y as u8, map)
+            self.get_background_pixel(x as u8, y as u8, map_no).0
         }).collect()
     }
 
@@ -495,13 +500,13 @@ impl Ppu {
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
         let palette = self.read(BGP_ADDR);
-        for (tile_index, tile) in self.vram_read_range(0x8000, 0x9800).chunks(TILE_NUM_BYTES).enumerate() {
+        for (tile_index, tile) in self.vram.read_tile_data_range(0x8000, 0x9800).chunks(TILE_NUM_BYTES).enumerate() {
             for p in 0..num_pixels_in_tile {
                 let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
                 let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
                 let y = (tile_index / 16) * NUM_PIXELS_IN_LINE + line_y;
                 pixels[y * NUM_PIXELS_IN_LINE * 16 + x] =
-                    Self::get_tile_pixel(tile, line_x as u8, line_y as u8, palette);
+                    Self::get_tile_pixel(&tile.into(), line_x as u8, line_y as u8, palette).0;
             }
         }
 
@@ -525,7 +530,7 @@ impl Ppu {
                 let x = (sprite_index % 10) * NUM_PIXELS_IN_LINE + line_x;
                 let y = (sprite_index / 10) * NUM_PIXELS_IN_LINE + line_y;
                 pixels[y * NUM_PIXELS_IN_LINE * 10 + x] =
-                    Self::get_tile_pixel(tile, line_x as u8, line_y as u8, palette);
+                    Self::get_tile_pixel(&tile, line_x as u8, line_y as u8, palette).0;
             }
         }
 
@@ -596,14 +601,73 @@ impl std::convert::From<&[u8]> for Sprite {
     }
 }
 
-fn get_tile_pixel_data(tile: &[u8], line_x: u8, line_y: u8) -> u8 {
-    let lower_bit = read_bit(tile[(line_y * 2) as usize], 7 - line_x) as u8;
-    let upper_bit = read_bit(tile[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
-    upper_bit << 1 | lower_bit
+pub struct Vram {
+    tile_data: [u8; 0x1800],
+    background_maps: [u8; 0x800],
 }
 
-fn pixel_map(color_number: u8, palette: u8) -> u8 {
-    let high_bit = read_bit(palette, color_number * 2 + 1) as u8;
-    let low_bit = read_bit(palette, color_number * 2) as u8;
-    high_bit << 1 | low_bit
+impl Vram {
+    fn new() -> Self {
+        Self {
+            tile_data: [0; 0x1800],
+            background_maps: [0; 2048],
+        }
+    }
+
+    fn read_tile_data_range(&self, start_addr: usize, end_addr: usize) -> &[u8] {
+        &self.tile_data[(start_addr - 0x8000)..(end_addr - 0x8000)]
+    }
+
+    fn get_background_map(&self, map_no: usize) -> &[u8] {
+        let addr_start = map_no * 0x400;
+        &self.background_maps[addr_start..addr_start+0x400]
+    }
+
+    fn get_tile_number(&self, x: u8, y: u8, map_no: usize) -> u8 {
+        let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
+        self.get_background_map(map_no)[tile_y * 32 + tile_x]
+
+    }
+
+    fn get_tile(&self, tile_number: u8, pattern_table: usize) -> Tile {
+        let start_index = match pattern_table {
+            0 => {
+                let pattern_table_start: i32 = 0x1000;
+                let offset = (tile_number as i8) as i32 * TILE_NUM_BYTES as i32;
+                (pattern_table_start + offset) as usize
+            }
+            1 => tile_number as usize * TILE_NUM_BYTES,
+            _ => unreachable!("Invalid pattern table {}", pattern_table),
+        };
+
+        self.tile_data[start_index..start_index+TILE_NUM_BYTES].as_ref().into()
+    }
+}
+
+struct PixelData(u8);
+
+impl PixelData {
+    fn with_color(&self, palette: u8) -> PixelData {
+        let high_bit = read_bit(palette, self.0 * 2 + 1) as u8;
+        let low_bit = read_bit(palette, self.0 * 2) as u8;
+        PixelData(high_bit << 1 | low_bit)
+    }
+}
+
+struct Tile<'a> {
+    bytes: &'a [u8],
+}
+
+impl Tile<'_> {
+    fn pixel_at(&self, line_x: u8, line_y: u8) -> PixelData {
+        let lower_bit = read_bit(self.bytes[(line_y * 2) as usize], 7 - line_x) as u8;
+        let upper_bit = read_bit(self.bytes[(line_y * 2 + 1) as usize], 7 - line_x) as u8;
+        PixelData(upper_bit << 1 | lower_bit)
+    }
+}
+
+impl<'a> std::convert::From<&'a [u8]> for Tile<'a> {
+    fn from(bytes: &'a [u8]) -> Self {
+        Self { bytes }
+    }
 }
