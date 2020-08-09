@@ -396,7 +396,6 @@ impl Ppu {
     }
 
     fn get_sprite_pixel_color(&self, sprite: &Sprite, x: u8, y: u8, is_cgb: bool) -> Option<PixelColor> {
-        let tile = self.get_sprite_tile(sprite.tile_no);
         let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
         let (mut line_x, mut line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
 
@@ -404,10 +403,27 @@ impl Ppu {
             line_x = 7 - line_x;
         }
         if sprite.y_flip {
-            line_y = 7 - line_y;
+            if self.sprite16_mode() {
+                line_y = 15 - line_y;
+            } else {
+                line_y = 7 - line_y;
+            }
         }
 
-        let pixel_data = tile.pixel_at(line_x, line_y);
+        let pixel_data = if self.sprite16_mode() {
+            if (0..=7).contains(&line_y) {
+                let tile_no = sprite.tile_no & 0xFE; // Upper tile number
+                let tile = self.get_sprite_tile(tile_no);
+                tile.pixel_at(line_x, line_y)
+            } else {
+                let tile_no = sprite.tile_no | 0x01; // Lower tile number
+                let tile = self.get_sprite_tile(tile_no);
+                tile.pixel_at(line_x, line_y-8)
+            }
+        } else {
+            let tile = self.get_sprite_tile(sprite.tile_no);
+            tile.pixel_at(line_x, line_y)
+        };
 
         if pixel_data.0 == 0x00 {
             // 0 maps to transparency, so background color is used
@@ -434,8 +450,13 @@ impl Ppu {
 
         let mut sprites_on_line_enumerated: Vec<_> = sprites.filter(|sprite| {
             let y_start = sprite.y as i32 - 16;
-            // TODO: Account for varying sprite height
-            sprite.x != 0 && (y_start..y_start+8).contains(&(line_no as i32))
+            let y_length = if self.sprite16_mode() {
+                16
+            } else {
+                8
+            };
+
+            sprite.x != 0 && (y_start..y_start+y_length).contains(&(line_no as i32))
         }).enumerate().collect();
 
         sprites_on_line_enumerated.sort_by_key(|(i, sprite)| (sprite.x, *i));
@@ -485,6 +506,10 @@ impl Ppu {
 
     fn get_window_map_no(&self) -> usize {
         read_bit(self.read(LCDC_ADDR), 6) as usize
+    }
+
+    fn sprite16_mode(&self) -> bool {
+        read_bit(self.read(LCDC_ADDR), 2)
     }
 
     fn compute_lcd_mode(cycles: u32, scanline: u32) -> LcdMode {
