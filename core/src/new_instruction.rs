@@ -4,6 +4,8 @@ use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
 use crate::cpu::Condition;
 
+use std::collections::HashMap;
+
 #[derive(Clone)]
 pub struct NewInstruction {
     micro_instructions: std::collections::VecDeque<MicroInstruction>,
@@ -21,16 +23,12 @@ impl NewInstruction {
         self
     }
 
-    pub fn complete(&mut self) {
-        self.micro_instructions.clear()
-    }
-
     pub fn num_cycles(&self) -> usize {
         self.micro_instructions.len()
     }
 
-    pub fn next_micro(&mut self) -> Option<MicroInstruction> {
-        self.micro_instructions.pop_front()
+    pub fn micro_at(&self, index: usize) -> Option<&MicroInstruction> {
+        self.micro_instructions.get(index)
     }
 
     fn set_interrupt_value(mut self, val: bool) -> Self {
@@ -228,12 +226,31 @@ pub enum AddressSource {
 }
 
 pub struct InstructionRegistry {
-    instruction_map: std::collections::HashMap<u8, NewInstruction>,
-    prefixed_instruction_map: std::collections::HashMap<u8, NewInstruction>,
+    instructions: Vec<NewInstruction>,
+    prefixed_instructions: Vec<NewInstruction>,
 }
 
 impl InstructionRegistry {
     pub fn new() -> Self {
+        let (instruction_map, prefixed_instruction_map) = Self::build_registry();
+
+        Self {
+            instructions: Self::convert_to_vec(instruction_map),
+            prefixed_instructions: Self::convert_to_vec(prefixed_instruction_map),
+        }
+    }
+
+    fn convert_to_vec(map: HashMap<u8, NewInstruction>) -> Vec<NewInstruction> {
+        let mut vec = vec![NewInstruction::new(); 256];
+
+        for (opcode, instruction) in map {
+            vec[opcode as usize] = instruction;
+        }
+
+        vec
+    }
+
+    fn build_registry() -> (HashMap<u8, NewInstruction>, HashMap<u8, NewInstruction>) {
         let mut instruction_map = std::collections::HashMap::new();
 
         for (opcode, reg16) in [(0x01, BC), (0x11, DE), (0x21, HL), (0x31, SP)].iter() {
@@ -442,14 +459,14 @@ impl InstructionRegistry {
             );
         }
 
-        InstructionRegistry { instruction_map, prefixed_instruction_map }
+        (instruction_map, prefixed_instruction_map)
     }
 
-    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<NewInstruction> {
+    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<&NewInstruction> {
         if prefixed_mode {
-            self.prefixed_instruction_map.get(&opcode).map(|instr| instr.to_owned())
+            self.prefixed_instructions.get(opcode as usize)
         } else {
-            self.instruction_map.get(&opcode).map(|instr| instr.to_owned())
+            self.instructions.get(opcode as usize)
         }
     }
 }

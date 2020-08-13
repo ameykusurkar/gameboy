@@ -10,9 +10,8 @@ use crate::memory::Memory;
 use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::new_instruction::{
-    NewInstruction, MicroInstruction, InstructionRegistry,
-    MemoryOperation, AddressSource, RegisterOperation,
-    AluOperation,
+    MicroInstruction, InstructionRegistry, MemoryOperation,
+    AddressSource, RegisterOperation, AluOperation,
 };
 
 use crate::utils::{read_bit, set_bit};
@@ -39,9 +38,26 @@ pub struct Cpu {
     total_clock_cycles: u32,
     halted: bool,
     pub current_instruction: &'static Instruction<'static>,
-    current_new_instruction: Option<NewInstruction>,
+    current_new_instruction: Option<InstructionState>,
     instruction_registry: InstructionRegistry,
     prefixed_mode: bool,
+}
+
+struct InstructionState(u8, usize, bool);
+
+impl InstructionState {
+    fn complete(&mut self) {
+        self.1 = 0;
+    }
+
+    fn is_complete(&self) -> bool {
+        self.1 == 0
+    }
+
+    fn advance(&mut self) {
+        // Reduce number of remaining cycles
+        self.1 -= 1;
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -164,11 +180,9 @@ impl Cpu {
 
                 match self.instruction_registry.fetch(opcode, self.prefixed_mode) {
                     Some(instruction) => {
-                        let instruction = instruction.to_owned();
-
                         if instruction.num_cycles() > 0 {
                             self.remaining_cycles += instruction.num_cycles() as u32;
-                            self.current_new_instruction = Some(instruction);
+                            self.current_new_instruction = Some(InstructionState(opcode, instruction.num_cycles(), self.prefixed_mode));
                         } else {
                             // We don't do anything for a NOOP/PREFIXED instruction,
                             // but add one cycle to simulate fetching the PC
@@ -186,8 +200,10 @@ impl Cpu {
             }
 
             if self.current_new_instruction.is_some() {
-                match self.current_new_instruction.as_mut().unwrap().next_micro() {
+                match self.next_micro() {
                     Some(micro_instruction) => {
+                        // TODO: Get rid of the clone!
+                        let micro_instruction = micro_instruction.clone();
                         let should_proceed = self.execute_micro(memory, &micro_instruction);
 
                         if !should_proceed {
@@ -196,7 +212,7 @@ impl Cpu {
                         }
 
                         // TODO: Clean up!
-                        if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
+                        if self.current_new_instruction.as_ref().unwrap().is_complete() {
                             self.current_new_instruction = None;
 
                             if micro_instruction.has_memory_access() {
@@ -217,6 +233,14 @@ impl Cpu {
 
         self.total_clock_cycles += 1;
         self.update_timers(memory);
+    }
+
+    fn next_micro(&mut self) -> Option<&MicroInstruction> {
+        let InstructionState(opcode, remaining_micros, prefixed_mode) = self.current_new_instruction.as_mut()?;
+        let instruction = self.instruction_registry.fetch(*opcode, *prefixed_mode).expect("Opcode has to be valid");
+        let micro_index = instruction.num_cycles() - *remaining_micros;
+        self.current_new_instruction.as_mut().unwrap().advance();
+        instruction.micro_at(micro_index)
     }
 
     fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: &MicroInstruction) -> bool {
