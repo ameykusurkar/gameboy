@@ -4,6 +4,12 @@ use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
 use crate::cpu::Condition;
 
+use lazy_static::lazy_static;
+
+lazy_static! {
+    pub static ref REGISTRY: InstructionRegistry = InstructionRegistry::new();
+}
+
 #[derive(Clone)]
 pub struct NewInstruction {
     micro_instructions: std::collections::VecDeque<MicroInstruction>,

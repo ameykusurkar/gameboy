@@ -10,9 +10,9 @@ use crate::memory::Memory;
 use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::new_instruction::{
-    NewInstruction, MicroInstruction, InstructionRegistry,
-    MemoryOperation, AddressSource, RegisterOperation,
-    AluOperation,
+    NewInstruction, MicroInstruction, MemoryOperation,
+    AddressSource, RegisterOperation, AluOperation,
+    REGISTRY,
 };
 
 use crate::utils::{read_bit, set_bit};
@@ -40,7 +40,6 @@ pub struct Cpu {
     halted: bool,
     pub current_instruction: &'static Instruction<'static>,
     current_new_instruction: Option<NewInstruction>,
-    instruction_registry: InstructionRegistry,
     prefixed_mode: bool,
 }
 
@@ -131,7 +130,6 @@ impl Cpu {
             // This should get populated when cpu starts running
             current_instruction: &INSTRUCTIONS[0],
             current_new_instruction: None,
-            instruction_registry: InstructionRegistry::new(),
             prefixed_mode: false,
         }
     }
@@ -162,7 +160,7 @@ impl Cpu {
 
                 let opcode = self.read_oper(memory, Immediate8);
 
-                match self.instruction_registry.fetch(opcode, self.prefixed_mode) {
+                match REGISTRY.fetch(opcode, self.prefixed_mode) {
                     Some(instruction) => {
                         let instruction = instruction.to_owned();
 
