@@ -7,7 +7,7 @@ use crate::cpu::Condition;
 use lazy_static::lazy_static;
 
 use std::iter::Peekable;
-use std::collections::{HashMap, vec_deque};
+use std::collections::HashMap;
 
 lazy_static! {
     pub static ref REGISTRY: InstructionRegistry = InstructionRegistry::new();
@@ -15,18 +15,18 @@ lazy_static! {
 
 #[derive(Clone)]
 pub struct NewInstruction {
-    micro_instructions: std::collections::VecDeque<MicroInstruction>,
+    micro_instructions: Vec<MicroInstruction>,
 }
 
 impl NewInstruction {
     fn new() -> NewInstruction {
         NewInstruction {
-            micro_instructions: std::collections::VecDeque::new(),
+            micro_instructions: Vec::new(),
         }
     }
 
     fn push(mut self, micro_instruction: MicroInstruction) -> Self {
-        (&mut self).micro_instructions.push_back(micro_instruction);
+        (&mut self).micro_instructions.push(micro_instruction);
         self
     }
 
@@ -35,10 +35,10 @@ impl NewInstruction {
     }
 
     fn set_interrupt_value(mut self, val: bool) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 micro_instruction.set_interrupts = Some(val);
-                self.micro_instructions.push_back(micro_instruction);
+                self.micro_instructions.push(micro_instruction);
             },
             None => unimplemented!("No micro instruction found to enable interrupts!"),
         }
@@ -55,12 +55,12 @@ impl NewInstruction {
     }
 
     fn append_register_operation(mut self, reg_op: RegisterOperation) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 match micro_instruction {
                     MicroInstruction { register_operation: None, .. } => {
                         micro_instruction.register_operation = Some(reg_op);
-                        self.micro_instructions.push_back(micro_instruction);
+                        self.micro_instructions.push(micro_instruction);
                     }
                     _ => unimplemented!("Cannot add register operation!"),
                 }
@@ -72,12 +72,12 @@ impl NewInstruction {
     }
 
     fn append_condition_check(mut self, condition: Condition) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 match micro_instruction {
                     MicroInstruction { check_condition: None, .. } => {
                         micro_instruction.check_condition = Some(condition);
-                        self.micro_instructions.push_back(micro_instruction);
+                        self.micro_instructions.push(micro_instruction);
                     }
                     _ => unimplemented!("Cannot add condition check!"),
                 }
@@ -103,10 +103,10 @@ impl NewInstruction {
     }
 
     fn and_halt(mut self) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 micro_instruction.set_halted = true;
-                self.micro_instructions.push_back(micro_instruction);
+                self.micro_instructions.push(micro_instruction);
             },
             None => unimplemented!("No micro instruction found to set halted!"),
         }
@@ -174,7 +174,7 @@ impl NewInstruction {
 }
 
 pub struct NewInstructionIterator<'a> {
-    iterator: Peekable<vec_deque::Iter<'a, MicroInstruction>>,
+    iterator: Peekable<std::slice::Iter<'a, MicroInstruction>>,
 }
 
 impl<'a> Iterator for NewInstructionIterator<'a> {
