@@ -6,7 +6,11 @@ use crate::registers::TwoRegisterIndex::*;
 use crate::registers::Flags;
 use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
-use crate::memory::Memory;
+use crate::memory::{
+    Memory,
+    MemoryAccess,
+    TIMA_ADDR, TMA_ADDR, TAC_ADDR,
+};
 use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::new_instruction::{
@@ -23,14 +27,6 @@ const IE_ADDR: u16 = 0xFFFF;
 pub const IF_ADDR: u16 = 0xFF0F;
 // Address the cpu jumps to when the respective interrupts are triggered
 const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
-
-// Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
-const TIMA_ADDR: u16 = 0xFF05;
-// When TIMA overflows, the data at this address will be loaded.
-const TMA_ADDR: u16  = 0xFF06;
-// Address for the timer control register. Bit 2 specifies if the timer is active, and bits 1-0
-// specify the frequency at which to increment the timer.
-const TAC_ADDR: u16  = 0xFF07;
 
 pub struct Cpu {
     pub regs: Registers,
@@ -358,7 +354,7 @@ impl Cpu {
     fn update_timers(&mut self, memory: &mut Memory) {
         memory.div_cycle();
 
-        let timer_control = memory.cpu_read(TAC_ADDR);
+        let timer_control = memory.io_registers.read(TAC_ADDR);
         let timer_is_active = read_bit(timer_control, 2);
 
         if timer_is_active {
@@ -370,14 +366,14 @@ impl Cpu {
             };
 
             if self.total_clock_cycles % cycles_per_update == 0 {
-                if memory.cpu_read(TIMA_ADDR) == 0xFF {
+                if memory.io_registers.read(TIMA_ADDR) == 0xFF {
                     // If the timer is going to overflow, request a timer interrupt
                     let flags = memory.cpu_read(IF_ADDR);
                     memory.cpu_write(IF_ADDR, flags | 1 << 2);
-                    memory.cpu_write(TIMA_ADDR, memory.cpu_read(TMA_ADDR));
+                    memory.io_registers.write(TIMA_ADDR, memory.io_registers.read(TMA_ADDR));
                 } else {
-                    let tima = memory.cpu_read(TIMA_ADDR);
-                    memory.cpu_write(TIMA_ADDR, tima + 1);
+                    let tima = memory.io_registers.read(TIMA_ADDR);
+                    memory.io_registers.write(TIMA_ADDR, tima + 1);
                 }
             }
         }

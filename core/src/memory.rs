@@ -7,6 +7,14 @@ use crate::sound_controller::SoundController;
 
 const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;
 
+// Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
+pub const TIMA_ADDR: u16 = 0xFF05;
+// When TIMA overflows, the data at this address will be loaded.
+pub const TMA_ADDR: u16  = 0xFF06;
+// Address for the timer control register. Bit 2 specifies if the timer is active, and bits 1-0
+// specify the frequency at which to increment the timer.
+pub const TAC_ADDR: u16  = 0xFF07;
+
 pub struct Memory {
     cartridge: Cartridge,
     memory: [u8; 1 << 16],
@@ -18,6 +26,7 @@ pub struct Memory {
     pub div: u16,
     memory_mode: MemoryMode,
     dma_state: Option<DmaState>,
+    pub io_registers: IoRegisters,
 }
 
 #[derive(Debug)]
@@ -48,6 +57,7 @@ impl Memory {
             div: 0,
             memory_mode: MemoryMode::Normal,
             dma_state: None,
+            io_registers: IoRegisters::default(),
         }
     }
 
@@ -127,6 +137,8 @@ impl Memory {
         } else if addr == 0xFF04 {
             let top_bits = self.div & 0xFF00;
             (top_bits >> 8) as u8
+        } else if (0xFF05..=0xFF07).contains(&addr) {
+            self.io_registers.read(addr as u16)
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else if Self::is_ppu_addr(addr as u16) {
@@ -159,6 +171,9 @@ impl Memory {
             },
             0xFF04 => {
                 self.div = 0x00;
+            },
+            0xFF05..=0xFF07 => {
+                self.io_registers.write(addr, val);
             },
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
@@ -201,5 +216,32 @@ impl Memory {
 
     pub fn mark_external_ram_as_saved(&mut self) {
         self.cartridge.mbc.mark_ram_as_saved()
+    }
+}
+
+#[derive(Default)]
+pub struct IoRegisters {
+    tima: u8,
+    tma: u8,
+    tac: u8,
+}
+
+impl MemoryAccess for IoRegisters {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            TIMA_ADDR => self.tima,
+            TMA_ADDR => self.tma,
+            TAC_ADDR => self.tac,
+            _ => unreachable!("Invalid IO address: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8) {
+        match addr {
+            TIMA_ADDR => self.tima = byte,
+            TMA_ADDR => self.tma = byte,
+            TAC_ADDR => self.tac = byte,
+            _ => unreachable!("Invalid IO address: {:04x}", addr),
+        }
     }
 }
