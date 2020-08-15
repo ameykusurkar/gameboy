@@ -6,11 +6,7 @@ use crate::registers::TwoRegisterIndex::*;
 use crate::registers::Flags;
 use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
 
-use crate::memory::{
-    Memory,
-    MemoryAccess,
-    TIMA_ADDR, TMA_ADDR, TAC_ADDR,
-};
+use crate::memory::Memory;
 use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::new_instruction::{
@@ -354,11 +350,8 @@ impl Cpu {
     fn update_timers(&mut self, memory: &mut Memory) {
         memory.div_cycle();
 
-        let timer_control = memory.io_registers.read(TAC_ADDR);
-        let timer_is_active = read_bit(timer_control, 2);
-
-        if timer_is_active {
-            let cycles_per_update = match timer_control & 0b11 {
+        if memory.io_registers.timer_is_active() {
+            let cycles_per_update = match memory.io_registers.get_timer_mode() {
                 0b00 => 256,        // 4096 Hz
                 0b01 => 4,          // 262,144 Hz
                 0b10 => 16,         // 65,536 Hz
@@ -366,14 +359,13 @@ impl Cpu {
             };
 
             if self.total_clock_cycles % cycles_per_update == 0 {
-                if memory.io_registers.read(TIMA_ADDR) == 0xFF {
+                if memory.io_registers.get_timer() == 0xFF {
                     // If the timer is going to overflow, request a timer interrupt
                     let flags = memory.cpu_read(IF_ADDR);
                     memory.cpu_write(IF_ADDR, flags | 1 << 2);
-                    memory.io_registers.write(TIMA_ADDR, memory.io_registers.read(TMA_ADDR));
+                    memory.io_registers.reload_timer();
                 } else {
-                    let tima = memory.io_registers.read(TIMA_ADDR);
-                    memory.io_registers.write(TIMA_ADDR, tima + 1);
+                    memory.io_registers.increment_timer();
                 }
             }
         }

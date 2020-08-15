@@ -4,6 +4,7 @@ use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
 use crate::sound_controller::SoundController;
+use crate::utils::read_bit;
 
 const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;
 
@@ -137,7 +138,7 @@ impl Memory {
         } else if addr == 0xFF04 {
             let top_bits = self.div & 0xFF00;
             (top_bits >> 8) as u8
-        } else if (0xFF05..=0xFF07).contains(&addr) {
+        } else if Self::is_io_addr(addr as u16) {
             self.io_registers.read(addr as u16)
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
@@ -172,7 +173,7 @@ impl Memory {
             0xFF04 => {
                 self.div = 0x00;
             },
-            0xFF05..=0xFF07 => {
+            _ if Self::is_io_addr(addr) => {
                 self.io_registers.write(addr, val);
             },
             _ if Self::is_sound_addr(addr) => {
@@ -206,6 +207,10 @@ impl Memory {
             || (PPU_REGISTER_ADDR_RANGE.contains(&addr) && addr != 0xFF46)
     }
 
+    fn is_io_addr(addr: u16) -> bool {
+        (0xFF05..=0xFF07).contains(&addr)
+    }
+
     pub fn get_external_ram(&self) -> Option<&[u8]> {
         if self.cartridge.mbc.should_save_ram() {
             Some(&self.cartridge.ram)
@@ -224,6 +229,28 @@ pub struct IoRegisters {
     tima: u8,
     tma: u8,
     tac: u8,
+}
+
+impl IoRegisters {
+    pub fn increment_timer(&mut self) {
+        self.tima += 1;
+    }
+
+    pub fn reload_timer(&mut self) {
+        self.tima = self.tma;
+    }
+
+    pub fn get_timer(&self) -> u8 {
+        self.tima
+    }
+
+    pub fn timer_is_active(&self) -> bool {
+        read_bit(self.tac, 2)
+    }
+
+    pub fn get_timer_mode(&self) -> u8 {
+        self.tac & 0b11
+    }
 }
 
 impl MemoryAccess for IoRegisters {
