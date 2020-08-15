@@ -35,19 +35,7 @@ const OBP1_ADDR: u16 = 0xFF49;
 const WY_ADDR: u16   = 0xFF4A;
 const WX_ADDR: u16   = 0xFF4B;
 
-pub const PPU_REGISTER_ADDRS: [u16; 11] = [
-    LCDC_ADDR,
-    STAT_ADDR,
-    SCY_ADDR,
-    SCX_ADDR,
-    LY_ADDR,
-    LYC_ADDR,
-    BGP_ADDR,
-    OBP0_ADDR,
-    OBP1_ADDR,
-    WY_ADDR,
-    WX_ADDR,
-];
+pub const PPU_REGISTER_ADDR_RANGE: std::ops::RangeInclusive<u16> = 0xFF40..=0xFF4B;
 
 #[derive(PartialEq, Eq, Copy, Clone, Debug)]
 pub enum LcdMode {
