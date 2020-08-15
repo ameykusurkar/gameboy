@@ -5,8 +5,9 @@ use crate::registers::TwoRegisterIndex::*;
 use crate::cpu::Condition;
 
 use lazy_static::lazy_static;
+
 use std::iter::Peekable;
-use std::collections::vec_deque;
+use std::collections::{HashMap, vec_deque};
 
 lazy_static! {
     pub static ref REGISTRY: InstructionRegistry = InstructionRegistry::new();
@@ -257,13 +258,32 @@ pub enum AddressSource {
 }
 
 pub struct InstructionRegistry {
-    instruction_map: std::collections::HashMap<u8, NewInstruction>,
-    prefixed_instruction_map: std::collections::HashMap<u8, NewInstruction>,
+    instructions: Vec<NewInstruction>,
+    prefixed_instructions: Vec<NewInstruction>,
 }
 
 impl InstructionRegistry {
     pub fn new() -> Self {
-        let mut instruction_map = std::collections::HashMap::new();
+        let (instruction_map, prefixed_instruction_map) = Self::build_registry();
+
+        Self {
+            instructions: Self::convert_to_vec(instruction_map),
+            prefixed_instructions: Self::convert_to_vec(prefixed_instruction_map),
+        }
+    }
+
+    fn convert_to_vec(map: HashMap<u8, NewInstruction>) -> Vec<NewInstruction> {
+        let mut vec = vec![NewInstruction::new(); 256];
+
+        for (opcode, instruction) in map {
+            vec[opcode as usize] = instruction;
+        }
+
+        vec
+    }
+
+    pub fn build_registry() -> (HashMap<u8, NewInstruction>, HashMap<u8, NewInstruction>) {
+        let mut instruction_map = HashMap::new();
 
         for (opcode, reg16) in [(0x01, BC), (0x11, DE), (0x21, HL), (0x31, SP)].iter() {
             let (high_reg, low_reg) = reg16.split_index();
@@ -429,7 +449,7 @@ impl InstructionRegistry {
 
         instruction_map.insert(0x76, NewInstruction::new().empty().and_halt());
 
-        let mut prefixed_instruction_map = std::collections::HashMap::new();
+        let mut prefixed_instruction_map = HashMap::new();
 
         prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x00..=0x07).collect(), AluOperation::Rlc);
         prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x08..=0x0F).collect(), AluOperation::Rrc);
@@ -471,14 +491,14 @@ impl InstructionRegistry {
             );
         }
 
-        InstructionRegistry { instruction_map, prefixed_instruction_map }
+        (instruction_map, prefixed_instruction_map)
     }
 
     pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<&NewInstruction> {
         if prefixed_mode {
-            self.prefixed_instruction_map.get(&opcode)
+            self.prefixed_instructions.get(opcode as usize)
         } else {
-            self.instruction_map.get(&opcode)
+            self.instructions.get(opcode as usize)
         }
     }
 }
@@ -714,8 +734,8 @@ fn build_add_hl_sp_n_instruction() -> NewInstruction {
 }
 
 fn build_alu_instructions(
-    mut instruction_map: std::collections::HashMap<u8, NewInstruction>,
-    opcode_range: Vec<u8>, alu_operation: AluOperation) -> std::collections::HashMap<u8, NewInstruction> {
+    mut instruction_map: HashMap<u8, NewInstruction>,
+    opcode_range: Vec<u8>, alu_operation: AluOperation) -> HashMap<u8, NewInstruction> {
     let order = [
         Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
     ];
