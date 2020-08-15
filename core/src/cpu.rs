@@ -10,9 +10,9 @@ use crate::memory::Memory;
 use crate::instruction::{Instruction, AddressingMode};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::new_instruction::{
-    NewInstruction, MicroInstruction, InstructionRegistry,
-    MemoryOperation, AddressSource, RegisterOperation,
-    AluOperation,
+    NewInstructionIterator, MicroInstruction, MemoryOperation,
+    AddressSource, RegisterOperation, AluOperation,
+    REGISTRY,
 };
 
 use crate::utils::{read_bit, set_bit};
@@ -39,8 +39,7 @@ pub struct Cpu {
     total_clock_cycles: u32,
     halted: bool,
     pub current_instruction: &'static Instruction<'static>,
-    current_new_instruction: Option<NewInstruction>,
-    instruction_registry: InstructionRegistry,
+    current_new_instruction: Option<NewInstructionIterator<'static>>,
     prefixed_mode: bool,
 }
 
@@ -131,7 +130,6 @@ impl Cpu {
             // This should get populated when cpu starts running
             current_instruction: &INSTRUCTIONS[0],
             current_new_instruction: None,
-            instruction_registry: InstructionRegistry::new(),
             prefixed_mode: false,
         }
     }
@@ -162,13 +160,11 @@ impl Cpu {
 
                 let opcode = self.read_oper(memory, Immediate8);
 
-                match self.instruction_registry.fetch(opcode, self.prefixed_mode) {
+                match REGISTRY.fetch(opcode, self.prefixed_mode) {
                     Some(instruction) => {
-                        let instruction = instruction.to_owned();
-
                         if instruction.num_cycles() > 0 {
                             self.remaining_cycles += instruction.num_cycles() as u32;
-                            self.current_new_instruction = Some(instruction);
+                            self.current_new_instruction = Some(instruction.into_iter());
                         } else {
                             // We don't do anything for a NOOP/PREFIXED instruction,
                             // but add one cycle to simulate fetching the PC
@@ -186,17 +182,18 @@ impl Cpu {
             }
 
             if self.current_new_instruction.is_some() {
-                match self.current_new_instruction.as_mut().unwrap().next_micro() {
+                match self.current_new_instruction.as_mut().unwrap().next() {
                     Some(micro_instruction) => {
                         let should_proceed = self.execute_micro(memory, &micro_instruction);
 
                         if !should_proceed {
-                            self.current_new_instruction.as_mut().unwrap().complete();
+                            // Consumes the iterator
+                            self.current_new_instruction.as_mut().unwrap().last();
                             self.remaining_cycles = 1;
                         }
 
                         // TODO: Clean up!
-                        if self.current_new_instruction.as_ref().unwrap().num_cycles() == 0 {
+                        if self.current_new_instruction.as_mut().unwrap().is_empty() {
                             self.current_new_instruction = None;
 
                             if micro_instruction.has_memory_access() {

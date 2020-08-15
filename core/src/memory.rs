@@ -1,4 +1,4 @@
-use crate::ppu::{Ppu, PPU_REGISTER_ADDRS};
+use crate::ppu::{Ppu, PPU_REGISTER_ADDR_RANGE};
 use crate::cpu::IF_ADDR;
 use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
@@ -103,6 +103,9 @@ impl Memory {
         self.div = self.div.wrapping_add(4);
     }
 
+    // TODO: This method is a performance bottleneck, investigate
+    // Eg. when it is called to update registers and handle interrupts
+    // we don't have to compare the address against most of the address space
     pub fn cpu_read(&self, addr: u16) -> u8 {
         if self.dma_state.is_some() && OAM_RANGE.contains(&addr) {
             return 0xFF;
@@ -182,9 +185,10 @@ impl Memory {
     }
 
     fn is_ppu_addr(addr: u16) -> bool {
-        PPU_REGISTER_ADDRS.contains(&addr)
-            || (0x8000..=0x9FFF).contains(&addr)
+        (0x8000..=0x9FFF).contains(&addr)
             || (OAM_RANGE).contains(&addr)
+            // TODO: Move DMA logic (0xFF46) to PPU?
+            || (PPU_REGISTER_ADDR_RANGE.contains(&addr) && addr != 0xFF46)
     }
 
     pub fn get_external_ram(&self) -> Option<&[u8]> {

@@ -4,40 +4,41 @@ use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
 use crate::cpu::Condition;
 
+use lazy_static::lazy_static;
+
+use std::iter::Peekable;
+use std::collections::HashMap;
+
+lazy_static! {
+    pub static ref REGISTRY: InstructionRegistry = InstructionRegistry::new();
+}
+
 #[derive(Clone)]
 pub struct NewInstruction {
-    micro_instructions: std::collections::VecDeque<MicroInstruction>,
+    micro_instructions: Vec<MicroInstruction>,
 }
 
 impl NewInstruction {
     fn new() -> NewInstruction {
         NewInstruction {
-            micro_instructions: std::collections::VecDeque::new(),
+            micro_instructions: Vec::new(),
         }
     }
 
     fn push(mut self, micro_instruction: MicroInstruction) -> Self {
-        (&mut self).micro_instructions.push_back(micro_instruction);
+        (&mut self).micro_instructions.push(micro_instruction);
         self
-    }
-
-    pub fn complete(&mut self) {
-        self.micro_instructions.clear()
     }
 
     pub fn num_cycles(&self) -> usize {
         self.micro_instructions.len()
     }
 
-    pub fn next_micro(&mut self) -> Option<MicroInstruction> {
-        self.micro_instructions.pop_front()
-    }
-
     fn set_interrupt_value(mut self, val: bool) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 micro_instruction.set_interrupts = Some(val);
-                self.micro_instructions.push_back(micro_instruction);
+                self.micro_instructions.push(micro_instruction);
             },
             None => unimplemented!("No micro instruction found to enable interrupts!"),
         }
@@ -54,12 +55,12 @@ impl NewInstruction {
     }
 
     fn append_register_operation(mut self, reg_op: RegisterOperation) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 match micro_instruction {
                     MicroInstruction { register_operation: None, .. } => {
                         micro_instruction.register_operation = Some(reg_op);
-                        self.micro_instructions.push_back(micro_instruction);
+                        self.micro_instructions.push(micro_instruction);
                     }
                     _ => unimplemented!("Cannot add register operation!"),
                 }
@@ -71,12 +72,12 @@ impl NewInstruction {
     }
 
     fn append_condition_check(mut self, condition: Condition) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 match micro_instruction {
                     MicroInstruction { check_condition: None, .. } => {
                         micro_instruction.check_condition = Some(condition);
-                        self.micro_instructions.push_back(micro_instruction);
+                        self.micro_instructions.push(micro_instruction);
                     }
                     _ => unimplemented!("Cannot add condition check!"),
                 }
@@ -102,10 +103,10 @@ impl NewInstruction {
     }
 
     fn and_halt(mut self) -> Self {
-        match self.micro_instructions.pop_back() {
+        match self.micro_instructions.pop() {
             Some(mut micro_instruction) => {
                 micro_instruction.set_halted = true;
-                self.micro_instructions.push_back(micro_instruction);
+                self.micro_instructions.push(micro_instruction);
             },
             None => unimplemented!("No micro instruction found to set halted!"),
         }
@@ -172,6 +173,35 @@ impl NewInstruction {
     }
 }
 
+pub struct NewInstructionIterator<'a> {
+    iterator: Peekable<std::slice::Iter<'a, MicroInstruction>>,
+}
+
+impl<'a> Iterator for NewInstructionIterator<'a> {
+    type Item = &'a MicroInstruction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.next()
+    }
+}
+
+impl NewInstructionIterator<'_> {
+    pub fn is_empty(&mut self) -> bool {
+        self.iterator.peek().is_none()
+    }
+}
+
+impl<'a> IntoIterator for &'a NewInstruction {
+    type Item = &'a MicroInstruction;
+    type IntoIter = NewInstructionIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        NewInstructionIterator {
+            iterator: self.micro_instructions.iter().peekable()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub struct MicroInstruction {
     pub memory_operation: Option<MemoryOperation>,
@@ -228,13 +258,32 @@ pub enum AddressSource {
 }
 
 pub struct InstructionRegistry {
-    instruction_map: std::collections::HashMap<u8, NewInstruction>,
-    prefixed_instruction_map: std::collections::HashMap<u8, NewInstruction>,
+    instructions: Vec<NewInstruction>,
+    prefixed_instructions: Vec<NewInstruction>,
 }
 
 impl InstructionRegistry {
     pub fn new() -> Self {
-        let mut instruction_map = std::collections::HashMap::new();
+        let (instruction_map, prefixed_instruction_map) = Self::build_registry();
+
+        Self {
+            instructions: Self::convert_to_vec(instruction_map),
+            prefixed_instructions: Self::convert_to_vec(prefixed_instruction_map),
+        }
+    }
+
+    fn convert_to_vec(map: HashMap<u8, NewInstruction>) -> Vec<NewInstruction> {
+        let mut vec = vec![NewInstruction::new(); 256];
+
+        for (opcode, instruction) in map {
+            vec[opcode as usize] = instruction;
+        }
+
+        vec
+    }
+
+    pub fn build_registry() -> (HashMap<u8, NewInstruction>, HashMap<u8, NewInstruction>) {
+        let mut instruction_map = HashMap::new();
 
         for (opcode, reg16) in [(0x01, BC), (0x11, DE), (0x21, HL), (0x31, SP)].iter() {
             let (high_reg, low_reg) = reg16.split_index();
@@ -400,7 +449,7 @@ impl InstructionRegistry {
 
         instruction_map.insert(0x76, NewInstruction::new().empty().and_halt());
 
-        let mut prefixed_instruction_map = std::collections::HashMap::new();
+        let mut prefixed_instruction_map = HashMap::new();
 
         prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x00..=0x07).collect(), AluOperation::Rlc);
         prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x08..=0x0F).collect(), AluOperation::Rrc);
@@ -442,14 +491,14 @@ impl InstructionRegistry {
             );
         }
 
-        InstructionRegistry { instruction_map, prefixed_instruction_map }
+        (instruction_map, prefixed_instruction_map)
     }
 
-    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<NewInstruction> {
+    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<&NewInstruction> {
         if prefixed_mode {
-            self.prefixed_instruction_map.get(&opcode).map(|instr| instr.to_owned())
+            self.prefixed_instructions.get(opcode as usize)
         } else {
-            self.instruction_map.get(&opcode).map(|instr| instr.to_owned())
+            self.instructions.get(opcode as usize)
         }
     }
 }
@@ -685,8 +734,8 @@ fn build_add_hl_sp_n_instruction() -> NewInstruction {
 }
 
 fn build_alu_instructions(
-    mut instruction_map: std::collections::HashMap<u8, NewInstruction>,
-    opcode_range: Vec<u8>, alu_operation: AluOperation) -> std::collections::HashMap<u8, NewInstruction> {
+    mut instruction_map: HashMap<u8, NewInstruction>,
+    opcode_range: Vec<u8>, alu_operation: AluOperation) -> HashMap<u8, NewInstruction> {
     let order = [
         Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
     ];
