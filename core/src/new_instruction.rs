@@ -5,6 +5,8 @@ use crate::registers::TwoRegisterIndex::*;
 use crate::cpu::Condition;
 
 use lazy_static::lazy_static;
+use std::iter::Peekable;
+use std::collections::vec_deque;
 
 lazy_static! {
     pub static ref REGISTRY: InstructionRegistry = InstructionRegistry::new();
@@ -27,16 +29,8 @@ impl NewInstruction {
         self
     }
 
-    pub fn complete(&mut self) {
-        self.micro_instructions.clear()
-    }
-
     pub fn num_cycles(&self) -> usize {
         self.micro_instructions.len()
-    }
-
-    pub fn next_micro(&mut self) -> Option<MicroInstruction> {
-        self.micro_instructions.pop_front()
     }
 
     fn set_interrupt_value(mut self, val: bool) -> Self {
@@ -175,6 +169,35 @@ impl NewInstruction {
 
     fn and_alu(self, alu_operation: AluOperation, reg: RegisterIndex) -> Self {
         self.append_register_operation(RegisterOperation::Alu(alu_operation, reg))
+    }
+}
+
+pub struct NewInstructionIterator<'a> {
+    iterator: Peekable<vec_deque::Iter<'a, MicroInstruction>>,
+}
+
+impl<'a> Iterator for NewInstructionIterator<'a> {
+    type Item = &'a MicroInstruction;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.iterator.next()
+    }
+}
+
+impl NewInstructionIterator<'_> {
+    pub fn is_empty(&mut self) -> bool {
+        self.iterator.peek().is_none()
+    }
+}
+
+impl<'a> IntoIterator for &'a NewInstruction {
+    type Item = &'a MicroInstruction;
+    type IntoIter = NewInstructionIterator<'a>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        NewInstructionIterator {
+            iterator: self.micro_instructions.iter().peekable()
+        }
     }
 }
 
@@ -451,11 +474,11 @@ impl InstructionRegistry {
         InstructionRegistry { instruction_map, prefixed_instruction_map }
     }
 
-    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<NewInstruction> {
+    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<&NewInstruction> {
         if prefixed_mode {
-            self.prefixed_instruction_map.get(&opcode).map(|instr| instr.to_owned())
+            self.prefixed_instruction_map.get(&opcode)
         } else {
-            self.instruction_map.get(&opcode).map(|instr| instr.to_owned())
+            self.instruction_map.get(&opcode)
         }
     }
 }
