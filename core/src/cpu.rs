@@ -17,20 +17,7 @@ use crate::new_instruction::{
 
 use crate::utils::{read_bit, set_bit};
 
-// Address of the interrupt enable register
-const IE_ADDR: u16 = 0xFFFF;
-// Address of the interrupt flags register
-pub const IF_ADDR: u16 = 0xFF0F;
-// Address the cpu jumps to when the respective interrupts are triggered
 const INTERRUPT_ADDRS: [u16; 5] = [0x40, 0x48, 0x50, 0x58, 0x60];
-
-// Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
-const TIMA_ADDR: u16 = 0xFF05;
-// When TIMA overflows, the data at this address will be loaded.
-const TMA_ADDR: u16  = 0xFF06;
-// Address for the timer control register. Bit 2 specifies if the timer is active, and bits 1-0
-// specify the frequency at which to increment the timer.
-const TAC_ADDR: u16  = 0xFF07;
 
 pub struct Cpu {
     pub regs: Registers,
@@ -142,7 +129,7 @@ impl Cpu {
     }
 
     pub fn step(&mut self, memory: &mut Memory) {
-        if self.halted && self.get_pending_interrupts(memory) > 0 {
+        if self.halted && memory.io_registers.get_pending_interrupts() > 0 {
             self.halted = false;
         }
 
@@ -358,11 +345,8 @@ impl Cpu {
     fn update_timers(&mut self, memory: &mut Memory) {
         memory.div_cycle();
 
-        let timer_control = memory.cpu_read(TAC_ADDR);
-        let timer_is_active = read_bit(timer_control, 2);
-
-        if timer_is_active {
-            let cycles_per_update = match timer_control & 0b11 {
+        if memory.io_registers.timer_is_active() {
+            let cycles_per_update = match memory.io_registers.get_timer_mode() {
                 0b00 => 256,        // 4096 Hz
                 0b01 => 4,          // 262,144 Hz
                 0b10 => 16,         // 65,536 Hz
@@ -370,14 +354,12 @@ impl Cpu {
             };
 
             if self.total_clock_cycles % cycles_per_update == 0 {
-                if memory.cpu_read(TIMA_ADDR) == 0xFF {
+                if memory.io_registers.get_timer() == 0xFF {
                     // If the timer is going to overflow, request a timer interrupt
-                    let flags = memory.cpu_read(IF_ADDR);
-                    memory.cpu_write(IF_ADDR, flags | 1 << 2);
-                    memory.cpu_write(TIMA_ADDR, memory.cpu_read(TMA_ADDR));
+                    memory.io_registers.request_interrupt(2);
+                    memory.io_registers.reload_timer();
                 } else {
-                    let tima = memory.cpu_read(TIMA_ADDR);
-                    memory.cpu_write(TIMA_ADDR, tima + 1);
+                    memory.io_registers.increment_timer();
                 }
             }
         }
@@ -464,7 +446,7 @@ impl Cpu {
     }
 
     fn check_and_handle_interrupts(&mut self, memory: &mut Memory) -> bool {
-        let pending_interrupts = self.get_pending_interrupts(memory);
+        let pending_interrupts = memory.io_registers.get_pending_interrupts();
 
         if self.ime && pending_interrupts > 0 {
             for i in 0..5 {
@@ -478,14 +460,10 @@ impl Cpu {
         false
     }
 
-    fn get_pending_interrupts(&self, memory: &Memory) -> u8 {
-        memory.cpu_read(IE_ADDR) & memory.cpu_read(IF_ADDR)
-    }
-
     fn handle_interrupt(&mut self, memory: &mut Memory, interrupt_no: u8) {
         // This routine should take 5 machine cycles
         self.ime = false;
-        memory.cpu_write(IF_ADDR, set_bit(memory.cpu_read(IF_ADDR), interrupt_no, false));
+        memory.io_registers.unset_interrupt(interrupt_no);
         self.regs.write16(SP, self.regs.read16(SP) - 2);
         Self::write_mem_u16(memory, self.regs.read16(SP), self.regs.read16(PC));
         self.regs.write16(PC, INTERRUPT_ADDRS[interrupt_no as usize]);

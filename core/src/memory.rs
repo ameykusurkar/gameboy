@@ -1,11 +1,24 @@
 use crate::ppu::{Ppu, PPU_REGISTER_ADDR_RANGE};
-use crate::cpu::IF_ADDR;
 use crate::joypad::Joypad;
 use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
 use crate::sound_controller::SoundController;
+use crate::utils::{read_bit, set_bit};
 
 const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;
+
+// Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
+const TIMA_ADDR: u16 = 0xFF05;
+// When TIMA overflows, the data at this address will be loaded.
+const TMA_ADDR: u16  = 0xFF06;
+// Address for the timer control register. Bit 2 specifies if the timer is active, and bits 1-0
+// specify the frequency at which to increment the timer.
+const TAC_ADDR: u16  = 0xFF07;
+
+// Address of the interrupt enable register
+const IE_ADDR: u16 = 0xFFFF;
+// Address of the interrupt flags register
+const IF_ADDR: u16 = 0xFF0F;
 
 pub struct Memory {
     cartridge: Cartridge,
@@ -18,6 +31,7 @@ pub struct Memory {
     pub div: u16,
     memory_mode: MemoryMode,
     dma_state: Option<DmaState>,
+    pub io_registers: IoRegisters,
 }
 
 #[derive(Debug)]
@@ -48,11 +62,12 @@ impl Memory {
             div: 0,
             memory_mode: MemoryMode::Normal,
             dma_state: None,
+            io_registers: IoRegisters::default(),
         }
     }
 
     pub fn clock(&mut self) {
-        self.ppu.clock(&mut self.memory[IF_ADDR as usize]);
+        self.ppu.clock(&mut self.io_registers.interrupt_flags);
         self.sound_controller.clock();
 
         self.dma_transfer_cycle();
@@ -127,6 +142,8 @@ impl Memory {
         } else if addr == 0xFF04 {
             let top_bits = self.div & 0xFF00;
             (top_bits >> 8) as u8
+        } else if Self::is_io_addr(addr as u16) {
+            self.io_registers.read(addr as u16)
         } else if Self::is_sound_addr(addr as u16) {
             self.sound_controller.read(addr as u16)
         } else if Self::is_ppu_addr(addr as u16) {
@@ -160,6 +177,9 @@ impl Memory {
             0xFF04 => {
                 self.div = 0x00;
             },
+            _ if Self::is_io_addr(addr) => {
+                self.io_registers.write(addr, val);
+            },
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
             },
@@ -191,6 +211,12 @@ impl Memory {
             || (PPU_REGISTER_ADDR_RANGE.contains(&addr) && addr != 0xFF46)
     }
 
+    fn is_io_addr(addr: u16) -> bool {
+        (0xFF05..=0xFF07).contains(&addr)
+            || addr == IE_ADDR
+            || addr == IF_ADDR
+    }
+
     pub fn get_external_ram(&self) -> Option<&[u8]> {
         if self.cartridge.mbc.should_save_ram() {
             Some(&self.cartridge.ram)
@@ -201,5 +227,73 @@ impl Memory {
 
     pub fn mark_external_ram_as_saved(&mut self) {
         self.cartridge.mbc.mark_ram_as_saved()
+    }
+}
+
+#[derive(Default)]
+pub struct IoRegisters {
+    tima: u8,
+    tma: u8,
+    tac: u8,
+
+    interrupt_enable: u8,
+    interrupt_flags: u8,
+}
+
+impl IoRegisters {
+    pub fn increment_timer(&mut self) {
+        self.tima += 1;
+    }
+
+    pub fn reload_timer(&mut self) {
+        self.tima = self.tma;
+    }
+
+    pub fn get_timer(&self) -> u8 {
+        self.tima
+    }
+
+    pub fn timer_is_active(&self) -> bool {
+        read_bit(self.tac, 2)
+    }
+
+    pub fn get_timer_mode(&self) -> u8 {
+        self.tac & 0b11
+    }
+
+    pub fn request_interrupt(&mut self, interrupt_no: u8) {
+        self.interrupt_flags |= 1 << interrupt_no;
+    }
+
+    pub fn unset_interrupt(&mut self, interrupt_no: u8) {
+        self.interrupt_flags = set_bit(self.interrupt_flags, interrupt_no, false);
+    }
+
+    pub fn get_pending_interrupts(&mut self) -> u8 {
+        self.interrupt_enable & self.interrupt_flags
+    }
+}
+
+impl MemoryAccess for IoRegisters {
+    fn read(&self, addr: u16) -> u8 {
+        match addr {
+            TIMA_ADDR => self.tima,
+            TMA_ADDR => self.tma,
+            TAC_ADDR => self.tac,
+            IE_ADDR => self.interrupt_enable,
+            IF_ADDR => self.interrupt_flags,
+            _ => unreachable!("Invalid IO address: {:04x}", addr),
+        }
+    }
+
+    fn write(&mut self, addr: u16, byte: u8) {
+        match addr {
+            TIMA_ADDR => self.tima = byte,
+            TMA_ADDR => self.tma = byte,
+            TAC_ADDR => self.tac = byte,
+            IE_ADDR => self.interrupt_enable = byte,
+            IF_ADDR => self.interrupt_flags = byte,
+            _ => unreachable!("Invalid IO address: {:04x}", addr),
+        }
     }
 }
