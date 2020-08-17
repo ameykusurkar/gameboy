@@ -34,6 +34,8 @@ impl Cartridge {
         };
 
         println!("CARTRIDGE TYPE: {:02x}h", rom[0x0147]);
+        println!("CGB FLAG: {:02x}h", rom[0x0143]);
+
         let mbc: Box<dyn Mbc + Send> = match rom[0x147] {
             0x00        => Box::new(NoMbc::default()),
             0x01..=0x02 => Box::new(Mbc1::new(false)), // without battery

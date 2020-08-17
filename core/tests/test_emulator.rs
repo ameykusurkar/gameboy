@@ -10,7 +10,7 @@ pub struct TestEmulator {
 impl TestEmulator {
     pub fn new(rom: Vec<u8>) -> Self {
         let mut memory = Memory::new(rom, None);
-        memory.load_bootrom(&BOOTROM);
+        memory.load_bootrom(BOOTROM.to_vec());
 
         Self {
             cpu: Cpu::new(),

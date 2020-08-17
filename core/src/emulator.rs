@@ -1,7 +1,7 @@
 use crate::cpu::Cpu;
 use crate::ppu::PixelColor;
 use crate::memory::Memory;
-use crate::bootrom::BOOTROM;
+use crate::bootrom::{BOOTROM, CGB_BOOTROM};
 
 pub const DEBUG: bool = false;
 
@@ -10,10 +10,16 @@ pub struct Emulator {
     pub memory: Memory,
 }
 
+const FORCE_DMG: bool = false;
+
 impl Emulator {
     pub fn new(rom: Vec<u8>, external_ram: Option<Vec<u8>>) -> Self {
         let mut memory = Memory::new(rom, external_ram);
-        memory.load_bootrom(&BOOTROM);
+
+        let is_cgb = !FORCE_DMG && memory.is_cgb();
+
+        let bootrom = get_bootrom(is_cgb);
+        memory.load_bootrom(bootrom);
 
         Emulator {
             cpu: Cpu::new(),
@@ -32,5 +38,13 @@ impl Emulator {
         } else {
             None
         }
+    }
+}
+
+fn get_bootrom(cgb: bool) -> Vec<u8> {
+    if cgb {
+        CGB_BOOTROM.to_vec()
+    } else {
+        BOOTROM.to_vec()
     }
 }
