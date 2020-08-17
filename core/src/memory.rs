@@ -75,7 +75,7 @@ impl Memory {
 
     pub fn clock(&mut self) {
         let is_cgb = self.is_cgb();
-        self.ppu.clock(&mut self.io_registers.interrupt_flags, is_cgb);
+        self.ppu.clock(&mut self.io_registers, is_cgb);
         self.sound_controller.clock();
 
         self.dma_transfer_cycle();

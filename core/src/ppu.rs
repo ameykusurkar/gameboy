@@ -1,4 +1,4 @@
-use crate::memory::MemoryAccess;
+use crate::memory::{MemoryAccess, IoRegisters};
 use crate::utils::{read_bit, set_bit};
 
 const NUM_PIXELS_IN_LINE: usize = 8;
@@ -21,6 +21,9 @@ const LINES_PER_FRAME: u32 = LCD_HEIGHT + V_BLANK_LINES;
 pub const FRAME_CYCLES: u32 = SCANLINE_CYCLES * LINES_PER_FRAME;
 
 const SPRITES_PER_LINE: usize = 10;
+
+const VBLANK_INTERRUPT: u8 = 0;
+const STAT_INTERRUPT: u8   = 1;
 
 // Video I/O Register addresses
 const LCDC_ADDR: u16 = 0xFF40;
@@ -265,7 +268,7 @@ impl Ppu {
         self.lcd_enabled() && (lcd_mode == LcdMode::PixelTransfer || lcd_mode == LcdMode::OAMSearch)
     }
 
-    pub fn clock(&mut self, interrupt_flags: &mut u8, is_cgb: bool) {
+    pub fn clock(&mut self, io_registers: &mut IoRegisters, is_cgb: bool) {
         if !self.lcd_enabled() {
             return;
         }
@@ -289,7 +292,7 @@ impl Ppu {
 
             // Request interrupt if scanline matches the requested one
             if line_is_match && read_bit(status, 6) {
-                Self::set_status_interrupt(interrupt_flags);
+                io_registers.request_interrupt(STAT_INTERRUPT);
             }
         }
 
@@ -300,7 +303,7 @@ impl Ppu {
 
             match mode {
                 LcdMode::VBlank => {
-                    Self::set_vblank_interrupt(interrupt_flags);
+                    io_registers.request_interrupt(VBLANK_INTERRUPT);
                     self.frame_complete = true;
                     self.screen_buffer.flip();
                 },
@@ -311,7 +314,7 @@ impl Ppu {
             }
 
             if self.status_interrupt_enabled(mode) {
-                Self::set_status_interrupt(interrupt_flags);
+                io_registers.request_interrupt(STAT_INTERRUPT);
             }
         }
     }
@@ -533,14 +536,6 @@ impl Ppu {
             LcdMode::OAMSearch => read_bit(status, 5),
             LcdMode::PixelTransfer => false,
         }
-    }
-
-    fn set_status_interrupt(interrupt_flags: &mut u8) {
-        *interrupt_flags |= 2;
-    }
-
-    fn set_vblank_interrupt(interrupt_flags: &mut u8) {
-        *interrupt_flags |= 1;
     }
 
     fn set_lcd_mode(&mut self, mode: LcdMode) {
