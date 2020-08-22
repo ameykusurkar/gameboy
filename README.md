@@ -2,15 +2,13 @@
 
 [![CircleCI](https://circleci.com/gh/ameykusurkar/gameboy.svg?style=shield)](https://circleci.com/gh/ameykusurkar/gameboy)
 
-A [Game Boy](https://en.wikipedia.org/wiki/Game_Boy) emulator written in Rust.
+A [Game Boy Color](https://en.wikipedia.org/wiki/Game_Boy_Color) emulator written in Rust.
 
-![A demo gif of the emulator](blue_60fps.gif)
+_Backwards compatible with Game Boy cartidges._
 
-## Usage
+<img src="silver.gif" alt="Demo gif" width="250"/>
 
-The current build supports two frontends: [SDL](https://en.wikipedia.org/wiki/Simple_DirectMedia_Layer), and JavaScript (for the browser, using [WebAssembly](https://en.wikipedia.org/wiki/WebAssembly)).
-
-### SDL
+### Usage
 
 Ensure you have [Rust installed](https://www.rust-lang.org/tools/install), then run:
 ```shell
@@ -25,31 +23,19 @@ cargo run --release path/to/rom/file.gb
 
 If the game supports save files, the emulator will read from and write save data to the same filename as the rom, but with the extension `.sav` instead of `.gb`.
 
-### JavaScript + WASM
+## Feature Support
 
-The emulator can also be run in the browser, using a JavaScript frontend. To build the emulator and start a server, run:
+### Cartridge Types
+- [x] MBC1
+- [x] MBC3 (with Real-Time Clock)
+- [ ] MBC5
 
-```shell
-make wasm
-```
+### GBC-only features
+- [x] Full colour support
+- [ ] H-Blank DMA Transfers
+- [ ] CPU double speed mode
 
-The emulator is then available at `localhost:8080`.
-
-_Note: The browser frontend currently does not support save files._
-
-## Features
-
-- Fully-functional CPU and PPU (pixel processing unit)
-- Audio
-- Joypad input
-- MBC1 and MBC3 support
-- Save files
-
-_The emulator works perfectly with [Pokemon Blue](https://en.wikipedia.org/wiki/Pok%C3%A9mon_Red_and_Blue)_.
-
-TODO:
-- [ ] Make CPU [cycle-accurate](https://en.wikipedia.org/wiki/Computer_architecture_simulator#Cycle-accurate_simulator)
-- [ ] Add support for [Game Boy Color](https://en.wikipedia.org/wiki/Game_Boy_Color) ROMs
+_The emulator has been tested with and works perfectly with Pokemon Blue and Pokemon Silver._
 
 ## Dependencies
 
