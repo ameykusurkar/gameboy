@@ -1,18 +1,17 @@
-use crate::registers::Registers;
+use crate::registers::Flags;
 use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
+use crate::registers::Registers;
 use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
-use crate::registers::Flags;
-use crate::registers::{ZERO_FLAG, SUBTRACT_FLAG, HALF_CARRY_FLAG, CARRY_FLAG};
+use crate::registers::{CARRY_FLAG, HALF_CARRY_FLAG, SUBTRACT_FLAG, ZERO_FLAG};
 
-use crate::memory::Memory;
-use crate::instruction::{Instruction, AddressingMode};
+use crate::instruction::{AddressingMode, Instruction};
 use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
+use crate::memory::Memory;
 use crate::new_instruction::{
-    NewInstructionIterator, MicroInstruction, MemoryOperation,
-    AddressSource, RegisterOperation, AluOperation,
-    REGISTRY,
+    AddressSource, AluOperation, MemoryOperation, MicroInstruction, NewInstructionIterator,
+    RegisterOperation, REGISTRY,
 };
 
 use crate::utils::{read_bit, set_bit};
@@ -31,7 +30,12 @@ pub struct Cpu {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub enum Condition { NZ, Z, NC, C }
+pub enum Condition {
+    NZ,
+    Z,
+    NC,
+    C,
+}
 
 trait ConditionEvaluate {
     fn eval_condition(&self, condition: Condition) -> bool;
@@ -163,8 +167,12 @@ impl Cpu {
                         } else {
                             self.prefixed_mode = opcode == 0xCB;
                         }
-                    },
-                    None => unimplemented!("Unimplemented opcode {:02x}, prefixed: {}", opcode, self.prefixed_mode),
+                    }
+                    None => unimplemented!(
+                        "Unimplemented opcode {:02x}, prefixed: {}",
+                        opcode,
+                        self.prefixed_mode
+                    ),
                 }
             }
 
@@ -190,7 +198,7 @@ impl Cpu {
                                 self.remaining_cycles += 1;
                             }
                         }
-                    },
+                    }
                     // TODO: Clean up!
                     None => panic!(),
                 }
@@ -204,119 +212,115 @@ impl Cpu {
     }
 
     fn execute_micro(&mut self, memory: &mut Memory, micro_instruction: &MicroInstruction) -> bool {
-        micro_instruction.memory_operation.map(|memory_op| {
-            match memory_op {
+        micro_instruction
+            .memory_operation
+            .map(|memory_op| match memory_op {
                 MemoryOperation::Read(address_source, mem_reg) => {
                     let val = match address_source {
                         AddressSource::Immediate => self.read_oper(memory, Immediate8),
                         AddressSource::HighPage(src_reg) => {
                             memory.cpu_read(0xFF00 | self.regs.read(src_reg) as u16)
-                        },
+                        }
                         AddressSource::Reg(reg) => self.read_oper(memory, AddrReg16(reg)),
                         AddressSource::RegWithOffset(reg, offset) => {
                             let addr = self.regs.read16(reg) + offset;
                             memory.cpu_read(addr)
-                        },
+                        }
                     };
 
                     self.regs.write(mem_reg, val);
-                },
+                }
                 MemoryOperation::Write(address_source, mem_reg) => {
                     let addr = match address_source {
                         AddressSource::Immediate => panic!(),
-                        AddressSource::HighPage(src_reg) => {
-                            0xFF00 | self.regs.read(src_reg) as u16
-                        },
+                        AddressSource::HighPage(src_reg) => 0xFF00 | self.regs.read(src_reg) as u16,
                         AddressSource::Reg(reg) => self.regs.read16(reg),
-                        AddressSource::RegWithOffset(reg, offset) => {
-                            self.regs.read16(reg) + offset
-                        },
+                        AddressSource::RegWithOffset(reg, offset) => self.regs.read16(reg) + offset,
                     };
 
                     memory.cpu_write(addr, self.regs.read(mem_reg));
-                },
+                }
                 MemoryOperation::Noop => (),
-            }
-        });
+            });
 
-        micro_instruction.register_operation.map(|register_op| {
-            match register_op {
+        micro_instruction
+            .register_operation
+            .map(|register_op| match register_op {
                 RegisterOperation::Load(dst, src) => {
                     let val = self.read_oper(memory, src);
                     self.write_oper(memory, dst, val);
                 }
                 RegisterOperation::Load16(dst, src) => {
                     self.regs.write16(dst, self.regs.read16(src));
-                },
+                }
                 RegisterOperation::IncReg16(reg) => {
-                    self.regs.write16(reg, self.regs.read16(reg).wrapping_add(1));
-                },
+                    self.regs
+                        .write16(reg, self.regs.read16(reg).wrapping_add(1));
+                }
                 RegisterOperation::DecReg16(reg) => {
-                    self.regs.write16(reg, self.regs.read16(reg).wrapping_sub(1));
-                },
+                    self.regs
+                        .write16(reg, self.regs.read16(reg).wrapping_sub(1));
+                }
                 RegisterOperation::AddReg16(reg) => {
                     self.execute_add16(memory, reg);
-                },
+                }
                 RegisterOperation::AddSP8(reg16, reg) => {
                     self.execute_add_sp(memory, reg16, reg);
-                },
+                }
                 RegisterOperation::SignedAddReg16(reg16, reg) => {
                     let offset = (self.regs.read(reg) as i8) as i32;
                     let orig_val = self.regs.read16(reg16) as i32;
                     self.regs.write16(reg16, (orig_val + offset) as u16);
-                },
+                }
                 RegisterOperation::LoadRstAddress(addr) => {
                     self.regs.write16(PC, addr);
-                },
-                RegisterOperation::Alu(alu_operation, reg) => {
-                    match alu_operation {
-                        AluOperation::Inc => self.execute_inc(memory, reg),
-                        AluOperation::Dec => self.execute_dec(memory, reg),
-                        AluOperation::Add => self.execute_add(memory, reg),
-                        AluOperation::Adc => self.execute_adc(memory, reg),
-                        AluOperation::Sub => self.execute_sub(memory, reg),
-                        AluOperation::Sbc => self.execute_sbc(memory, reg),
-                        AluOperation::And => self.execute_and(memory, reg),
-                        AluOperation::Xor => self.execute_xor(memory, reg),
-                        AluOperation::Or => self.execute_or(memory, reg),
-                        AluOperation::Cp => self.execute_cp(memory, reg),
-                        AluOperation::Daa => self.execute_daa(),
-                        AluOperation::Scf => self.execute_scf(),
-                        AluOperation::Cpl => self.execute_cpl(),
-                        AluOperation::Ccf => self.execute_ccf(),
+                }
+                RegisterOperation::Alu(alu_operation, reg) => match alu_operation {
+                    AluOperation::Inc => self.execute_inc(memory, reg),
+                    AluOperation::Dec => self.execute_dec(memory, reg),
+                    AluOperation::Add => self.execute_add(memory, reg),
+                    AluOperation::Adc => self.execute_adc(memory, reg),
+                    AluOperation::Sub => self.execute_sub(memory, reg),
+                    AluOperation::Sbc => self.execute_sbc(memory, reg),
+                    AluOperation::And => self.execute_and(memory, reg),
+                    AluOperation::Xor => self.execute_xor(memory, reg),
+                    AluOperation::Or => self.execute_or(memory, reg),
+                    AluOperation::Cp => self.execute_cp(memory, reg),
+                    AluOperation::Daa => self.execute_daa(),
+                    AluOperation::Scf => self.execute_scf(),
+                    AluOperation::Cpl => self.execute_cpl(),
+                    AluOperation::Ccf => self.execute_ccf(),
 
-                        AluOperation::Rlc => self.execute_rlc(memory, reg),
-                        AluOperation::Rrc => self.execute_rrc(memory, reg),
-                        AluOperation::Rl => self.execute_rl(memory, reg),
-                        AluOperation::Rr => self.execute_rr(memory, reg),
-                        AluOperation::Sla => self.execute_sla(memory, reg),
-                        AluOperation::Sra => self.execute_sra(memory, reg),
-                        AluOperation::Swap => self.execute_swap(memory, reg),
-                        AluOperation::Srl => self.execute_srl(memory, reg),
-                        AluOperation::Tst(bit) => self.execute_tst(memory, bit, reg),
-                        AluOperation::Res(bit) => self.execute_res(memory, bit, reg),
-                        AluOperation::Set(bit) => self.execute_set(memory, bit, reg),
+                    AluOperation::Rlc => self.execute_rlc(memory, reg),
+                    AluOperation::Rrc => self.execute_rrc(memory, reg),
+                    AluOperation::Rl => self.execute_rl(memory, reg),
+                    AluOperation::Rr => self.execute_rr(memory, reg),
+                    AluOperation::Sla => self.execute_sla(memory, reg),
+                    AluOperation::Sra => self.execute_sra(memory, reg),
+                    AluOperation::Swap => self.execute_swap(memory, reg),
+                    AluOperation::Srl => self.execute_srl(memory, reg),
+                    AluOperation::Tst(bit) => self.execute_tst(memory, bit, reg),
+                    AluOperation::Res(bit) => self.execute_res(memory, bit, reg),
+                    AluOperation::Set(bit) => self.execute_set(memory, bit, reg),
 
-                        AluOperation::Rlca => {
-                            self.execute_rlc(memory, reg);
-                            self.set_flag(ZERO_FLAG, false);
-                        },
-                        AluOperation::Rrca => {
-                            self.execute_rrc(memory, reg);
-                            self.set_flag(ZERO_FLAG, false);
-                        },
-                        AluOperation::Rla => {
-                            self.execute_rl(memory, reg);
-                            self.set_flag(ZERO_FLAG, false);
-                        },
-                        AluOperation::Rra => {
-                            self.execute_rr(memory, reg);
-                            self.set_flag(ZERO_FLAG, false);
-                        },
+                    AluOperation::Rlca => {
+                        self.execute_rlc(memory, reg);
+                        self.set_flag(ZERO_FLAG, false);
+                    }
+                    AluOperation::Rrca => {
+                        self.execute_rrc(memory, reg);
+                        self.set_flag(ZERO_FLAG, false);
+                    }
+                    AluOperation::Rla => {
+                        self.execute_rl(memory, reg);
+                        self.set_flag(ZERO_FLAG, false);
+                    }
+                    AluOperation::Rra => {
+                        self.execute_rr(memory, reg);
+                        self.set_flag(ZERO_FLAG, false);
                     }
                 },
-            }
-        });
+            });
 
         micro_instruction.set_interrupts.map(|val| {
             self.ime = val;
@@ -326,9 +330,9 @@ impl Cpu {
             self.halted = true;
         }
 
-        micro_instruction.check_condition.map_or(true, |condition| {
-            self.eval_condition(condition)
-        })
+        micro_instruction
+            .check_condition
+            .map_or(true, |condition| self.eval_condition(condition))
     }
 
     fn fetch_instruction(&self, memory: &Memory, addr: u16) -> &'static Instruction<'static> {
@@ -347,10 +351,10 @@ impl Cpu {
 
         if memory.io_registers.timer_is_active() {
             let cycles_per_update = match memory.io_registers.get_timer_mode() {
-                0b00 => 256,        // 4096 Hz
-                0b01 => 4,          // 262,144 Hz
-                0b10 => 16,         // 65,536 Hz
-                0b11..=0xFF => 64,  // 16,384 Hz
+                0b00 => 256,       // 4096 Hz
+                0b01 => 4,         // 262,144 Hz
+                0b10 => 16,        // 65,536 Hz
+                0b11..=0xFF => 64, // 16,384 Hz
             };
 
             if self.total_clock_cycles % cycles_per_update == 0 {
@@ -365,17 +369,26 @@ impl Cpu {
         }
     }
 
-    pub fn disassemble(&self, memory: &Memory, start_addr: u16, end_addr: u16) -> Vec<(u16, String)> {
+    pub fn disassemble(
+        &self,
+        memory: &Memory,
+        start_addr: u16,
+        end_addr: u16,
+    ) -> Vec<(u16, String)> {
         let mut current_addr = start_addr;
         let mut instruction_reprs = Vec::new();
 
         loop {
-            if current_addr > end_addr { break };
+            if current_addr > end_addr {
+                break;
+            };
 
             let instruction = self.fetch_instruction(memory, current_addr);
             let num_bytes = instruction.num_bytes as u32;
 
-            if current_addr as u32 + num_bytes > end_addr as u32 { break };
+            if current_addr as u32 + num_bytes > end_addr as u32 {
+                break;
+            };
 
             let operand_start_addr = current_addr + 1 + (instruction.prefixed as u16);
             let repr = self.build_instruction_repr(memory, operand_start_addr, instruction);
@@ -387,7 +400,12 @@ impl Cpu {
     }
 
     // Depends on `instruction.repr` being in the correct format
-    fn build_instruction_repr(&self, memory: &Memory, addr: u16, instruction: &Instruction) -> String {
+    fn build_instruction_repr(
+        &self,
+        memory: &Memory,
+        addr: u16,
+        instruction: &Instruction,
+    ) -> String {
         let (operand, _) = self.fetch_operand(memory, addr, instruction);
         let mut repr = String::from(instruction.repr);
 
@@ -395,29 +413,29 @@ impl Cpu {
             AddressingMode::Implied => (),
             AddressingMode::Imm8 => {
                 repr.find("d").map(|index| {
-                    repr.replace_range(index..index+2, &format!("{:02x}", operand));
+                    repr.replace_range(index..index + 2, &format!("{:02x}", operand));
                 });
-            },
+            }
             AddressingMode::Imm16 => {
                 repr.find("d").map(|index| {
-                    repr.replace_range(index..index+3, &format!("{:04x}", operand));
+                    repr.replace_range(index..index + 3, &format!("{:04x}", operand));
                 });
-            },
+            }
             AddressingMode::Addr16 => {
                 repr.find("a").map(|index| {
-                    repr.replace_range(index..index+3, &format!("{:04x}", operand));
+                    repr.replace_range(index..index + 3, &format!("{:04x}", operand));
                 });
-            },
+            }
             AddressingMode::ZeroPageOffset => {
                 repr.find("a").map(|index| {
-                    repr.replace_range(index..index+2, &format!("{:04x}", operand));
+                    repr.replace_range(index..index + 2, &format!("{:04x}", operand));
                 });
-            },
+            }
             AddressingMode::SignedAddrOffset => {
                 repr.find("r").map(|index| {
-                    repr.replace_range(index..index+2, &format!("{:04x}", operand));
+                    repr.replace_range(index..index + 2, &format!("{:04x}", operand));
                 });
-            },
+            }
         };
 
         repr
@@ -432,16 +450,14 @@ impl Cpu {
             AddressingMode::Imm16 | AddressingMode::Addr16 => {
                 let msb = memory.cpu_read(addr + 1) as u16;
                 (msb << 8 | lsb, 2)
-            },
-            AddressingMode::ZeroPageOffset => {
-                (0xFF00 | lsb, 1)
-            },
+            }
+            AddressingMode::ZeroPageOffset => (0xFF00 | lsb, 1),
             AddressingMode::SignedAddrOffset => {
                 let lsb = lsb as i8;
                 // The offset assumes that the PC has already been incremented
                 let target_addr = ((addr + 1) as i32) + (lsb as i32);
                 (target_addr as u16, 1)
-            },
+            }
         }
     }
 
@@ -466,35 +482,47 @@ impl Cpu {
         memory.io_registers.unset_interrupt(interrupt_no);
         self.regs.write16(SP, self.regs.read16(SP) - 2);
         Self::write_mem_u16(memory, self.regs.read16(SP), self.regs.read16(PC));
-        self.regs.write16(PC, INTERRUPT_ADDRS[interrupt_no as usize]);
+        self.regs
+            .write16(PC, INTERRUPT_ADDRS[interrupt_no as usize]);
     }
 
-    fn execute_add16<T>(&mut self, memory: &Memory, src: T) where
-    Self: Operand16<T> {
+    fn execute_add16<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand16<T>,
+    {
         let old_zero = read_bit(self.regs.read(F), ZERO_FLAG);
         let (result, flags) = add_u16(self.regs.read16(HL), self.read16(memory, src));
         self.regs.write16(HL, result);
-        self.regs.write_flags(Flags { zero: old_zero, ..flags });
+        self.regs.write_flags(Flags {
+            zero: old_zero,
+            ..flags
+        });
     }
 
-    fn execute_add_sp<T>(&mut self, memory: &mut Memory, dst: T, src: RegisterIndex) where
-    Self: Operand16<T> {
+    fn execute_add_sp<T>(&mut self, memory: &mut Memory, dst: T, src: RegisterIndex)
+    where
+        Self: Operand16<T>,
+    {
         let n = self.regs.read(src);
         let (result, flags) = self.sum_sp_n(n);
         self.write16(memory, dst, result);
         self.regs.write_flags(flags);
     }
 
-    fn execute_add<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_add<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, flags) = add_u8(self.regs.read(A), val);
         self.regs.write(A, result);
         self.regs.write_flags(flags);
     }
 
-    fn execute_adc<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_adc<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let old_carry = read_bit(self.regs.read(F), CARRY_FLAG);
         let (result, flags) = adc_u8(self.regs.read(A), val, old_carry);
@@ -502,16 +530,20 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_sub<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_sub<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, flags) = sub_u8(self.regs.read(A), val);
         self.regs.write(A, result);
         self.regs.write_flags(flags);
     }
 
-    fn execute_sbc<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_sbc<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let old_carry = read_bit(self.regs.read(F), CARRY_FLAG);
         let (result, flags) = sbc_u8(self.regs.read(A), val, old_carry);
@@ -519,8 +551,10 @@ impl Cpu {
         self.regs.write_flags(flags);
     }
 
-    fn execute_and<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_and<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         self.regs.write(A, self.regs.read(A) & val);
         self.regs.write_flags(Flags {
@@ -530,8 +564,10 @@ impl Cpu {
         });
     }
 
-    fn execute_xor<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_xor<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         self.regs.write(A, self.regs.read(A) ^ val);
         self.regs.write_flags(Flags {
@@ -540,8 +576,10 @@ impl Cpu {
         });
     }
 
-    fn execute_or<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_or<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         self.regs.write(A, self.regs.read(A) | val);
         self.regs.write_flags(Flags {
@@ -550,8 +588,10 @@ impl Cpu {
         });
     }
 
-    fn execute_cp<T>(&mut self, memory: &Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_cp<T>(&mut self, memory: &Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (_, flags) = sub_u8(self.regs.read(A), val);
         self.regs.write_flags(flags);
@@ -562,20 +602,24 @@ impl Cpu {
         let mut correction = 0;
         let mut carry = read_bit(self.regs.read(F), CARRY_FLAG);
         if read_bit(self.regs.read(F), HALF_CARRY_FLAG)
-            || (!read_bit(self.regs.read(F), SUBTRACT_FLAG) && ((val & 0x0F) > 0x09)) {
+            || (!read_bit(self.regs.read(F), SUBTRACT_FLAG) && ((val & 0x0F) > 0x09))
+        {
             correction |= 0x06;
         }
 
         if read_bit(self.regs.read(F), CARRY_FLAG)
-            || (!read_bit(self.regs.read(F), SUBTRACT_FLAG) && (val > 0x99)) {
+            || (!read_bit(self.regs.read(F), SUBTRACT_FLAG) && (val > 0x99))
+        {
             correction |= 0x60;
             carry = true;
         }
 
         if read_bit(self.regs.read(F), SUBTRACT_FLAG) {
-            self.regs.write(A, self.regs.read(A).wrapping_sub(correction));
+            self.regs
+                .write(A, self.regs.read(A).wrapping_sub(correction));
         } else {
-            self.regs.write(A, self.regs.read(A).wrapping_add(correction));
+            self.regs
+                .write(A, self.regs.read(A).wrapping_add(correction));
         }
 
         self.set_flag(ZERO_FLAG, self.regs.read(A) == 0);
@@ -602,8 +646,10 @@ impl Cpu {
         self.set_flag(CARRY_FLAG, old_carry ^ true);
     }
 
-    fn execute_rlc<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_rlc<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, carry) = rotate_left(val);
         self.write_oper(memory, src, result);
@@ -614,8 +660,10 @@ impl Cpu {
         });
     }
 
-    fn execute_rrc<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_rrc<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, carry) = rotate_right(val);
         self.write_oper(memory, src, result);
@@ -626,8 +674,10 @@ impl Cpu {
         });
     }
 
-    fn execute_rl<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_rl<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let carry = read_bit(self.regs.read(F), CARRY_FLAG);
         let val = self.read_oper(memory, src);
         let (result, carry) = rotate_left_through_carry(val, carry);
@@ -639,8 +689,10 @@ impl Cpu {
         });
     }
 
-    fn execute_rr<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_rr<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let carry = read_bit(self.regs.read(F), CARRY_FLAG);
         let val = self.read_oper(memory, src);
         let (result, carry) = rotate_right_through_carry(val, carry);
@@ -652,8 +704,10 @@ impl Cpu {
         });
     }
 
-    fn execute_sla<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_sla<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, carry) = shift_left(val);
         self.write_oper(memory, src, result);
@@ -664,8 +718,10 @@ impl Cpu {
         });
     }
 
-    fn execute_sra<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_sra<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, carry) = shift_right_arithmetic(val);
         self.write_oper(memory, src, result);
@@ -676,8 +732,10 @@ impl Cpu {
         });
     }
 
-    fn execute_swap<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_swap<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let result = (val & 0x0F) << 4 | (val & 0xF0) >> 4;
         self.write_oper(memory, src, result);
@@ -687,8 +745,10 @@ impl Cpu {
         });
     }
 
-    fn execute_srl<T: Copy>(&mut self, memory: &mut Memory, src: T) where
-        Self: Operand8<T> {
+    fn execute_srl<T: Copy>(&mut self, memory: &mut Memory, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let (result, carry) = shift_right_logical(val);
         self.write_oper(memory, src, result);
@@ -699,8 +759,10 @@ impl Cpu {
         });
     }
 
-    fn execute_tst<T: Copy>(&mut self, memory: &Memory, bit: u8, src: T) where
-        Self: Operand8<T> {
+    fn execute_tst<T: Copy>(&mut self, memory: &Memory, bit: u8, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let result = read_bit(val, bit);
         self.set_flag(ZERO_FLAG, !result);
@@ -708,22 +770,28 @@ impl Cpu {
         self.set_flag(HALF_CARRY_FLAG, true);
     }
 
-    fn execute_res<T: Copy>(&mut self, memory: &mut Memory, bit: u8, src: T) where
-        Self: Operand8<T> {
+    fn execute_res<T: Copy>(&mut self, memory: &mut Memory, bit: u8, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let result = set_bit(val, bit, false);
         self.write_oper(memory, src, result);
     }
 
-    fn execute_set<T: Copy>(&mut self, memory: &mut Memory, bit: u8, src: T) where
-        Self: Operand8<T> {
+    fn execute_set<T: Copy>(&mut self, memory: &mut Memory, bit: u8, src: T)
+    where
+        Self: Operand8<T>,
+    {
         let val = self.read_oper(memory, src);
         let result = set_bit(val, bit, true);
         self.write_oper(memory, src, result);
     }
 
     fn execute_inc<T: Copy>(&mut self, memory: &mut Memory, src: T)
-        where Self: Operand8<T> {
+    where
+        Self: Operand8<T>,
+    {
         let old = self.read_oper(memory, src);
         let result = old.wrapping_add(1);
         self.write_oper(memory, src, result);
@@ -733,7 +801,9 @@ impl Cpu {
     }
 
     fn execute_dec<T: Copy>(&mut self, memory: &mut Memory, src: T)
-        where Self: Operand8<T> {
+    where
+        Self: Operand8<T>,
+    {
         let old = self.read_oper(memory, src);
         let result = old.wrapping_sub(1);
         self.write_oper(memory, src, result);
@@ -760,7 +830,14 @@ impl Cpu {
             )
         };
 
-        (result as u16, Flags { half_carry, carry, ..Flags::default() })
+        (
+            result as u16,
+            Flags {
+                half_carry,
+                carry,
+                ..Flags::default()
+            },
+        )
     }
 
     fn write_mem_u16(memory: &mut Memory, addr: u16, val: u16) {
@@ -771,7 +848,8 @@ impl Cpu {
     }
 
     fn set_flag(&mut self, flag_bit: u8, val: bool) {
-        self.regs.write(F, set_bit(self.regs.read(F), flag_bit, val));
+        self.regs
+            .write(F, set_bit(self.regs.read(F), flag_bit, val));
     }
 }
 

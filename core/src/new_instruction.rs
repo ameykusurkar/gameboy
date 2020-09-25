@@ -1,13 +1,13 @@
+use crate::cpu::Condition;
 use crate::registers::RegisterIndex;
 use crate::registers::RegisterIndex::*;
 use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
-use crate::cpu::Condition;
 
 use lazy_static::lazy_static;
 
-use std::iter::Peekable;
 use std::collections::HashMap;
+use std::iter::Peekable;
 
 lazy_static! {
     pub static ref REGISTRY: InstructionRegistry = InstructionRegistry::new();
@@ -39,7 +39,7 @@ impl NewInstruction {
             Some(mut micro_instruction) => {
                 micro_instruction.set_interrupts = Some(val);
                 self.micro_instructions.push(micro_instruction);
-            },
+            }
             None => unimplemented!("No micro instruction found to enable interrupts!"),
         }
 
@@ -56,14 +56,15 @@ impl NewInstruction {
 
     fn append_register_operation(mut self, reg_op: RegisterOperation) -> Self {
         match self.micro_instructions.pop() {
-            Some(mut micro_instruction) => {
-                match micro_instruction {
-                    MicroInstruction { register_operation: None, .. } => {
-                        micro_instruction.register_operation = Some(reg_op);
-                        self.micro_instructions.push(micro_instruction);
-                    }
-                    _ => unimplemented!("Cannot add register operation!"),
+            Some(mut micro_instruction) => match micro_instruction {
+                MicroInstruction {
+                    register_operation: None,
+                    ..
+                } => {
+                    micro_instruction.register_operation = Some(reg_op);
+                    self.micro_instructions.push(micro_instruction);
                 }
+                _ => unimplemented!("Cannot add register operation!"),
             },
             None => unimplemented!("No micro instruction found to add register operation!"),
         }
@@ -73,14 +74,15 @@ impl NewInstruction {
 
     fn append_condition_check(mut self, condition: Condition) -> Self {
         match self.micro_instructions.pop() {
-            Some(mut micro_instruction) => {
-                match micro_instruction {
-                    MicroInstruction { check_condition: None, .. } => {
-                        micro_instruction.check_condition = Some(condition);
-                        self.micro_instructions.push(micro_instruction);
-                    }
-                    _ => unimplemented!("Cannot add condition check!"),
+            Some(mut micro_instruction) => match micro_instruction {
+                MicroInstruction {
+                    check_condition: None,
+                    ..
+                } => {
+                    micro_instruction.check_condition = Some(condition);
+                    self.micro_instructions.push(micro_instruction);
                 }
+                _ => unimplemented!("Cannot add condition check!"),
             },
             None => unimplemented!("No micro instruction found to add condition check!"),
         }
@@ -93,9 +95,7 @@ impl NewInstruction {
     }
 
     fn noop(self) -> Self {
-        self.push(
-            MicroInstruction::default().with_memory_operation(MemoryOperation::Noop)
-        )
+        self.push(MicroInstruction::default().with_memory_operation(MemoryOperation::Noop))
     }
 
     fn empty(self) -> Self {
@@ -107,7 +107,7 @@ impl NewInstruction {
             Some(mut micro_instruction) => {
                 micro_instruction.set_halted = true;
                 self.micro_instructions.push(micro_instruction);
-            },
+            }
             None => unimplemented!("No micro instruction found to set halted!"),
         }
 
@@ -117,7 +117,7 @@ impl NewInstruction {
     fn load(self, addr_source: AddressSource, reg: RegisterIndex) -> Self {
         self.push(
             MicroInstruction::default()
-                .with_memory_operation(MemoryOperation::Read(addr_source, reg))
+                .with_memory_operation(MemoryOperation::Read(addr_source, reg)),
         )
     }
 
@@ -148,7 +148,7 @@ impl NewInstruction {
     fn store(self, addr_source: AddressSource, reg: RegisterIndex) -> Self {
         self.push(
             MicroInstruction::default()
-                .with_memory_operation(MemoryOperation::Write(addr_source, reg))
+                .with_memory_operation(MemoryOperation::Write(addr_source, reg)),
         )
     }
 
@@ -197,7 +197,7 @@ impl<'a> IntoIterator for &'a NewInstruction {
 
     fn into_iter(self) -> Self::IntoIter {
         NewInstructionIterator {
-            iterator: self.micro_instructions.iter().peekable()
+            iterator: self.micro_instructions.iter().peekable(),
         }
     }
 }
@@ -244,9 +244,35 @@ pub enum RegisterOperation {
 
 #[derive(Debug, Copy, Clone)]
 pub enum AluOperation {
-    Inc, Dec, Add, Adc, Sub, Sbc, And, Xor, Or, Cp, Daa, Scf, Cpl, Ccf,
-    Rlc, Rrc, Rl, Rr, Sla, Sra, Swap, Srl, Tst(u8), Res(u8), Set(u8),
-    Rlca, Rrca, Rla, Rra,
+    Inc,
+    Dec,
+    Add,
+    Adc,
+    Sub,
+    Sbc,
+    And,
+    Xor,
+    Or,
+    Cp,
+    Daa,
+    Scf,
+    Cpl,
+    Ccf,
+    Rlc,
+    Rrc,
+    Rl,
+    Rr,
+    Sla,
+    Sra,
+    Swap,
+    Srl,
+    Tst(u8),
+    Res(u8),
+    Set(u8),
+    Rlca,
+    Rrca,
+    Rla,
+    Rra,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -317,11 +343,23 @@ impl InstructionRegistry {
 
         instruction_map.insert(0x08, build_load_addr16_sp_instruction());
 
-        instruction_map.insert(0x02, build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)));
-        instruction_map.insert(0x12, build_load_reg16addr_reg_instruction(AddressSource::Reg(DE)));
+        instruction_map.insert(
+            0x02,
+            build_load_reg16addr_reg_instruction(AddressSource::Reg(BC)),
+        );
+        instruction_map.insert(
+            0x12,
+            build_load_reg16addr_reg_instruction(AddressSource::Reg(DE)),
+        );
 
-        instruction_map.insert(0x0A, build_load_reg_reg16addr_instruction(AddressSource::Reg(BC)));
-        instruction_map.insert(0x1A, build_load_reg_reg16addr_instruction(AddressSource::Reg(DE)));
+        instruction_map.insert(
+            0x0A,
+            build_load_reg_reg16addr_instruction(AddressSource::Reg(BC)),
+        );
+        instruction_map.insert(
+            0x1A,
+            build_load_reg_reg16addr_instruction(AddressSource::Reg(DE)),
+        );
 
         instruction_map.insert(0x06, build_load_r_n_instruction(B));
         instruction_map.insert(0x0E, build_load_r_n_instruction(C));
@@ -359,10 +397,22 @@ impl InstructionRegistry {
         instruction_map.insert(0xF5, build_push_instruction(AF));
 
         instruction_map.insert(0x18, build_jump_relative_instruction());
-        instruction_map.insert(0x20, build_conditional_jump_relative_instruction(Condition::NZ));
-        instruction_map.insert(0x28, build_conditional_jump_relative_instruction(Condition::Z));
-        instruction_map.insert(0x30, build_conditional_jump_relative_instruction(Condition::NC));
-        instruction_map.insert(0x38, build_conditional_jump_relative_instruction(Condition::C));
+        instruction_map.insert(
+            0x20,
+            build_conditional_jump_relative_instruction(Condition::NZ),
+        );
+        instruction_map.insert(
+            0x28,
+            build_conditional_jump_relative_instruction(Condition::Z),
+        );
+        instruction_map.insert(
+            0x30,
+            build_conditional_jump_relative_instruction(Condition::NC),
+        );
+        instruction_map.insert(
+            0x38,
+            build_conditional_jump_relative_instruction(Condition::C),
+        );
 
         instruction_map.insert(0xC3, build_jump_instruction());
         instruction_map.insert(0xC2, build_conditional_jump_instruction(Condition::NZ));
@@ -394,7 +444,14 @@ impl InstructionRegistry {
         }
 
         let order = [
-            Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+            Some(B),
+            Some(C),
+            Some(D),
+            Some(E),
+            Some(H),
+            Some(L),
+            None,
+            Some(A),
         ];
 
         for opcode in 0x40..=0x7F {
@@ -403,69 +460,195 @@ impl InstructionRegistry {
             let src_index = order[(opcode_index % 0x08) as usize];
 
             match (dst_index, src_index) {
-                (Some(reg), Some(reg1)) => instruction_map.insert(opcode, build_load_r_r_instruction(reg, reg1)),
-                (None, Some(reg)) => instruction_map.insert(opcode, build_load_rhl_r_instruction(reg)),
-                (Some(reg), None) => instruction_map.insert(opcode, build_load_r_rhl_instruction(reg)),
+                (Some(reg), Some(reg1)) => {
+                    instruction_map.insert(opcode, build_load_r_r_instruction(reg, reg1))
+                }
+                (None, Some(reg)) => {
+                    instruction_map.insert(opcode, build_load_rhl_r_instruction(reg))
+                }
+                (Some(reg), None) => {
+                    instruction_map.insert(opcode, build_load_r_rhl_instruction(reg))
+                }
                 (None, None) => None,
             };
         }
 
-        instruction_map = build_alu_instructions(instruction_map, (0x04..=0x3C).step_by(8).collect(), AluOperation::Inc);
-        instruction_map = build_alu_instructions(instruction_map, (0x05..=0x3D).step_by(8).collect(), AluOperation::Dec);
+        instruction_map = build_alu_instructions(
+            instruction_map,
+            (0x04..=0x3C).step_by(8).collect(),
+            AluOperation::Inc,
+        );
+        instruction_map = build_alu_instructions(
+            instruction_map,
+            (0x05..=0x3D).step_by(8).collect(),
+            AluOperation::Dec,
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0x80..=0x87).collect(), AluOperation::Add);
-        instruction_map.insert(0xC6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Add, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0x80..=0x87).collect(), AluOperation::Add);
+        instruction_map.insert(
+            0xC6,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Add, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0x88..=0x8F).collect(), AluOperation::Adc);
-        instruction_map.insert(0xCE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Adc, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0x88..=0x8F).collect(), AluOperation::Adc);
+        instruction_map.insert(
+            0xCE,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Adc, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0x90..=0x97).collect(), AluOperation::Sub);
-        instruction_map.insert(0xD6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Sub, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0x90..=0x97).collect(), AluOperation::Sub);
+        instruction_map.insert(
+            0xD6,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Sub, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0x98..=0x9F).collect(), AluOperation::Sbc);
-        instruction_map.insert(0xDE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Sbc, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0x98..=0x9F).collect(), AluOperation::Sbc);
+        instruction_map.insert(
+            0xDE,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Sbc, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0xA0..=0xA7).collect(), AluOperation::And);
-        instruction_map.insert(0xE6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::And, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0xA0..=0xA7).collect(), AluOperation::And);
+        instruction_map.insert(
+            0xE6,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::And, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0xA8..=0xAF).collect(), AluOperation::Xor);
-        instruction_map.insert(0xEE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Xor, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0xA8..=0xAF).collect(), AluOperation::Xor);
+        instruction_map.insert(
+            0xEE,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Xor, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0xB0..=0xB7).collect(), AluOperation::Or);
-        instruction_map.insert(0xF6, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Or, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0xB0..=0xB7).collect(), AluOperation::Or);
+        instruction_map.insert(
+            0xF6,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Or, TempLow),
+        );
 
-        instruction_map = build_alu_instructions(instruction_map, (0xB8..=0xBF).collect(), AluOperation::Cp);
-        instruction_map.insert(0xFE, NewInstruction::new().load_imm(TempLow).empty().and_alu(AluOperation::Cp, TempLow));
+        instruction_map =
+            build_alu_instructions(instruction_map, (0xB8..=0xBF).collect(), AluOperation::Cp);
+        instruction_map.insert(
+            0xFE,
+            NewInstruction::new()
+                .load_imm(TempLow)
+                .empty()
+                .and_alu(AluOperation::Cp, TempLow),
+        );
 
-        instruction_map.insert(0x07, NewInstruction::new().empty().and_alu(AluOperation::Rlca, A));
-        instruction_map.insert(0x0F, NewInstruction::new().empty().and_alu(AluOperation::Rrca, A));
-        instruction_map.insert(0x17, NewInstruction::new().empty().and_alu(AluOperation::Rla, A));
-        instruction_map.insert(0x1F, NewInstruction::new().empty().and_alu(AluOperation::Rra, A));
+        instruction_map.insert(
+            0x07,
+            NewInstruction::new().empty().and_alu(AluOperation::Rlca, A),
+        );
+        instruction_map.insert(
+            0x0F,
+            NewInstruction::new().empty().and_alu(AluOperation::Rrca, A),
+        );
+        instruction_map.insert(
+            0x17,
+            NewInstruction::new().empty().and_alu(AluOperation::Rla, A),
+        );
+        instruction_map.insert(
+            0x1F,
+            NewInstruction::new().empty().and_alu(AluOperation::Rra, A),
+        );
 
-        instruction_map.insert(0x27, NewInstruction::new().empty().and_alu(AluOperation::Daa, A));
-        instruction_map.insert(0x2F, NewInstruction::new().empty().and_alu(AluOperation::Cpl, A));
-        instruction_map.insert(0x37, NewInstruction::new().empty().and_alu(AluOperation::Scf, A));
-        instruction_map.insert(0x3F, NewInstruction::new().empty().and_alu(AluOperation::Ccf, A));
+        instruction_map.insert(
+            0x27,
+            NewInstruction::new().empty().and_alu(AluOperation::Daa, A),
+        );
+        instruction_map.insert(
+            0x2F,
+            NewInstruction::new().empty().and_alu(AluOperation::Cpl, A),
+        );
+        instruction_map.insert(
+            0x37,
+            NewInstruction::new().empty().and_alu(AluOperation::Scf, A),
+        );
+        instruction_map.insert(
+            0x3F,
+            NewInstruction::new().empty().and_alu(AluOperation::Ccf, A),
+        );
 
         instruction_map.insert(0x76, NewInstruction::new().empty().and_halt());
 
         let mut prefixed_instruction_map = HashMap::new();
 
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x00..=0x07).collect(), AluOperation::Rlc);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x08..=0x0F).collect(), AluOperation::Rrc);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x10..=0x17).collect(), AluOperation::Rl);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x18..=0x1F).collect(), AluOperation::Rr);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x20..=0x27).collect(), AluOperation::Sla);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x28..=0x2F).collect(), AluOperation::Sra);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x30..=0x37).collect(), AluOperation::Swap);
-        prefixed_instruction_map = build_alu_instructions(prefixed_instruction_map, (0x38..=0x3F).collect(), AluOperation::Srl);
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x00..=0x07).collect(),
+            AluOperation::Rlc,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x08..=0x0F).collect(),
+            AluOperation::Rrc,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x10..=0x17).collect(),
+            AluOperation::Rl,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x18..=0x1F).collect(),
+            AluOperation::Rr,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x20..=0x27).collect(),
+            AluOperation::Sla,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x28..=0x2F).collect(),
+            AluOperation::Sra,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x30..=0x37).collect(),
+            AluOperation::Swap,
+        );
+        prefixed_instruction_map = build_alu_instructions(
+            prefixed_instruction_map,
+            (0x38..=0x3F).collect(),
+            AluOperation::Srl,
+        );
 
         for start_opcode in (0x40..=0x7F).step_by(8) {
             let bit = (start_opcode - 0x40) / 0x08;
 
             prefixed_instruction_map = build_alu_instructions(
                 prefixed_instruction_map,
-                (start_opcode..start_opcode+8).collect(),
+                (start_opcode..start_opcode + 8).collect(),
                 AluOperation::Tst(bit),
             );
         }
@@ -475,7 +658,7 @@ impl InstructionRegistry {
 
             prefixed_instruction_map = build_alu_instructions(
                 prefixed_instruction_map,
-                (start_opcode..start_opcode+8).collect(),
+                (start_opcode..start_opcode + 8).collect(),
                 AluOperation::Res(bit),
             );
         }
@@ -486,7 +669,7 @@ impl InstructionRegistry {
             prefixed_instruction_map = build_alu_instructions(
                 prefixed_instruction_map,
                 // Use an inclusive range to prevent overflow
-                (start_opcode..=start_opcode+7).collect(),
+                (start_opcode..=start_opcode + 7).collect(),
                 AluOperation::Set(bit as u8),
             );
         }
@@ -525,7 +708,10 @@ fn build_load_r_r_instruction(dst_reg: RegisterIndex, src_reg: RegisterIndex) ->
     NewInstruction::new().empty().and_move_reg(dst_reg, src_reg)
 }
 
-fn build_load_rr_rr_instruction(dst_reg: TwoRegisterIndex, src_reg: TwoRegisterIndex) -> NewInstruction {
+fn build_load_rr_rr_instruction(
+    dst_reg: TwoRegisterIndex,
+    src_reg: TwoRegisterIndex,
+) -> NewInstruction {
     NewInstruction::new().move_reg16(dst_reg, src_reg)
 }
 
@@ -540,25 +726,29 @@ fn build_load_rhl_r_instruction(reg: RegisterIndex) -> NewInstruction {
 fn build_load_rhl_inc_r_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
         .store(AddressSource::Reg(HL), reg)
-        .empty().and_inc16(HL)
+        .empty()
+        .and_inc16(HL)
 }
 
 fn build_load_r_rhl_inc_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
         .load(AddressSource::Reg(HL), reg)
-        .empty().and_inc16(HL)
+        .empty()
+        .and_inc16(HL)
 }
 
 fn build_load_rhl_dec_r_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
         .store(AddressSource::Reg(HL), reg)
-        .empty().and_dec16(HL)
+        .empty()
+        .and_dec16(HL)
 }
 
 fn build_load_r_rhl_dec_instruction(reg: RegisterIndex) -> NewInstruction {
     NewInstruction::new()
         .load(AddressSource::Reg(HL), reg)
-        .empty().and_dec16(HL)
+        .empty()
+        .and_dec16(HL)
 }
 
 fn build_load_high_addr_a_instruction(reg: RegisterIndex) -> NewInstruction {
@@ -642,14 +832,16 @@ fn build_conditional_jump_instruction(condition: Condition) -> NewInstruction {
 fn build_jump_relative_instruction() -> NewInstruction {
     NewInstruction::new()
         .load_imm(TempLow)
-        .noop().and_signed_add_reg16(PC, TempLow)
+        .noop()
+        .and_signed_add_reg16(PC, TempLow)
 }
 
 fn build_conditional_jump_relative_instruction(condition: Condition) -> NewInstruction {
     NewInstruction::new()
         .load_imm(TempLow)
         .and_proceed_if(condition)
-        .noop().and_signed_add_reg16(PC, TempLow)
+        .noop()
+        .and_signed_add_reg16(PC, TempLow)
 }
 
 fn build_return_instruction() -> NewInstruction {
@@ -723,21 +915,32 @@ fn build_add16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
 fn build_add_sp_n_instruction() -> NewInstruction {
     NewInstruction::new()
         .load_imm(TempLow)
-        .noop().and_add_sp(SP, TempLow)
+        .noop()
+        .and_add_sp(SP, TempLow)
         .noop()
 }
 
 fn build_add_hl_sp_n_instruction() -> NewInstruction {
     NewInstruction::new()
         .load_imm(TempLow)
-        .noop().and_add_sp(HL, TempLow)
+        .noop()
+        .and_add_sp(HL, TempLow)
 }
 
 fn build_alu_instructions(
     mut instruction_map: HashMap<u8, NewInstruction>,
-    opcode_range: Vec<u8>, alu_operation: AluOperation) -> HashMap<u8, NewInstruction> {
+    opcode_range: Vec<u8>,
+    alu_operation: AluOperation,
+) -> HashMap<u8, NewInstruction> {
     let order = [
-        Some(B), Some(C), Some(D), Some(E), Some(H), Some(L), None, Some(A),
+        Some(B),
+        Some(C),
+        Some(D),
+        Some(E),
+        Some(H),
+        Some(L),
+        None,
+        Some(A),
     ];
 
     for (reg_index, opcode) in order.iter().zip(opcode_range.iter()) {
@@ -745,30 +948,28 @@ fn build_alu_instructions(
 
         instruction = match reg_index {
             Some(reg) => instruction.empty().and_alu(alu_operation, *reg),
-            None => {
-                match alu_operation {
-                    AluOperation::Inc | AluOperation::Dec => {
-                        instruction
-                            .load(AddressSource::Reg(HL), TempLow)
-                            .and_alu(alu_operation, TempLow)
-                            .store(AddressSource::Reg(HL), TempLow)
-                    },
-                    AluOperation::Rlc | AluOperation::Rrc | AluOperation::Rl
-                        | AluOperation::Rr | AluOperation::Sla | AluOperation::Sra
-                        | AluOperation::Swap | AluOperation::Srl | AluOperation::Res(_)
-                        | AluOperation::Set(_) => {
-                            instruction
-                                .load(AddressSource::Reg(HL), TempLow)
-                                .and_alu(alu_operation, TempLow)
-                                .store(AddressSource::Reg(HL), TempLow)
-                        },
-                    _ => {
-                        instruction
-                            .load(AddressSource::Reg(HL), TempLow)
-                            .and_alu(alu_operation, TempLow)
-                    },
-                }
-            }
+            None => match alu_operation {
+                AluOperation::Inc | AluOperation::Dec => instruction
+                    .load(AddressSource::Reg(HL), TempLow)
+                    .and_alu(alu_operation, TempLow)
+                    .store(AddressSource::Reg(HL), TempLow),
+                AluOperation::Rlc
+                | AluOperation::Rrc
+                | AluOperation::Rl
+                | AluOperation::Rr
+                | AluOperation::Sla
+                | AluOperation::Sra
+                | AluOperation::Swap
+                | AluOperation::Srl
+                | AluOperation::Res(_)
+                | AluOperation::Set(_) => instruction
+                    .load(AddressSource::Reg(HL), TempLow)
+                    .and_alu(alu_operation, TempLow)
+                    .store(AddressSource::Reg(HL), TempLow),
+                _ => instruction
+                    .load(AddressSource::Reg(HL), TempLow)
+                    .and_alu(alu_operation, TempLow),
+            },
         };
 
         instruction_map.insert(*opcode, instruction);

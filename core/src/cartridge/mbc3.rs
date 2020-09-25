@@ -1,5 +1,5 @@
 use crate::cartridge::Mbc;
-use chrono::{Timelike, Datelike};
+use chrono::{Datelike, Timelike};
 
 pub struct Mbc3 {
     rom_bank: u8,
@@ -46,7 +46,9 @@ impl Mbc3 {
     }
 
     fn get_real_ram_addr(ram: &[u8], ram_bank: u8, addr: u16) -> Option<usize> {
-        if ram.is_empty() { return None; }
+        if ram.is_empty() {
+            return None;
+        }
 
         let real_addr = ((ram_bank as usize) << 13 | (addr as usize) & 0x1FFF) % ram.len();
         Some(real_addr)
@@ -64,11 +66,11 @@ impl Mbc for Mbc3 {
             0x0000..=0x3FFF => {
                 let rom_addr = self.build_rom_addr(rom, 0, addr);
                 rom[rom_addr]
-            },
+            }
             0x4000..=0x7FFF => {
                 let rom_addr = self.build_rom_addr(rom, self.rom_bank as usize, addr);
                 rom[rom_addr]
-            },
+            }
             _ => unreachable!("Invalid rom read address: {:04x}", addr),
         }
     }
@@ -77,11 +79,11 @@ impl Mbc for Mbc3 {
         match addr {
             0x0000..=0x1FFF => {
                 self.ram_enabled = (byte & 0x0F) == 0x0A;
-            },
+            }
             0x2000..=0x3FFF => {
                 let byte = byte & 0b0111_1111;
                 self.rom_bank = if byte == 0 { 1 } else { byte };
-            },
+            }
             0x4000..=0x5FFF => {
                 let byte = byte & 0x0F;
                 match byte {
@@ -89,21 +91,19 @@ impl Mbc for Mbc3 {
                     0x08..=0x0C => self.ram_select = RamSelect::RTCRegister(byte),
                     _ => (),
                 }
-            },
-            0x6000..=0x7FFF => {
-                match byte {
-                    0x00 => {
-                        self.latch_waiting = true;
-                    },
-                    0x01 => {
-                        if self.latch_waiting {
-                            self.rtc_registers.latch();
-                        }
-
-                        self.latch_waiting = false;
-                    },
-                    _ => (),
+            }
+            0x6000..=0x7FFF => match byte {
+                0x00 => {
+                    self.latch_waiting = true;
                 }
+                0x01 => {
+                    if self.latch_waiting {
+                        self.rtc_registers.latch();
+                    }
+
+                    self.latch_waiting = false;
+                }
+                _ => (),
             },
             _ => unreachable!("Invalid rom write address: {:04x}", addr),
         }
@@ -115,27 +115,24 @@ impl Mbc for Mbc3 {
         }
 
         match self.ram_select {
-            RamSelect::BankNumber(ram_bank) => {
-                Self::get_real_ram_addr(ram, ram_bank, addr)
-                    .map_or(0xFF, |real_addr| ram[real_addr])
-            },
-            RamSelect::RTCRegister(reg_no) => {
-                self.rtc_registers.registers[reg_no as usize - 0x8]
-            },
+            RamSelect::BankNumber(ram_bank) => Self::get_real_ram_addr(ram, ram_bank, addr)
+                .map_or(0xFF, |real_addr| ram[real_addr]),
+            RamSelect::RTCRegister(reg_no) => self.rtc_registers.registers[reg_no as usize - 0x8],
         }
     }
 
     fn write_ram(&mut self, ram: &mut [u8], addr: u16, byte: u8) {
-        if !self.ram_enabled { return; }
+        if !self.ram_enabled {
+            return;
+        }
 
         match self.ram_select {
             RamSelect::BankNumber(ram_bank) => {
-                Self::get_real_ram_addr(ram, ram_bank, addr)
-                    .map(|real_addr| ram[real_addr] = byte);
-            },
+                Self::get_real_ram_addr(ram, ram_bank, addr).map(|real_addr| ram[real_addr] = byte);
+            }
             RamSelect::RTCRegister(reg_no) => {
                 self.rtc_registers.registers[reg_no as usize - 0x8] = byte;
-            },
+            }
         }
 
         self.write_since_last_save = true;

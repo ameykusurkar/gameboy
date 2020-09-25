@@ -69,12 +69,8 @@ impl Mbc1 {
 impl Mbc for Mbc1 {
     fn read_rom(&self, rom: &[u8], addr: u16) -> u8 {
         match addr {
-            0x0000..=0x3FFF => {
-                rom[self.get_bank0_rom_addr(rom, addr)]
-            },
-            0x4000..=0x7FFF => {
-                rom[self.get_bank1_rom_addr(rom, addr)]
-            },
+            0x0000..=0x3FFF => rom[self.get_bank0_rom_addr(rom, addr)],
+            0x4000..=0x7FFF => rom[self.get_bank1_rom_addr(rom, addr)],
             _ => unreachable!("Invalid rom read address: {:04x}", addr),
         }
     }
@@ -83,21 +79,21 @@ impl Mbc for Mbc1 {
         match addr {
             0x0000..=0x1FFF => {
                 self.ram_enabled = (byte & 0x0F) == 0x0A;
-            },
+            }
             0x2000..=0x3FFF => {
                 let byte = byte & 0b0001_1111;
                 self.rom_bank_lower_bits = if byte == 0 { 1 } else { byte };
-            },
+            }
             0x4000..=0x5FFF => {
                 self.upper_bits = byte & 0b000_0011;
-            },
+            }
             0x6000..=0x7FFF => {
                 self.banking_mode = match byte & 0b0000_0001 {
                     0 => BankingMode::ROM,
                     1 => BankingMode::RAM,
                     _ => unreachable!("Invalid cartridge banking mode: {:04x}", byte),
                 }
-            },
+            }
             _ => unreachable!("Invalid rom write address: {:04x}", addr),
         }
     }

@@ -1,19 +1,19 @@
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 
 use core::registers::RegisterIndex::*;
-use core::registers::TwoRegisterIndex::{HL, SP, PC};
+use core::registers::TwoRegisterIndex::{HL, PC, SP};
 
 use core::emulator::{Emulator, DEBUG};
 
-use core::ppu::{LCD_WIDTH, LCD_HEIGHT, MAP_WIDTH, MAP_HEIGHT, FRAME_CYCLES};
+use core::ppu::{FRAME_CYCLES, LCD_HEIGHT, LCD_WIDTH, MAP_HEIGHT, MAP_WIDTH};
 
 const NORMAL_SPEED: bool = true;
 
 pub const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
 const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
-    (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64
+    (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64,
 );
 
 pub struct FrontendPge {
@@ -74,12 +74,15 @@ impl PgeState {
     }
 
     fn save_external_ram(&mut self) {
-        self.emulator.memory.get_external_ram()
+        self.emulator
+            .memory
+            .get_external_ram()
             .and_then(|ram| {
                 File::create(&self.save_path)
                     .and_then(|mut f| f.write_all(ram))
                     .ok()
-            }).map(|_| self.emulator.memory.mark_external_ram_as_saved());
+            })
+            .map(|_| self.emulator.memory.mark_external_ram_as_saved());
     }
 
     fn draw_maps(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
@@ -106,7 +109,10 @@ impl PgeState {
         pge.draw_sprite(x, y, &background_map_sprite, scale);
         pge.draw_sprite(x + width as i32 + gap_x, y, &window_map_sprite, scale);
 
-        (x + (scale * 256 * 2) as i32 + gap_x, y + (scale * 256) as i32)
+        (
+            x + (scale * 256 * 2) as i32 + gap_x,
+            y + (scale * 256) as i32,
+        )
     }
 
     fn draw_tileset(&self, pge: &mut pge::PGE, x: i32, y: i32, scale: usize) -> (i32, i32) {
@@ -144,58 +150,195 @@ impl PgeState {
         let (cx, cy) = (scale * 8 + 2, scale * 8 + 2);
         pge.draw_string(x, y, "REGISTERS", &pge::WHITE, scale);
 
-        pge.draw_string(x, y + cy, &format!("A: {:02X}", self.emulator.cpu.regs.read(A)), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + cy, &format!("(HL): {:02X}", self.emulator.memory.cpu_read(self.emulator.cpu.regs.read16(HL))), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + cy,
+            &format!("A: {:02X}", self.emulator.cpu.regs.read(A)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x + 6 * cx,
+            y + cy,
+            &format!(
+                "(HL): {:02X}",
+                self.emulator
+                    .memory
+                    .cpu_read(self.emulator.cpu.regs.read16(HL))
+            ),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 2 * cy, &format!("B: {:02X}", self.emulator.cpu.regs.read(B)), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + 2 * cy, &format!("C:    {:02X}", self.emulator.cpu.regs.read(C)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 2 * cy,
+            &format!("B: {:02X}", self.emulator.cpu.regs.read(B)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x + 6 * cx,
+            y + 2 * cy,
+            &format!("C:    {:02X}", self.emulator.cpu.regs.read(C)),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 3 * cy, &format!("D: {:02X}", self.emulator.cpu.regs.read(D)), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + 3 * cy, &format!("E:    {:02X}", self.emulator.cpu.regs.read(E)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 3 * cy,
+            &format!("D: {:02X}", self.emulator.cpu.regs.read(D)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x + 6 * cx,
+            y + 3 * cy,
+            &format!("E:    {:02X}", self.emulator.cpu.regs.read(E)),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 4 * cy, &format!("H: {:02X}", self.emulator.cpu.regs.read(H)), &pge::WHITE, scale);
-        pge.draw_string(x + 6 * cx, y + 4 * cy, &format!("L:    {:02X}", self.emulator.cpu.regs.read(L)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 4 * cy,
+            &format!("H: {:02X}", self.emulator.cpu.regs.read(H)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x + 6 * cx,
+            y + 4 * cy,
+            &format!("L:    {:02X}", self.emulator.cpu.regs.read(L)),
+            &pge::WHITE,
+            scale,
+        );
 
         pge.draw_string(x, y + 6 * cy, "FLAGS", &pge::WHITE, scale);
 
         let flags = self.emulator.cpu.regs.read_flags();
-        let z_color = if flags.zero { &pge::WHITE } else { &pge::DARK_GREY };
-        let n_color = if flags.subtract { &pge::WHITE } else { &pge::DARK_GREY };
-        let h_color = if flags.half_carry { &pge::WHITE } else { &pge::DARK_GREY };
-        let c_color = if flags.carry { &pge::WHITE } else { &pge::DARK_GREY };
+        let z_color = if flags.zero {
+            &pge::WHITE
+        } else {
+            &pge::DARK_GREY
+        };
+        let n_color = if flags.subtract {
+            &pge::WHITE
+        } else {
+            &pge::DARK_GREY
+        };
+        let h_color = if flags.half_carry {
+            &pge::WHITE
+        } else {
+            &pge::DARK_GREY
+        };
+        let c_color = if flags.carry {
+            &pge::WHITE
+        } else {
+            &pge::DARK_GREY
+        };
         pge.draw_string(x, y + 7 * cy, "Z", z_color, scale);
         pge.draw_string(x + 2 * cx, y + 7 * cy, "N", n_color, scale);
         pge.draw_string(x + 4 * cx, y + 7 * cy, "H", h_color, scale);
         pge.draw_string(x + 6 * cx, y + 7 * cy, "C", c_color, scale);
 
-        pge.draw_string(x, y + 9 * cy, &format!("PC: {:04X}", self.emulator.cpu.regs.read16(PC)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 10 * cy, &format!("SP: {:04X}", self.emulator.cpu.regs.read16(SP)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 9 * cy,
+            &format!("PC: {:04X}", self.emulator.cpu.regs.read16(PC)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x,
+            y + 10 * cy,
+            &format!("SP: {:04X}", self.emulator.cpu.regs.read16(SP)),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 12 * cy, &format!("CYCLES: {}", self.cycles), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 12 * cy,
+            &format!("CYCLES: {}", self.cycles),
+            &pge::WHITE,
+            scale,
+        );
 
-        let mode = if self.single_step_mode { "STEP" } else { "NORMAL" };
-        pge.draw_string(x, y + 14 * cy, &format!("MODE: {}", mode), &pge::WHITE, scale);
+        let mode = if self.single_step_mode {
+            "STEP"
+        } else {
+            "NORMAL"
+        };
+        pge.draw_string(
+            x,
+            y + 14 * cy,
+            &format!("MODE: {}", mode),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 16 * cy, &format!("TIMA: {}", self.emulator.memory.cpu_read(0xFF05)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 16 * cy,
+            &format!("TIMA: {}", self.emulator.memory.cpu_read(0xFF05)),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 18 * cy, &format!("IE: {:08b}", self.emulator.memory.cpu_read(0xFFFF)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 19 * cy, &format!("IF: {:08b}", self.emulator.memory.cpu_read(0xFF0F)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 18 * cy,
+            &format!("IE: {:08b}", self.emulator.memory.cpu_read(0xFFFF)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x,
+            y + 19 * cy,
+            &format!("IF: {:08b}", self.emulator.memory.cpu_read(0xFF0F)),
+            &pge::WHITE,
+            scale,
+        );
 
-        pge.draw_string(x, y + 21 * cy, &format!("LCDC: {:08b}", self.emulator.memory.cpu_read(0xFF40)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 22 * cy, &format!("STAT: {:08b}", self.emulator.memory.cpu_read(0xFF41)), &pge::WHITE, scale);
-        pge.draw_string(x, y + 23 * cy, &format!("LY: {}", self.emulator.memory.cpu_read(0xFF44)), &pge::WHITE, scale);
+        pge.draw_string(
+            x,
+            y + 21 * cy,
+            &format!("LCDC: {:08b}", self.emulator.memory.cpu_read(0xFF40)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x,
+            y + 22 * cy,
+            &format!("STAT: {:08b}", self.emulator.memory.cpu_read(0xFF41)),
+            &pge::WHITE,
+            scale,
+        );
+        pge.draw_string(
+            x,
+            y + 23 * cy,
+            &format!("LY: {}", self.emulator.memory.cpu_read(0xFF44)),
+            &pge::WHITE,
+            scale,
+        );
 
         let start_y = y + 25 * cy;
         let mut instructions = self.emulator.cpu.disassemble(
             &self.emulator.memory,
             self.emulator.cpu.regs.read16(PC),
-            self.emulator.cpu.regs.read16(PC) + 10
+            self.emulator.cpu.regs.read16(PC) + 10,
         );
         let num_instructions = std::cmp::min(instructions.len(), 5);
         let instructions = instructions.drain(..num_instructions);
         for (i, (addr, repr)) in instructions.enumerate() {
             let formatted = format!("{:#04x}: {}", addr, repr);
-            let color = if addr == self.emulator.cpu.regs.read16(PC) { &pge::WHITE } else { &pge::DARK_GREY };
+            let color = if addr == self.emulator.cpu.regs.read16(PC) {
+                &pge::WHITE
+            } else {
+                &pge::DARK_GREY
+            };
             pge.draw_string(x, y + start_y + (i as i32) * cy, &formatted, color, scale);
         }
     }
@@ -211,7 +354,13 @@ impl PgeState {
             }
             pge.draw_sprite(x, y, &screen_sprite, scale);
         } else {
-            pge.fill_rect(x, y, (width * scale) as i32, (height * scale) as i32, &pge::WHITE);
+            pge.fill_rect(
+                x,
+                y,
+                (width * scale) as i32,
+                (height * scale) as i32,
+                &pge::WHITE,
+            );
         }
 
         (x + (width * scale) as i32, y + (height * scale) as i32)
@@ -236,14 +385,14 @@ impl pge::State for PgeState {
         }
 
         // TODO: Trigger joypad interrupt
-        self.emulator.memory.joypad.down   = pge.get_key(minifb::Key::J).held;
-        self.emulator.memory.joypad.up     = pge.get_key(minifb::Key::K).held;
-        self.emulator.memory.joypad.left   = pge.get_key(minifb::Key::H).held;
-        self.emulator.memory.joypad.right  = pge.get_key(minifb::Key::L).held;
+        self.emulator.memory.joypad.down = pge.get_key(minifb::Key::J).held;
+        self.emulator.memory.joypad.up = pge.get_key(minifb::Key::K).held;
+        self.emulator.memory.joypad.left = pge.get_key(minifb::Key::H).held;
+        self.emulator.memory.joypad.right = pge.get_key(minifb::Key::L).held;
         self.emulator.memory.joypad.select = pge.get_key(minifb::Key::V).held;
-        self.emulator.memory.joypad.start  = pge.get_key(minifb::Key::N).held;
-        self.emulator.memory.joypad.b      = pge.get_key(minifb::Key::D).held;
-        self.emulator.memory.joypad.a      = pge.get_key(minifb::Key::F).held;
+        self.emulator.memory.joypad.start = pge.get_key(minifb::Key::N).held;
+        self.emulator.memory.joypad.b = pge.get_key(minifb::Key::D).held;
+        self.emulator.memory.joypad.a = pge.get_key(minifb::Key::F).held;
 
         if !self.single_step_mode && NORMAL_SPEED {
             let now = std::time::Instant::now();
@@ -259,7 +408,9 @@ impl pge::State for PgeState {
         if !self.single_step_mode {
             loop {
                 self.clock();
-                if self.emulator.memory.ppu.frame_complete { break };
+                if self.emulator.memory.ppu.frame_complete {
+                    break;
+                };
             }
 
             self.emulator.memory.ppu.frame_complete = false;

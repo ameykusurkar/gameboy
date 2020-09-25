@@ -1,32 +1,46 @@
 use RegisterIndex::*;
 
-pub const ZERO_FLAG: u8       = 7;
-pub const SUBTRACT_FLAG: u8   = 6;
+pub const ZERO_FLAG: u8 = 7;
+pub const SUBTRACT_FLAG: u8 = 6;
 pub const HALF_CARRY_FLAG: u8 = 5;
-pub const CARRY_FLAG: u8      = 4;
+pub const CARRY_FLAG: u8 = 4;
 
 #[derive(Default, Debug)]
 pub struct Registers {
     // TODO: Make this an array for faster lookup and cleaner code
-    a: u8, f: u8,
-    b: u8, c: u8,
-    d: u8, e: u8,
-    h: u8, l: u8,
+    a: u8,
+    f: u8,
+    b: u8,
+    c: u8,
+    d: u8,
+    e: u8,
+    h: u8,
+    l: u8,
 
-    sp_high: u8, sp_low: u8,
-    pc_high: u8, pc_low: u8,
-    temp_high: u8, temp_low: u8,
+    sp_high: u8,
+    sp_low: u8,
+    pc_high: u8,
+    pc_low: u8,
+    temp_high: u8,
+    temp_low: u8,
 }
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum RegisterIndex {
-    A, F,
-    B, C,
-    D, E,
-    H, L,
-    SPHigh, SPLow,
-    PCHigh, PCLow,
-    TempHigh, TempLow,
+    A,
+    F,
+    B,
+    C,
+    D,
+    E,
+    H,
+    L,
+    SPHigh,
+    SPLow,
+    PCHigh,
+    PCLow,
+    TempHigh,
+    TempLow,
 }
 
 #[derive(Copy, Clone, Debug)]

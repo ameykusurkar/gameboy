@@ -1,6 +1,6 @@
+use crate::audio_components::Timer;
 use crate::memory::MemoryAccess;
 use crate::utils::read_bit;
-use crate::audio_components::Timer;
 
 pub struct WaveChannel {
     channel_on: bool,
@@ -113,24 +113,12 @@ impl WaveChannel {
 impl MemoryAccess for WaveChannel {
     fn read(&self, addr: u16) -> u8 {
         match addr {
-            0xFF1A => {
-                (self.channel_on as u8) << 7
-            },
-            0xFF1B => {
-                (256 - self.length_counter) as u8
-            },
-            0xFF1C => {
-                (self.volume_shift << 5) as u8
-            },
-            0xFF1D => {
-                0xFF
-            },
-            0xFF1E => {
-                (self.length_counter_select as u8) << 6
-            },
-            0xFF30..=0xFF3F => {
-                self.wave_pattern[addr as usize - 0xFF30]
-            },
+            0xFF1A => (self.channel_on as u8) << 7,
+            0xFF1B => (256 - self.length_counter) as u8,
+            0xFF1C => (self.volume_shift << 5) as u8,
+            0xFF1D => 0xFF,
+            0xFF1E => (self.length_counter_select as u8) << 6,
+            0xFF30..=0xFF3F => self.wave_pattern[addr as usize - 0xFF30],
             _ => unreachable!("Invalid noise channel address: {:04x}", addr),
         }
     }
@@ -143,16 +131,16 @@ impl MemoryAccess for WaveChannel {
                 if !self.channel_on {
                     self.enabled = false;
                 }
-            },
+            }
             0xFF1B => {
                 self.length_counter = 256 - byte as u32;
-            },
+            }
             0xFF1C => {
                 self.volume_shift = ((byte & 0b0110_0000) >> 5) as u32;
-            },
+            }
             0xFF1D => {
                 self.set_frequency_low_bits(byte);
-            },
+            }
             0xFF1E => {
                 self.set_frequency_high_bits(byte & 0b0000_0111);
 
@@ -163,10 +151,10 @@ impl MemoryAccess for WaveChannel {
                 }
 
                 self.length_counter_select = read_bit(byte, 6);
-            },
+            }
             0xFF30..=0xFF3F => {
                 self.wave_pattern[addr as usize - 0xFF30] = byte;
-            },
+            }
             _ => unreachable!("Invalid noise channel address: {:04x}", addr),
         }
     }
