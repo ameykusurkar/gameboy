@@ -1,6 +1,6 @@
+use core::bootrom::BOOTROM;
 use core::cpu::Cpu;
 use core::memory::Memory;
-use core::bootrom::BOOTROM;
 
 pub struct TestEmulator {
     cpu: Cpu,
@@ -31,4 +31,3 @@ impl TestEmulator {
         std::str::from_utf8(self.raw_serial_buffer()).unwrap()
     }
 }
-

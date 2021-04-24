@@ -1,12 +1,7 @@
-use crate::ppu::{
-    Ppu,
-    PPU_REGISTER_ADDR_RANGE,
-    CGB_PPU_REGISTER_ADDR_RANGE,
-    VBK_ADDR,
-};
-use crate::joypad::Joypad;
-use crate::serial_transfer::SerialTransfer;
 use crate::cartridge::Cartridge;
+use crate::joypad::Joypad;
+use crate::ppu::{Ppu, CGB_PPU_REGISTER_ADDR_RANGE, PPU_REGISTER_ADDR_RANGE, VBK_ADDR};
+use crate::serial_transfer::SerialTransfer;
 use crate::sound_controller::SoundController;
 use crate::utils::{read_bit, set_bit};
 
@@ -15,10 +10,10 @@ const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;
 // Address for the timer register (TIMA). The increment frequency is specified in the TAC register.
 const TIMA_ADDR: u16 = 0xFF05;
 // When TIMA overflows, the data at this address will be loaded.
-const TMA_ADDR: u16  = 0xFF06;
+const TMA_ADDR: u16 = 0xFF06;
 // Address for the timer control register. Bit 2 specifies if the timer is active, and bits 1-0
 // specify the frequency at which to increment the timer.
-const TAC_ADDR: u16  = 0xFF07;
+const TAC_ADDR: u16 = 0xFF07;
 
 // Address of the interrupt enable register
 const IE_ADDR: u16 = 0xFFFF;
@@ -115,7 +110,7 @@ impl Memory {
             MemoryMode::DmaNoop(start_addr) => {
                 self.dma_state = Some(DmaState(start_addr, 0));
                 self.memory_mode = MemoryMode::Normal;
-            },
+            }
         }
     }
 
@@ -181,41 +176,39 @@ impl Memory {
             // Cartridge
             0x0000..=0x7FFF => {
                 self.cartridge.write(addr, val);
-            },
+            }
             // External RAM, also handled by cartridge
             0xA000..=0xBFFF => {
                 self.cartridge.write(addr, val);
-            },
-            0xC000..=0xDFFF => {
-                self.work_ram.write(addr as u16, val, self.is_cgb())
-            },
+            }
+            0xC000..=0xDFFF => self.work_ram.write(addr as u16, val, self.is_cgb()),
             // Joypad
             0xFF00 => {
                 self.joypad.write(addr, val);
-            },
+            }
             0xFF01 | 0xFF02 => {
                 self.serial_transfer.write(addr, val);
-            },
+            }
             0xFF04 => {
                 self.div = 0x00;
-            },
+            }
             _ if Self::is_io_addr(addr) => {
                 self.io_registers.write(addr, val);
-            },
+            }
             0xFF70 => {
                 self.work_ram.bank_no = (val & 0b0000_0111) as usize;
-            },
+            }
             _ if Self::is_sound_addr(addr) => {
                 self.sound_controller.write(addr, val);
-            },
+            }
             _ if Self::is_ppu_addr(addr) => {
                 self.ppu.write(addr, val);
-            },
+            }
             // DMA Transfer
             0xFF46 => {
                 let start_addr = (val as u16) << 8;
                 self.memory_mode = MemoryMode::DmaTriggered(start_addr);
-            },
+            }
             _ => self.memory[addr as usize] = val,
         }
     }
@@ -239,9 +232,7 @@ impl Memory {
     }
 
     fn is_io_addr(addr: u16) -> bool {
-        (0xFF05..=0xFF07).contains(&addr)
-            || addr == IE_ADDR
-            || addr == IF_ADDR
+        (0xFF05..=0xFF07).contains(&addr) || addr == IE_ADDR || addr == IF_ADDR
     }
 
     pub fn get_external_ram(&self) -> Option<&[u8]> {

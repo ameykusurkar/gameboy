@@ -40,9 +40,8 @@ impl MemoryAccess for SerialTransfer {
                 if self.serial_transfer_control == 0x81 {
                     self.buffer.push(self.serial_transfer_data);
                 }
-            },
+            }
             _ => unreachable!("Invalid serial transfer address: {:04x}", addr),
         }
     }
 }
-

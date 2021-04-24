@@ -1,15 +1,15 @@
-use std::path::PathBuf;
 use std::fs::File;
 use std::io::Write;
+use std::path::PathBuf;
 
 use sdl2;
 
+use sdl2::event::Event;
+use sdl2::gfx::framerate::FPSManager;
+use sdl2::keyboard::Scancode;
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
-use sdl2::event::Event;
 use sdl2::rect::Rect;
-use sdl2::keyboard::Scancode;
-use sdl2::gfx::framerate::FPSManager;
 
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
@@ -62,7 +62,7 @@ impl AudioCallback for SdlState {
                 2 => {
                     xs[0] = left_sample;
                     xs[1] = right_sample;
-                },
+                }
                 _ => xs[0] = (left_sample + right_sample) / 2.0,
             }
 
@@ -80,25 +80,34 @@ impl FrontendSdl {
         let desired_spec = AudioSpecDesired {
             freq: Some(44_100),
             channels: Some(2),  // request stereo
-            samples: Some(512)  // default sample size
+            samples: Some(512), // default sample size
         };
 
         let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
             println!("{:?}", spec);
 
-            SdlState { emulator, sound_on: true, num_channels: spec.channels as usize }
+            SdlState {
+                emulator,
+                sound_on: true,
+                num_channels: spec.channels as usize,
+            }
         })?;
         println!("AUDIO DEVICE CREATED");
 
         audio_device.resume();
 
-        let window = video_subsystem.window("Gameboy", LCD_WIDTH * SCALE, LCD_HEIGHT * SCALE)
+        let window = video_subsystem
+            .window("Gameboy", LCD_WIDTH * SCALE, LCD_HEIGHT * SCALE)
             .position_centered()
             .opengl()
             .build()
             .map_err(|e| e.to_string())?;
 
-        let mut canvas = window.into_canvas().present_vsync().build().map_err(|e| e.to_string())?;
+        let mut canvas = window
+            .into_canvas()
+            .present_vsync()
+            .build()
+            .map_err(|e| e.to_string())?;
         let texture_creator = canvas.texture_creator();
 
         let mut texture = texture_creator
@@ -119,11 +128,14 @@ impl FrontendSdl {
         'running: loop {
             for event in event_pump.poll_iter() {
                 match event {
-                    Event::Quit {..} => { break 'running },
-                    Event::KeyDown { scancode: Some(Scancode::M), .. } => {
+                    Event::Quit { .. } => break 'running,
+                    Event::KeyDown {
+                        scancode: Some(Scancode::M),
+                        ..
+                    } => {
                         let mut device = audio_device.lock();
                         device.sound_on ^= true;
-                    },
+                    }
                     _ => {}
                 }
             }
@@ -135,14 +147,22 @@ impl FrontendSdl {
 
                 if device.emulator.memory.ppu.frame_complete {
                     // TODO: Trigger joypad interrupt
-                    device.emulator.memory.joypad.down   = keyboard_state.is_scancode_pressed(Scancode::J);
-                    device.emulator.memory.joypad.up     = keyboard_state.is_scancode_pressed(Scancode::K);
-                    device.emulator.memory.joypad.left   = keyboard_state.is_scancode_pressed(Scancode::H);
-                    device.emulator.memory.joypad.right  = keyboard_state.is_scancode_pressed(Scancode::L);
-                    device.emulator.memory.joypad.select = keyboard_state.is_scancode_pressed(Scancode::V);
-                    device.emulator.memory.joypad.start  = keyboard_state.is_scancode_pressed(Scancode::N);
-                    device.emulator.memory.joypad.b      = keyboard_state.is_scancode_pressed(Scancode::D);
-                    device.emulator.memory.joypad.a      = keyboard_state.is_scancode_pressed(Scancode::F);
+                    device.emulator.memory.joypad.down =
+                        keyboard_state.is_scancode_pressed(Scancode::J);
+                    device.emulator.memory.joypad.up =
+                        keyboard_state.is_scancode_pressed(Scancode::K);
+                    device.emulator.memory.joypad.left =
+                        keyboard_state.is_scancode_pressed(Scancode::H);
+                    device.emulator.memory.joypad.right =
+                        keyboard_state.is_scancode_pressed(Scancode::L);
+                    device.emulator.memory.joypad.select =
+                        keyboard_state.is_scancode_pressed(Scancode::V);
+                    device.emulator.memory.joypad.start =
+                        keyboard_state.is_scancode_pressed(Scancode::N);
+                    device.emulator.memory.joypad.b =
+                        keyboard_state.is_scancode_pressed(Scancode::D);
+                    device.emulator.memory.joypad.a =
+                        keyboard_state.is_scancode_pressed(Scancode::F);
 
                     if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
                         let width = LCD_WIDTH as usize;
@@ -153,13 +173,17 @@ impl FrontendSdl {
                                 let (r, g, b) = Self::color(*pixel);
 
                                 let offset = y * pitch + x * 3;
-                                buffer[offset]     = r;
+                                buffer[offset] = r;
                                 buffer[offset + 1] = g;
                                 buffer[offset + 2] = b;
                             }
                         })?;
 
-                        canvas.copy(&texture, None, Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)))?;
+                        canvas.copy(
+                            &texture,
+                            None,
+                            Some(Rect::new(0, 0, LCD_WIDTH, LCD_HEIGHT)),
+                        )?;
                         canvas.present();
                     }
 
@@ -175,12 +199,14 @@ impl FrontendSdl {
     }
 
     fn save_external_ram(memory: &mut Memory, save_path: &PathBuf) {
-        memory.get_external_ram()
+        memory
+            .get_external_ram()
             .and_then(|ram| {
                 File::create(save_path)
                     .and_then(|mut f| f.write_all(ram))
                     .ok()
-            }).map(|_| memory.mark_external_ram_as_saved());
+            })
+            .map(|_| memory.mark_external_ram_as_saved());
     }
 
     fn color(pixel: PixelColor) -> (u8, u8, u8) {

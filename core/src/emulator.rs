@@ -1,7 +1,7 @@
-use crate::cpu::Cpu;
-use crate::ppu::PixelColor;
-use crate::memory::Memory;
 use crate::bootrom::{BOOTROM, CGB_BOOTROM};
+use crate::cpu::Cpu;
+use crate::memory::Memory;
+use crate::ppu::PixelColor;
 
 pub const DEBUG: bool = false;
 

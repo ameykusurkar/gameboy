@@ -1,4 +1,4 @@
-use crate::memory::{MemoryAccess, IoRegisters};
+use crate::memory::{IoRegisters, MemoryAccess};
 use crate::utils::{read_bit, set_bit};
 
 const NUM_PIXELS_IN_LINE: usize = 8;
@@ -23,22 +23,22 @@ pub const FRAME_CYCLES: u32 = SCANLINE_CYCLES * LINES_PER_FRAME;
 const SPRITES_PER_LINE: usize = 10;
 
 const VBLANK_INTERRUPT: u8 = 0;
-const STAT_INTERRUPT: u8   = 1;
+const STAT_INTERRUPT: u8 = 1;
 
 // Video I/O Register addresses
 const LCDC_ADDR: u16 = 0xFF40;
 const STAT_ADDR: u16 = 0xFF41;
-const SCY_ADDR: u16  = 0xFF42;
-const SCX_ADDR: u16  = 0xFF43;
-const LY_ADDR: u16   = 0xFF44;
-const LYC_ADDR: u16  = 0xFF45;
-const BGP_ADDR: u16  = 0xFF47;
+const SCY_ADDR: u16 = 0xFF42;
+const SCX_ADDR: u16 = 0xFF43;
+const LY_ADDR: u16 = 0xFF44;
+const LYC_ADDR: u16 = 0xFF45;
+const BGP_ADDR: u16 = 0xFF47;
 const OBP0_ADDR: u16 = 0xFF48;
 const OBP1_ADDR: u16 = 0xFF49;
-const WY_ADDR: u16   = 0xFF4A;
-const WX_ADDR: u16   = 0xFF4B;
+const WY_ADDR: u16 = 0xFF4A;
+const WX_ADDR: u16 = 0xFF4B;
 
-pub const VBK_ADDR: u16  = 0xFF4F;
+pub const VBK_ADDR: u16 = 0xFF4F;
 
 const BGPI_ADDR: u16 = 0xFF68;
 const BGPD_ADDR: u16 = 0xFF69;
@@ -119,33 +119,33 @@ impl MemoryAccess for Ppu {
             BGPD_ADDR => {
                 let offset = self.regs.bgpi & 0b0011_1111;
                 self.background_color_palette.read(offset as usize)
-            },
+            }
             OBPI_ADDR => self.regs.obpi,
             OBPD_ADDR => {
                 let offset = self.regs.obpi & 0b0011_1111;
                 self.sprite_color_palette.read(offset as usize)
-            },
+            }
             0xFE00..=0xFE9F => {
                 if self.oam_blocked() {
                     0xFF
                 } else {
                     self.oam[(addr as usize) - 0xFE00]
                 }
-            },
+            }
             0x8000..=0x97FF => {
                 if self.vram_blocked() {
                     0xFF
                 } else {
                     self.vram.read(addr)
                 }
-            },
+            }
             0x9800..=0x9FFF => {
                 if self.vram_blocked() {
                     0xFF
                 } else {
                     self.vram.read(addr)
                 }
-            },
+            }
             VBK_ADDR => self.vram.read(addr),
             _ => unreachable!("Invalid ppu addr: {:04x}", addr),
         }
@@ -167,7 +167,7 @@ impl MemoryAccess for Ppu {
                 if prev_lcd_on && !curr_lcd_on {
                     self.switch_off_lcd();
                 }
-            },
+            }
             STAT_ADDR => self.regs.stat = byte,
             SCY_ADDR => self.regs.scy = byte,
             SCX_ADDR => self.regs.scx = byte,
@@ -204,17 +204,17 @@ impl MemoryAccess for Ppu {
                 if !self.oam_blocked() {
                     self.oam[(addr as usize) - 0xFE00] = byte;
                 }
-            },
+            }
             0x8000..=0x97FF => {
                 if !self.vram_blocked() {
                     self.vram.write(addr, byte);
                 }
-            },
+            }
             0x9800..=0x9FFF => {
                 if !self.vram_blocked() {
                     self.vram.write(addr, byte);
                 }
-            },
+            }
             VBK_ADDR => self.vram.write(addr, byte),
             _ => unreachable!("Invalid ppu addr: {:04x}", addr),
         }
@@ -306,10 +306,10 @@ impl Ppu {
                     io_registers.request_interrupt(VBLANK_INTERRUPT);
                     self.frame_complete = true;
                     self.screen_buffer.flip();
-                },
+                }
                 LcdMode::PixelTransfer => {
                     self.visible_sprites = self.compute_sprites_for_line(self.scanline);
-                },
+                }
                 _ => (),
             }
 
@@ -349,7 +349,10 @@ impl Ppu {
 
         for x in start_x..(start_x + 4) {
             let mut background_pixel = if is_cgb {
-                (PixelData(0), PixelData(0).with_cgb_color(0, &self.background_color_palette))
+                (
+                    PixelData(0),
+                    PixelData(0).with_cgb_color(0, &self.background_color_palette),
+                )
             } else {
                 let background_palette = self.read(BGP_ADDR);
                 (PixelData(0), PixelData(0).with_color(background_palette))
@@ -371,7 +374,10 @@ impl Ppu {
 
                 if should_draw {
                     background_pixel = self.get_background_pixel_color(
-                        x - window_x, y - window_y, self.get_window_map_no(), is_cgb,
+                        x - window_x,
+                        y - window_y,
+                        self.get_window_map_no(),
+                        is_cgb,
                     );
                 }
             }
@@ -380,9 +386,12 @@ impl Ppu {
 
             if sprites_enabled {
                 // Finds first non-transparent sprite pixel, if any
-                self.get_sprites_at_x(x as u8).iter()
+                self.get_sprites_at_x(x as u8)
+                    .iter()
                     .filter(|sprite| sprite.has_priority(background_pixel.0))
-                    .find_map(|sprite| self.get_sprite_pixel_color(sprite, x as u8, self.scanline as u8, is_cgb))
+                    .find_map(|sprite| {
+                        self.get_sprite_pixel_color(sprite, x as u8, self.scanline as u8, is_cgb)
+                    })
                     .map(|sprite_pixel_color| pixel = sprite_pixel_color);
             }
 
@@ -392,13 +401,22 @@ impl Ppu {
     }
 
     fn get_sprites_at_x(&self, x: u8) -> Vec<&Sprite> {
-        self.visible_sprites.iter().filter(|sprite| {
-            let x_start = sprite.x as i32 - 8;
-            (x_start..x_start+(NUM_PIXELS_IN_LINE as i32)).contains(&(x as i32))
-        }).collect()
+        self.visible_sprites
+            .iter()
+            .filter(|sprite| {
+                let x_start = sprite.x as i32 - 8;
+                (x_start..x_start + (NUM_PIXELS_IN_LINE as i32)).contains(&(x as i32))
+            })
+            .collect()
     }
 
-    fn get_sprite_pixel_color(&self, sprite: &Sprite, x: u8, y: u8, is_cgb: bool) -> Option<PixelColor> {
+    fn get_sprite_pixel_color(
+        &self,
+        sprite: &Sprite,
+        x: u8,
+        y: u8,
+        is_cgb: bool,
+    ) -> Option<PixelColor> {
         let (x_start, y_start) = (sprite.x as i32 - 8, sprite.y as i32 - 16);
         let (mut line_x, mut line_y) = ((x as i32 - x_start) as u8, (y as i32 - y_start) as u8);
 
@@ -421,7 +439,7 @@ impl Ppu {
             } else {
                 let tile_no = sprite.tile_no | 0x01; // Lower tile number
                 let tile = self.get_sprite_tile(tile_no);
-                tile.pixel_at(line_x, line_y-8)
+                tile.pixel_at(line_x, line_y - 8)
             }
         } else {
             let tile = self.get_sprite_tile(sprite.tile_no);
@@ -434,38 +452,40 @@ impl Ppu {
         }
 
         if is_cgb {
-          let pixel_color = PixelData(pixel_data.0)
-              .with_cgb_color(sprite.cgb_palette_no as usize, &self.sprite_color_palette);
-          Some(pixel_color)
+            let pixel_color = PixelData(pixel_data.0)
+                .with_cgb_color(sprite.cgb_palette_no as usize, &self.sprite_color_palette);
+            Some(pixel_color)
         } else {
-          let palette = match sprite.palette_no {
-            0 => self.read(OBP0_ADDR),
-            1 => self.read(OBP1_ADDR),
-            _ => unreachable!("Invalid palette_no: {}", sprite.palette_no),
-          };
+            let palette = match sprite.palette_no {
+                0 => self.read(OBP0_ADDR),
+                1 => self.read(OBP1_ADDR),
+                _ => unreachable!("Invalid palette_no: {}", sprite.palette_no),
+            };
 
-          Some(pixel_data.with_color(palette))
+            Some(pixel_data.with_color(palette))
         }
     }
 
     fn compute_sprites_for_line(&self, line_no: u32) -> Vec<Sprite> {
         let sprites = self.oam.chunks(4).map(|bytes| Sprite::from(bytes));
 
-        let mut sprites_on_line_enumerated: Vec<_> = sprites.filter(|sprite| {
-            let y_start = sprite.y as i32 - 16;
-            let y_length = if self.sprite16_mode() {
-                16
-            } else {
-                8
-            };
+        let mut sprites_on_line_enumerated: Vec<_> = sprites
+            .filter(|sprite| {
+                let y_start = sprite.y as i32 - 16;
+                let y_length = if self.sprite16_mode() { 16 } else { 8 };
 
-            sprite.x != 0 && (y_start..y_start+y_length).contains(&(line_no as i32))
-        }).enumerate().collect();
+                sprite.x != 0 && (y_start..y_start + y_length).contains(&(line_no as i32))
+            })
+            .enumerate()
+            .collect();
 
         sprites_on_line_enumerated.sort_by_key(|(i, sprite)| (sprite.x, *i));
 
         let num_sprites = std::cmp::min(SPRITES_PER_LINE, sprites_on_line_enumerated.len());
-        sprites_on_line_enumerated.drain(0..num_sprites).map(|(_, s)| s).collect()
+        sprites_on_line_enumerated
+            .drain(0..num_sprites)
+            .map(|(_, s)| s)
+            .collect()
     }
 
     fn get_background_pixel(&self, x: u8, y: u8, map_no: usize) -> PixelData {
@@ -476,7 +496,13 @@ impl Ppu {
         tile.pixel_at(line_x, line_y)
     }
 
-    fn get_background_pixel_color(&self, x: u8, y: u8, map_no: usize, is_cgb: bool) -> (PixelData, PixelColor) {
+    fn get_background_pixel_color(
+        &self,
+        x: u8,
+        y: u8,
+        map_no: usize,
+        is_cgb: bool,
+    ) -> (PixelData, PixelColor) {
         let pixel_data = self.get_background_pixel(x, y, map_no);
 
         let pixel_color = if is_cgb {
@@ -564,11 +590,13 @@ impl Ppu {
 
     // TODO: Iterator over x, y
     pub fn get_map_data(&self, map_no: usize) -> Vec<u8> {
-        (0..MAP_WIDTH * MAP_HEIGHT).map(|i| {
-            let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
-            // Since we are using u8, x and y should automatically wrap around 256
-            self.get_background_pixel(x as u8, y as u8, map_no).0
-        }).collect()
+        (0..MAP_WIDTH * MAP_HEIGHT)
+            .map(|i| {
+                let (x, y) = (i % MAP_WIDTH, i / MAP_WIDTH);
+                // Since we are using u8, x and y should automatically wrap around 256
+                self.get_background_pixel(x as u8, y as u8, map_no).0
+            })
+            .collect()
     }
 
     pub fn get_tileset(&self) -> Vec<u8> {
@@ -577,7 +605,12 @@ impl Ppu {
         let mut pixels = vec![0; num_tiles * num_pixels_in_tile];
 
         let palette = self.read(BGP_ADDR);
-        for (tile_index, tile) in self.vram.read_tile_data_range(0x8000, 0x9800).chunks(TILE_NUM_BYTES).enumerate() {
+        for (tile_index, tile) in self
+            .vram
+            .read_tile_data_range(0x8000, 0x9800)
+            .chunks(TILE_NUM_BYTES)
+            .enumerate()
+        {
             for p in 0..num_pixels_in_tile {
                 let (line_x, line_y) = (p % NUM_PIXELS_IN_LINE, p / NUM_PIXELS_IN_LINE);
                 let x = (tile_index % 16) * NUM_PIXELS_IN_LINE + line_x;
@@ -643,13 +676,13 @@ impl DoubleBuffer {
     fn buffer_at_index(&self, index: usize) -> &[PixelColor] {
         let size = (LCD_WIDTH * LCD_HEIGHT) as usize;
         let offset = index * size;
-        &self.buffer[offset..offset+size]
+        &self.buffer[offset..offset + size]
     }
 
     fn buffer_at_index_mut(&mut self, index: usize) -> &mut [PixelColor] {
         let size = (LCD_WIDTH * LCD_HEIGHT) as usize;
         let offset = index * size;
-        &mut self.buffer[offset..offset+size]
+        &mut self.buffer[offset..offset + size]
     }
 }
 
@@ -701,19 +734,15 @@ pub struct Vram {
 impl MemoryAccess for Vram {
     fn read(&self, addr: u16) -> u8 {
         match addr {
-            0x8000..=0x97FF => {
-                match self.bank_no {
-                    0 => self.tile_data0[addr as usize - 0x8000],
-                    1 => self.tile_data1[addr as usize - 0x8000],
-                    _ => unreachable!("Invalid vram bank: {}", self.bank_no),
-                }
+            0x8000..=0x97FF => match self.bank_no {
+                0 => self.tile_data0[addr as usize - 0x8000],
+                1 => self.tile_data1[addr as usize - 0x8000],
+                _ => unreachable!("Invalid vram bank: {}", self.bank_no),
             },
-            0x9800..=0x9FFF => {
-                match self.bank_no {
-                    0 => self.background_maps[addr as usize - 0x9800],
-                    1 => self.background_attributes[addr as usize - 0x9800],
-                    _ => unreachable!("Invalid vram bank: {}", self.bank_no),
-                }
+            0x9800..=0x9FFF => match self.bank_no {
+                0 => self.background_maps[addr as usize - 0x9800],
+                1 => self.background_attributes[addr as usize - 0x9800],
+                _ => unreachable!("Invalid vram bank: {}", self.bank_no),
             },
             VBK_ADDR => self.bank_no as u8,
             _ => unreachable!("Invalid VRAM address: {:04x}", addr),
@@ -722,19 +751,15 @@ impl MemoryAccess for Vram {
 
     fn write(&mut self, addr: u16, byte: u8) {
         match addr {
-            0x8000..=0x97FF => {
-                match self.bank_no {
-                    0 => self.tile_data0[addr as usize - 0x8000] = byte,
-                    1 => self.tile_data1[addr as usize - 0x8000] = byte,
-                    _ => unreachable!("Invalid vram bank: {}", self.bank_no),
-                }
+            0x8000..=0x97FF => match self.bank_no {
+                0 => self.tile_data0[addr as usize - 0x8000] = byte,
+                1 => self.tile_data1[addr as usize - 0x8000] = byte,
+                _ => unreachable!("Invalid vram bank: {}", self.bank_no),
             },
-            0x9800..=0x9FFF => {
-                match self.bank_no {
-                    0 => self.background_maps[addr as usize - 0x9800] = byte,
-                    1 => self.background_attributes[addr as usize - 0x9800] = byte,
-                    _ => unreachable!("Invalid vram bank: {}", self.bank_no),
-                }
+            0x9800..=0x9FFF => match self.bank_no {
+                0 => self.background_maps[addr as usize - 0x9800] = byte,
+                1 => self.background_attributes[addr as usize - 0x9800] = byte,
+                _ => unreachable!("Invalid vram bank: {}", self.bank_no),
             },
             VBK_ADDR => self.bank_no = (byte & 0b1) as usize,
             _ => unreachable!("Invalid VRAM address: {:04x}", addr),
@@ -762,23 +787,32 @@ impl Vram {
 
     fn get_background_map(&self, map_no: usize) -> &[u8] {
         let addr_start = map_no * 0x400;
-        &self.background_maps[addr_start..addr_start+0x400]
+        &self.background_maps[addr_start..addr_start + 0x400]
     }
 
     fn get_background_attributes(&self, map_no: usize) -> &[u8] {
         let addr_start = map_no * 0x400;
-        &self.background_attributes[addr_start..addr_start+0x400]
+        &self.background_attributes[addr_start..addr_start + 0x400]
     }
 
     fn get_tile_number(&self, x: u8, y: u8, map_no: usize) -> TileNumber {
-        let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
+        let (tile_x, tile_y) = (
+            x as usize / NUM_PIXELS_IN_LINE,
+            y as usize / NUM_PIXELS_IN_LINE,
+        );
         let tile_number = self.get_background_map(map_no)[tile_y * 32 + tile_x];
-        let bank_no = read_bit(self.get_background_attributes(map_no)[tile_y * 32 + tile_x], 3);
+        let bank_no = read_bit(
+            self.get_background_attributes(map_no)[tile_y * 32 + tile_x],
+            3,
+        );
         TileNumber(tile_number, bank_no as usize)
     }
 
     fn get_tile_palette_no(&self, x: u8, y: u8, map_no: usize) -> usize {
-        let (tile_x, tile_y) = (x as usize / NUM_PIXELS_IN_LINE, y as usize / NUM_PIXELS_IN_LINE);
+        let (tile_x, tile_y) = (
+            x as usize / NUM_PIXELS_IN_LINE,
+            y as usize / NUM_PIXELS_IN_LINE,
+        );
         self.get_background_attributes(map_no)[tile_y * 32 + tile_x] as usize & 0b111
     }
 
@@ -796,9 +830,13 @@ impl Vram {
         };
 
         if bank_no == 0 {
-            self.tile_data0[start_index..start_index+TILE_NUM_BYTES].as_ref().into()
+            self.tile_data0[start_index..start_index + TILE_NUM_BYTES]
+                .as_ref()
+                .into()
         } else {
-            self.tile_data1[start_index..start_index+TILE_NUM_BYTES].as_ref().into()
+            self.tile_data1[start_index..start_index + TILE_NUM_BYTES]
+                .as_ref()
+                .into()
         }
     }
 }
@@ -842,9 +880,7 @@ struct ColorPalette {
 
 impl ColorPalette {
     fn new() -> Self {
-        Self {
-            bytes: [0; 64],
-        }
+        Self { bytes: [0; 64] }
     }
 
     fn read(&self, offset: usize) -> u8 {

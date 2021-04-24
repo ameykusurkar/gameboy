@@ -30,18 +30,18 @@ impl Cartridge {
             0x00 => 0,
             0x01 => 1 << (10 + 1), // 2KB
             0x02 => 1 << (10 + 3), // 8KB
-            _    => 1 << (10 + 5), // 32KB
+            _ => 1 << (10 + 5),    // 32KB
         };
 
         println!("CARTRIDGE TYPE: {:02x}h", rom[0x0147]);
         println!("CGB FLAG: {:02x}h", rom[0x0143]);
 
         let mbc: Box<dyn Mbc + Send> = match rom[0x147] {
-            0x00        => Box::new(NoMbc::default()),
+            0x00 => Box::new(NoMbc::default()),
             0x01..=0x02 => Box::new(Mbc1::new(false)), // without battery
-            0x03        => Box::new(Mbc1::new(true)),  // with battery
+            0x03 => Box::new(Mbc1::new(true)),         // with battery
             0x11..=0x12 => Box::new(Mbc3::new(false)), // without battery
-            0x0F | 0x10 | 0x13 => Box::new(Mbc3::new(true)),  // with battery
+            0x0F | 0x10 | 0x13 => Box::new(Mbc3::new(true)), // with battery
             _ => unimplemented!("Unimplemented cartridge type: {:02x}h", rom[0x147]),
         };
 
@@ -58,24 +58,16 @@ impl Cartridge {
 impl MemoryAccess for Cartridge {
     fn read(&self, addr: u16) -> u8 {
         match addr {
-            0x0000..=0x7FFF => {
-                self.mbc.read_rom(&self.rom, addr)
-            },
-            0xA000..=0xBFFF => {
-                self.mbc.read_ram(&self.ram, addr)
-            },
+            0x0000..=0x7FFF => self.mbc.read_rom(&self.rom, addr),
+            0xA000..=0xBFFF => self.mbc.read_ram(&self.ram, addr),
             _ => unreachable!("Invalid cartridge read address: {:04x}", addr),
         }
     }
 
     fn write(&mut self, addr: u16, byte: u8) {
         match addr {
-            0x0000..=0x7FFF => {
-                self.mbc.write_rom(&mut self.rom, addr, byte)
-            },
-            0xA000..=0xBFFF => {
-                self.mbc.write_ram(&mut self.ram, addr, byte)
-            },
+            0x0000..=0x7FFF => self.mbc.write_rom(&mut self.rom, addr, byte),
+            0xA000..=0xBFFF => self.mbc.write_ram(&mut self.ram, addr, byte),
             _ => unreachable!("Invalid cartridge write address: {:04x}", addr),
         }
     }
@@ -90,10 +82,16 @@ impl Mbc for NoMbc {
     }
 
     fn write_rom(&mut self, _rom: &mut [u8], _addr: u16, _byte: u8) {}
-    fn read_ram(&self, _ram: &[u8], _addr: u16) -> u8 { 0xFF }
+    fn read_ram(&self, _ram: &[u8], _addr: u16) -> u8 {
+        0xFF
+    }
     fn write_ram(&mut self, _ram: &mut [u8], _addr: u16, _byte: u8) {}
 
-    fn has_battery(&self) -> bool { false }
-    fn should_save_ram(&self) -> bool { false }
+    fn has_battery(&self) -> bool {
+        false
+    }
+    fn should_save_ram(&self) -> bool {
+        false
+    }
     fn mark_ram_as_saved(&mut self) {}
 }

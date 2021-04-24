@@ -1,6 +1,6 @@
+use crate::audio_components::{Timer, VolumeEnvelope};
 use crate::memory::MemoryAccess;
 use crate::utils::read_bit;
-use crate::audio_components::{Timer, VolumeEnvelope};
 
 pub struct SquareWaveChannel {
     frame_timer: Timer,
@@ -162,7 +162,7 @@ impl MemoryAccess for SquareWaveChannel {
                 (self.sweep_timer.period as u8) << 4
                     | (self.frequency_subtract_mode as u8) << 3
                     | self.sweep_shift as u8
-            },
+            }
             0xFF11 | 0xFF16 => {
                 let duty_cycle = match self.waveform {
                     0b0000_0001 => 0,
@@ -173,18 +173,14 @@ impl MemoryAccess for SquareWaveChannel {
                 };
 
                 (duty_cycle << 6 | (64 - self.length_counter)) as u8
-            },
+            }
             0xFF12 | 0xFF17 => {
                 (self.volume_envelope.initial << 4) as u8
                     | (self.volume_envelope.inc_mode as u8) << 3
                     | self.volume_envelope.timer.period as u8
-            },
-            0xFF13 | 0xFF18 => {
-                0xFF
-            },
-            0xFF14 | 0xFF19 => {
-                (self.length_counter_select as u8) << 6
-            },
+            }
+            0xFF13 | 0xFF18 => 0xFF,
+            0xFF14 | 0xFF19 => (self.length_counter_select as u8) << 6,
             _ => unreachable!("Invalid square wave address: {:04x}", addr),
         }
     }
@@ -195,7 +191,7 @@ impl MemoryAccess for SquareWaveChannel {
                 self.sweep_timer.period = ((byte & 0b0111_0000) >> 4) as u32;
                 self.frequency_subtract_mode = read_bit(byte, 3);
                 self.sweep_shift = (byte & 0b0000_0111) as u32;
-            },
+            }
             0xFF11 | 0xFF16 => {
                 let sound_length_data = byte & 0b0011_1111;
                 self.length_counter = 64 - sound_length_data as u32;
@@ -207,7 +203,7 @@ impl MemoryAccess for SquareWaveChannel {
                     3 => 0b0111_1110, // 75%   Duty cycle
                     _ => unreachable!("Invalid duty cycle byte: {:02x}", byte),
                 };
-            },
+            }
             0xFF12 | 0xFF17 => {
                 self.volume_envelope.initial = ((byte & 0b1111_0000) >> 4) as u32;
                 self.volume_envelope.inc_mode = read_bit(byte, 3);
@@ -216,10 +212,10 @@ impl MemoryAccess for SquareWaveChannel {
                 if byte == 0x08 {
                     self.volume_envelope.increment();
                 }
-            },
+            }
             0xFF13 | 0xFF18 => {
                 self.set_frequency_low_bits(byte);
-            },
+            }
             0xFF14 | 0xFF19 => {
                 self.set_frequency_high_bits(byte & 0b0000_0111);
 
@@ -230,7 +226,7 @@ impl MemoryAccess for SquareWaveChannel {
                 }
 
                 self.length_counter_select = read_bit(byte, 6);
-            },
+            }
             _ => unreachable!("Invalid square wave address: {:04x}", addr),
         }
     }

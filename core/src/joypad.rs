@@ -17,14 +17,14 @@ pub struct Joypad {
 
 impl Joypad {
     pub fn clear(&mut self) {
-        self.down   = false;
-        self.up     = false;
-        self.left   = false;
-        self.right  = false;
-        self.start  = false;
+        self.down = false;
+        self.up = false;
+        self.left = false;
+        self.right = false;
+        self.start = false;
         self.select = false;
-        self.b      = false;
-        self.a      = false;
+        self.b = false;
+        self.a = false;
     }
 
     fn read_buttons(&self) -> u8 {
@@ -52,10 +52,7 @@ impl MemoryAccess for Joypad {
             0x0F
         };
 
-        0xC0
-            | (!self.button_selected as u8) << 5
-            | (!self.direction_selected as u8) << 4
-            | keys
+        0xC0 | (!self.button_selected as u8) << 5 | (!self.direction_selected as u8) << 4 | keys
     }
 
     fn write(&mut self, _addr: u16, byte: u8) {

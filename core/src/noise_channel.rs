@@ -1,6 +1,6 @@
+use crate::audio_components::{Timer, VolumeEnvelope};
 use crate::memory::MemoryAccess;
 use crate::utils::read_bit;
-use crate::audio_components::{Timer, VolumeEnvelope};
 
 pub struct NoiseChannel {
     frequency_timer: Timer,
@@ -104,20 +104,14 @@ impl NoiseChannel {
 impl MemoryAccess for NoiseChannel {
     fn read(&self, addr: u16) -> u8 {
         match addr {
-            0xFF20 => {
-                (64 - self.length_counter) as u8
-            },
+            0xFF20 => (64 - self.length_counter) as u8,
             0xFF21 => {
                 (self.volume_envelope.initial << 4) as u8
                     | (self.volume_envelope.inc_mode as u8) << 3
                     | self.volume_envelope.timer.period as u8
-            },
-            0xFF22 => {
-                self.counter_data
-            },
-            0xFF23 => {
-                (self.length_counter_select as u8) << 6
-            },
+            }
+            0xFF22 => self.counter_data,
+            0xFF23 => (self.length_counter_select as u8) << 6,
             _ => unreachable!("Invalid noise channel address: {:04x}", addr),
         }
     }
@@ -127,7 +121,7 @@ impl MemoryAccess for NoiseChannel {
             0xFF20 => {
                 let sound_length_data = byte & 0b0011_1111;
                 self.length_counter = 64 - sound_length_data as u32;
-            },
+            }
             0xFF21 => {
                 self.volume_envelope.initial = ((byte & 0b1111_0000) >> 4) as u32;
                 self.volume_envelope.inc_mode = read_bit(byte, 3);
@@ -136,7 +130,7 @@ impl MemoryAccess for NoiseChannel {
                 if byte == 0x08 {
                     self.volume_envelope.increment();
                 }
-            },
+            }
             0xFF22 => {
                 self.counter_data = byte;
 
@@ -150,7 +144,7 @@ impl MemoryAccess for NoiseChannel {
                 } else {
                     2 * base_period * (1 << (base_shift + 1))
                 };
-            },
+            }
             0xFF23 => {
                 let should_restart = read_bit(byte, 7);
 
@@ -159,7 +153,7 @@ impl MemoryAccess for NoiseChannel {
                 }
 
                 self.length_counter_select = read_bit(byte, 6);
-            },
+            }
             _ => unreachable!("Invalid noise channel address: {:04x}", addr),
         }
     }

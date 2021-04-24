@@ -1,9 +1,9 @@
 use crate::memory::MemoryAccess;
 use crate::utils::{read_bit, set_bit};
 
+use crate::noise_channel::NoiseChannel;
 use crate::square_wave_channel::SquareWaveChannel;
 use crate::wave_channel::WaveChannel;
-use crate::noise_channel::NoiseChannel;
 
 pub struct SoundController {
     square_wave_1: SquareWaveChannel,
@@ -124,15 +124,11 @@ impl MemoryAccess for SoundController {
             0xFF10..=0xFF14 | 0xFF16..=0xFF19 => {
                 let square_wave = self.square_wave_for_addr(addr);
                 square_wave.read(addr)
-            },
+            }
             0xFF1A..=0xFF1E => self.wave_channel.read(addr),
             0xFF20..=0xFF23 => self.noise_channel.read(addr),
-            0xFF24 => {
-                self.channel_control
-            },
-            0xFF25 => {
-                self.sound_output_select
-            },
+            0xFF24 => self.channel_control,
+            0xFF25 => self.sound_output_select,
             0xFF26 => {
                 let mut data = set_bit(0b1111_1111, 7, self.master_sound_on);
                 data = set_bit(data, 0, self.square_wave_1.enabled);
@@ -140,7 +136,7 @@ impl MemoryAccess for SoundController {
                 data = set_bit(data, 2, self.wave_channel.enabled);
                 data = set_bit(data, 3, self.noise_channel.enabled);
                 data
-            },
+            }
             0xFF30..=0xFF3F => self.wave_channel.read(addr),
             _ => unreachable!("Invalid sound controller address: {:04x}", addr),
         }
@@ -151,7 +147,7 @@ impl MemoryAccess for SoundController {
             0xFF10..=0xFF14 | 0xFF16..=0xFF19 => {
                 let square_wave = self.square_wave_for_addr_mut(addr);
                 square_wave.write(addr, byte);
-            },
+            }
             0xFF1A..=0xFF1E => self.wave_channel.write(addr, byte),
             0xFF20..=0xFF23 => self.noise_channel.write(addr, byte),
             0xFF24 => {
@@ -159,13 +155,13 @@ impl MemoryAccess for SoundController {
 
                 self.output_1_volume = byte & 0b0000_0111;
                 self.output_2_volume = (byte & 0b0111_0000) >> 4;
-            },
+            }
             0xFF25 => {
                 self.sound_output_select = byte;
-            },
+            }
             0xFF26 => {
                 self.master_sound_on = read_bit(byte, 7);
-            },
+            }
             0xFF30..=0xFF3F => self.wave_channel.write(addr, byte),
             _ => unreachable!("Invalid sound controller address: {:04x}", addr),
         }
