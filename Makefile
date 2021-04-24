@@ -1,5 +1,5 @@
 sdl:
-	cargo build --release
+	brew install sdl2 sdl2_gfx && cargo build --release
 
 wasm:
 	cd wasm/www; wasm-pack build && npm start
