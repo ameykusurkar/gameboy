@@ -40,6 +40,25 @@ struct SdlState {
     sound_on: bool,
 }
 
+trait JoypadInputController {
+    fn get_joypad_input(&self) -> JoypadInput;
+}
+
+impl<'a> JoypadInputController for KeyboardState<'a> {
+    fn get_joypad_input(&self) -> JoypadInput {
+        JoypadInput {
+            down: self.is_scancode_pressed(Scancode::J),
+            up: self.is_scancode_pressed(Scancode::K),
+            left: self.is_scancode_pressed(Scancode::H),
+            right: self.is_scancode_pressed(Scancode::L),
+            select: self.is_scancode_pressed(Scancode::V),
+            start: self.is_scancode_pressed(Scancode::N),
+            b: self.is_scancode_pressed(Scancode::D),
+            a: self.is_scancode_pressed(Scancode::F),
+        }
+    }
+}
+
 impl AudioCallback for SdlState {
     type Channel = f32;
 
@@ -148,7 +167,7 @@ impl FrontendSdl {
 
                 if device.emulator.memory.ppu.frame_complete {
                     // TODO: Trigger joypad interrupt
-                    let joypad_input = Self::process_joypad_input(keyboard_state);
+                    let joypad_input = keyboard_state.get_joypad_input();
                     device.emulator.set_joypad_input(&joypad_input);
 
                     if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
@@ -183,19 +202,6 @@ impl FrontendSdl {
         }
 
         Ok(())
-    }
-
-    fn process_joypad_input(keyboard_state: KeyboardState) -> JoypadInput {
-        JoypadInput {
-            down: keyboard_state.is_scancode_pressed(Scancode::J),
-            up: keyboard_state.is_scancode_pressed(Scancode::K),
-            left: keyboard_state.is_scancode_pressed(Scancode::H),
-            right: keyboard_state.is_scancode_pressed(Scancode::L),
-            select: keyboard_state.is_scancode_pressed(Scancode::V),
-            start: keyboard_state.is_scancode_pressed(Scancode::N),
-            b: keyboard_state.is_scancode_pressed(Scancode::D),
-            a: keyboard_state.is_scancode_pressed(Scancode::F),
-        }
     }
 
     fn save_external_ram(memory: &mut Memory, save_path: &PathBuf) {
