@@ -6,7 +6,7 @@ use sdl2;
 
 use sdl2::event::Event;
 use sdl2::gfx::framerate::FPSManager;
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{KeyboardState, Scancode};
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
@@ -14,6 +14,7 @@ use sdl2::rect::Rect;
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
 use core::emulator::Emulator;
+use core::joypad::JoypadInput;
 use core::memory::Memory;
 use core::ppu::{PixelColor, LCD_HEIGHT, LCD_WIDTH};
 
@@ -147,22 +148,8 @@ impl FrontendSdl {
 
                 if device.emulator.memory.ppu.frame_complete {
                     // TODO: Trigger joypad interrupt
-                    device.emulator.memory.joypad.down =
-                        keyboard_state.is_scancode_pressed(Scancode::J);
-                    device.emulator.memory.joypad.up =
-                        keyboard_state.is_scancode_pressed(Scancode::K);
-                    device.emulator.memory.joypad.left =
-                        keyboard_state.is_scancode_pressed(Scancode::H);
-                    device.emulator.memory.joypad.right =
-                        keyboard_state.is_scancode_pressed(Scancode::L);
-                    device.emulator.memory.joypad.select =
-                        keyboard_state.is_scancode_pressed(Scancode::V);
-                    device.emulator.memory.joypad.start =
-                        keyboard_state.is_scancode_pressed(Scancode::N);
-                    device.emulator.memory.joypad.b =
-                        keyboard_state.is_scancode_pressed(Scancode::D);
-                    device.emulator.memory.joypad.a =
-                        keyboard_state.is_scancode_pressed(Scancode::F);
+                    let joypad_input = Self::process_joypad_input(keyboard_state);
+                    device.emulator.set_joypad_input(&joypad_input);
 
                     if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
                         let width = LCD_WIDTH as usize;
@@ -196,6 +183,19 @@ impl FrontendSdl {
         }
 
         Ok(())
+    }
+
+    fn process_joypad_input(keyboard_state: KeyboardState) -> JoypadInput {
+        JoypadInput {
+            down: keyboard_state.is_scancode_pressed(Scancode::J),
+            up: keyboard_state.is_scancode_pressed(Scancode::K),
+            left: keyboard_state.is_scancode_pressed(Scancode::H),
+            right: keyboard_state.is_scancode_pressed(Scancode::L),
+            select: keyboard_state.is_scancode_pressed(Scancode::V),
+            start: keyboard_state.is_scancode_pressed(Scancode::N),
+            b: keyboard_state.is_scancode_pressed(Scancode::D),
+            a: keyboard_state.is_scancode_pressed(Scancode::F),
+        }
     }
 
     fn save_external_ram(memory: &mut Memory, save_path: &PathBuf) {
