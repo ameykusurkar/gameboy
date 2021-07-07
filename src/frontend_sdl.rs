@@ -41,12 +41,12 @@ struct SdlState {
     controller: AutoplayController,
 }
 
-trait JoypadInputController {
-    fn get_joypad_input(&mut self) -> JoypadInput;
+trait Player {
+    fn play_frame(&mut self, screen_buffer: Option<&[PixelColor]>) -> JoypadInput;
 }
 
-impl<'a> JoypadInputController for KeyboardState<'a> {
-    fn get_joypad_input(&mut self) -> JoypadInput {
+impl<'a> Player for KeyboardState<'a> {
+    fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
         JoypadInput {
             down: self.is_scancode_pressed(Scancode::J),
             up: self.is_scancode_pressed(Scancode::K),
@@ -65,8 +65,8 @@ struct AutoplayController {
     a_pressed: bool,
 }
 
-impl JoypadInputController for AutoplayController {
-    fn get_joypad_input(&mut self) -> JoypadInput {
+impl Player for AutoplayController {
+    fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
         let a = self.a_pressed;
         self.a_pressed ^= true;
 
@@ -191,8 +191,17 @@ impl FrontendSdl {
                 let mut device = audio_device.lock();
 
                 if device.emulator.memory.ppu.frame_complete {
+                    let buffer = device
+                        .emulator
+                        .get_screen_buffer()
+                        .map(|buffer| buffer.to_owned());
+
                     // TODO: Trigger joypad interrupt
-                    let joypad_input = device.controller.get_joypad_input();
+                    let joypad_input = match buffer {
+                        Some(screen_buffer) => device.controller.play_frame(Some(&screen_buffer)),
+                        None => device.controller.play_frame(None),
+                    };
+
                     device.emulator.set_joypad_input(&joypad_input);
 
                     if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
