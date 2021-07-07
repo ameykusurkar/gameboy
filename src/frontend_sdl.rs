@@ -38,14 +38,15 @@ struct SdlState {
     emulator: Emulator,
     num_channels: usize,
     sound_on: bool,
+    controller: AutoplayController,
 }
 
 trait JoypadInputController {
-    fn get_joypad_input(&self) -> JoypadInput;
+    fn get_joypad_input(&mut self) -> JoypadInput;
 }
 
 impl<'a> JoypadInputController for KeyboardState<'a> {
-    fn get_joypad_input(&self) -> JoypadInput {
+    fn get_joypad_input(&mut self) -> JoypadInput {
         JoypadInput {
             down: self.is_scancode_pressed(Scancode::J),
             up: self.is_scancode_pressed(Scancode::K),
@@ -55,6 +56,29 @@ impl<'a> JoypadInputController for KeyboardState<'a> {
             start: self.is_scancode_pressed(Scancode::N),
             b: self.is_scancode_pressed(Scancode::D),
             a: self.is_scancode_pressed(Scancode::F),
+        }
+    }
+}
+
+#[derive(Default)]
+struct AutoplayController {
+    a_pressed: bool,
+}
+
+impl JoypadInputController for AutoplayController {
+    fn get_joypad_input(&mut self) -> JoypadInput {
+        let a = self.a_pressed;
+        self.a_pressed ^= true;
+
+        JoypadInput {
+            down: false,
+            up: false,
+            left: false,
+            right: false,
+            select: false,
+            start: false,
+            b: false,
+            a,
         }
     }
 }
@@ -110,6 +134,7 @@ impl FrontendSdl {
                 emulator,
                 sound_on: true,
                 num_channels: spec.channels as usize,
+                controller: AutoplayController::default(),
             }
         })?;
         println!("AUDIO DEVICE CREATED");
@@ -160,14 +185,14 @@ impl FrontendSdl {
                 }
             }
 
-            let keyboard_state = event_pump.keyboard_state();
+            // let mut keyboard_state = event_pump.keyboard_state();
 
             {
                 let mut device = audio_device.lock();
 
                 if device.emulator.memory.ppu.frame_complete {
                     // TODO: Trigger joypad interrupt
-                    let joypad_input = keyboard_state.get_joypad_input();
+                    let joypad_input = device.controller.get_joypad_input();
                     device.emulator.set_joypad_input(&joypad_input);
 
                     if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
