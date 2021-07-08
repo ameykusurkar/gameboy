@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -19,6 +20,7 @@ use core::memory::Memory;
 use core::ppu::{PixelColor, LCD_HEIGHT, LCD_WIDTH};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
+use crate::player::{AutoplayController, AutoplayInstruction, Player};
 
 const SCALE: u32 = 3;
 
@@ -41,10 +43,6 @@ struct SdlState {
     controller: AutoplayController,
 }
 
-trait Player {
-    fn play_frame(&mut self, screen_buffer: Option<&[PixelColor]>) -> JoypadInput;
-}
-
 impl<'a> Player for KeyboardState<'a> {
     fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
         JoypadInput {
@@ -56,29 +54,6 @@ impl<'a> Player for KeyboardState<'a> {
             start: self.is_scancode_pressed(Scancode::N),
             b: self.is_scancode_pressed(Scancode::D),
             a: self.is_scancode_pressed(Scancode::F),
-        }
-    }
-}
-
-#[derive(Default)]
-struct AutoplayController {
-    a_pressed: bool,
-}
-
-impl Player for AutoplayController {
-    fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
-        let a = self.a_pressed;
-        self.a_pressed ^= true;
-
-        JoypadInput {
-            down: false,
-            up: false,
-            left: false,
-            right: false,
-            select: false,
-            start: false,
-            b: false,
-            a,
         }
     }
 }
@@ -130,11 +105,21 @@ impl FrontendSdl {
         let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
             println!("{:?}", spec);
 
+            let mut instructions = VecDeque::new();
+            instructions.push_back(AutoplayInstruction::Wait(700));
+            instructions.push_back(AutoplayInstruction::Start);
+            instructions.push_back(AutoplayInstruction::Wait(10));
+            instructions.push_back(AutoplayInstruction::A);
+            instructions.push_back(AutoplayInstruction::Wait(10));
+            instructions.push_back(AutoplayInstruction::A);
+            instructions.push_back(AutoplayInstruction::Wait(10));
+            instructions.push_back(AutoplayInstruction::A);
+
             SdlState {
                 emulator,
                 sound_on: true,
                 num_channels: spec.channels as usize,
-                controller: AutoplayController::default(),
+                controller: AutoplayController { instructions },
             }
         })?;
         println!("AUDIO DEVICE CREATED");

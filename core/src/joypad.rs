@@ -15,6 +15,7 @@ pub struct Joypad {
     pub a: bool,
 }
 
+#[derive(Default)]
 pub struct JoypadInput {
     pub down: bool,
     pub up: bool,

@@ -6,6 +6,7 @@ use clap::{App, Arg};
 
 mod frontend_pge;
 mod frontend_sdl;
+mod player;
 
 use core::emulator::Emulator;
 
