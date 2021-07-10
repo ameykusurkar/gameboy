@@ -1,4 +1,3 @@
-use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Write;
 use std::path::PathBuf;
@@ -20,7 +19,7 @@ use core::memory::Memory;
 use core::ppu::{PixelColor, LCD_HEIGHT, LCD_WIDTH};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
-use crate::player::{AutoplayController, AutoplayInstruction, Player};
+use crate::player::{AutoplayController, Player};
 
 const SCALE: u32 = 3;
 
@@ -40,7 +39,7 @@ struct SdlState {
     emulator: Emulator,
     num_channels: usize,
     sound_on: bool,
-    controller: AutoplayController,
+    controller: Option<AutoplayController>,
 }
 
 impl<'a> Player for KeyboardState<'a> {
@@ -91,7 +90,11 @@ impl AudioCallback for SdlState {
 }
 
 impl FrontendSdl {
-    pub fn start(emulator: Emulator, save_path: PathBuf) -> Result<(), String> {
+    pub fn start(
+        emulator: Emulator,
+        save_path: PathBuf,
+        controller: Option<AutoplayController>,
+    ) -> Result<(), String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let audio_subsystem = sdl_context.audio()?;
@@ -105,21 +108,11 @@ impl FrontendSdl {
         let mut audio_device = audio_subsystem.open_playback(None, &desired_spec, |spec| {
             println!("{:?}", spec);
 
-            let mut instructions = VecDeque::new();
-            instructions.push_back(AutoplayInstruction::Wait(700));
-            instructions.push_back(AutoplayInstruction::Start);
-            instructions.push_back(AutoplayInstruction::Wait(10));
-            instructions.push_back(AutoplayInstruction::A);
-            instructions.push_back(AutoplayInstruction::Wait(10));
-            instructions.push_back(AutoplayInstruction::A);
-            instructions.push_back(AutoplayInstruction::Wait(10));
-            instructions.push_back(AutoplayInstruction::A);
-
             SdlState {
                 emulator,
                 sound_on: true,
                 num_channels: spec.channels as usize,
-                controller: AutoplayController { instructions },
+                controller: controller,
             }
         })?;
         println!("AUDIO DEVICE CREATED");
@@ -170,8 +163,6 @@ impl FrontendSdl {
                 }
             }
 
-            // let mut keyboard_state = event_pump.keyboard_state();
-
             {
                 let mut device = audio_device.lock();
 
@@ -181,10 +172,13 @@ impl FrontendSdl {
                         .get_screen_buffer()
                         .map(|buffer| buffer.to_owned());
 
+                    // let mut controller = event_pump.keyboard_state();
+                    let controller = device.controller.as_mut().unwrap();
+
                     // TODO: Trigger joypad interrupt
                     let joypad_input = match buffer {
-                        Some(screen_buffer) => device.controller.play_frame(Some(&screen_buffer)),
-                        None => device.controller.play_frame(None),
+                        Some(screen_buffer) => controller.play_frame(Some(&screen_buffer)),
+                        None => controller.play_frame(None),
                     };
 
                     device.emulator.set_joypad_input(&joypad_input);

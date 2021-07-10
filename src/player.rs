@@ -14,42 +14,69 @@ pub struct AutoplayController {
 
 impl Player for AutoplayController {
     fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
-        let mut input = JoypadInput::default();
-
         if self.instructions.is_empty() {
             println!("No more instructions");
-            return input;
+            return JoypadInput::default();
         }
 
         match self.instructions[0] {
-            AutoplayInstruction::Wait(1) => {
-                self.instructions.pop_front();
+            AutoplayInstruction::Repeat(button, count) => {
+                let input = process_button(button);
+
+                match count {
+                    1 => {
+                        self.instructions.pop_front();
+                    }
+                    _ => self.instructions[0] = AutoplayInstruction::Repeat(button, count - 1),
+                }
+
+                input
             }
-            AutoplayInstruction::Wait(frames) => {
-                self.instructions[0] = AutoplayInstruction::Wait(frames - 1);
-            }
-            AutoplayInstruction::Right => {
-                input.right = true;
-                self.instructions.pop_front();
-            }
-            AutoplayInstruction::Start => {
-                input.start = true;
-                self.instructions.pop_front();
-            }
-            AutoplayInstruction::A => {
-                input.a = true;
-                self.instructions.pop_front();
+            AutoplayInstruction::Alternate(btn1, btn2, count) => {
+                let input = if count % 2 == 0 {
+                    process_button(btn1)
+                } else {
+                    process_button(btn2)
+                };
+
+                match count {
+                    1 => {
+                        self.instructions.pop_front();
+                    }
+                    _ => {
+                        self.instructions[0] = AutoplayInstruction::Alternate(btn1, btn2, count - 1)
+                    }
+                }
+
+                input
             }
         }
-
-        input
     }
+}
+
+fn process_button(button: Button) -> JoypadInput {
+    let mut input = JoypadInput::default();
+
+    match button {
+        Button::Wait => (),
+        Button::Down => input.down = true,
+        Button::Start => input.start = true,
+        Button::A => input.a = true,
+    }
+
+    input
 }
 
 #[derive(Copy, Clone)]
 pub enum AutoplayInstruction {
-    Wait(u32),
-    Right,
+    Repeat(Button, u32),
+    Alternate(Button, Button, u32),
+}
+
+#[derive(Copy, Clone)]
+pub enum Button {
+    Wait,
+    Down,
     Start,
     A,
 }
