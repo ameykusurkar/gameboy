@@ -15,10 +15,15 @@ pub struct AutoplayController {
 impl Player for AutoplayController {
     fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
         if self.instructions.is_empty() {
-            println!("No more instructions");
-            return JoypadInput::default();
+            self.process_screen()
+        } else {
+            self.play_starting_instruction()
         }
+    }
+}
 
+impl AutoplayController {
+    fn play_starting_instruction(&mut self) -> JoypadInput {
         match self.instructions[0] {
             AutoplayInstruction::Repeat(button, count) => {
                 let input = process_button(button);
@@ -51,6 +56,11 @@ impl Player for AutoplayController {
                 input
             }
         }
+    }
+
+    fn process_screen(&mut self) -> JoypadInput {
+        println!("No more instructions");
+        return JoypadInput::default();
     }
 }
 

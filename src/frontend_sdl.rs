@@ -172,8 +172,8 @@ impl FrontendSdl {
                         .get_screen_buffer()
                         .map(|buffer| buffer.to_owned());
 
-                    // let mut controller = event_pump.keyboard_state();
-                    let controller = device.controller.as_mut().unwrap();
+                    let mut controller = event_pump.keyboard_state();
+                    // let controller = device.controller.as_mut().unwrap();
 
                     // TODO: Trigger joypad interrupt
                     let joypad_input = match buffer {
