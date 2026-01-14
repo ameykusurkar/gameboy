@@ -28,11 +28,14 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Check main project
-        run: cargo check
+      - name: Check core
+        run: cd core && cargo check
 
       - name: Check wasm project
         run: cd wasm && cargo check
+
+      - name: Check main project
+        run: cargo check
 
   test:
     runs-on: ubuntu-latest
