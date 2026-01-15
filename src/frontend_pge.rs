@@ -5,6 +5,7 @@ use std::path::PathBuf;
 use core::registers::RegisterIndex::*;
 use core::registers::TwoRegisterIndex::{HL, PC, SP};
 
+use core::disassembly;
 use core::emulator::{DEBUG, Emulator};
 
 use core::ppu::{FRAME_CYCLES, LCD_HEIGHT, LCD_WIDTH, MAP_HEIGHT, MAP_WIDTH};
@@ -325,7 +326,7 @@ impl PgeState {
         );
 
         let start_y = y + 25 * cy;
-        let mut instructions = self.emulator.cpu.disassemble(
+        let mut instructions = disassembly::disassemble(
             &self.emulator.memory,
             self.emulator.cpu.regs.read16(PC),
             self.emulator.cpu.regs.read16(PC) + 10,
