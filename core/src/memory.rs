@@ -2,7 +2,7 @@ use crate::cartridge::Cartridge;
 use crate::joypad::Joypad;
 use crate::ppu::{Ppu, CGB_PPU_REGISTER_ADDR_RANGE, PPU_REGISTER_ADDR_RANGE, VBK_ADDR};
 use crate::serial_transfer::SerialTransfer;
-use crate::sound_controller::SoundController;
+use crate::sound::SoundController;
 use crate::utils::{read_bit, set_bit};
 
 const OAM_RANGE: std::ops::RangeInclusive<u16> = 0xFE00..=0xFE9F;

@@ -1,4 +1,3 @@
-pub mod audio_components;
 pub mod bootrom;
 pub mod cartridge;
 pub mod cpu;
@@ -7,11 +6,8 @@ pub mod instruction;
 pub mod joypad;
 pub mod memory;
 pub mod new_instruction;
-pub mod noise_channel;
 pub mod ppu;
 pub mod registers;
 pub mod serial_transfer;
-pub mod sound_controller;
-pub mod square_wave_channel;
+pub mod sound;
 pub mod utils;
-pub mod wave_channel;
