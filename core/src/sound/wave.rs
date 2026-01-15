@@ -1,4 +1,4 @@
-use crate::audio_components::Timer;
+use super::components::Timer;
 use crate::memory::MemoryAccess;
 use crate::utils::read_bit;
 

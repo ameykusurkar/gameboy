@@ -1,9 +1,14 @@
+mod components;
+mod noise;
+mod square_wave;
+mod wave;
+
 use crate::memory::MemoryAccess;
 use crate::utils::{read_bit, set_bit};
 
-use crate::noise_channel::NoiseChannel;
-use crate::square_wave_channel::SquareWaveChannel;
-use crate::wave_channel::WaveChannel;
+use noise::NoiseChannel;
+use square_wave::SquareWaveChannel;
+use wave::WaveChannel;
 
 pub struct SoundController {
     square_wave_1: SquareWaveChannel,
