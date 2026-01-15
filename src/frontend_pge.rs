@@ -5,7 +5,7 @@ use std::path::PathBuf;
 use core::registers::RegisterIndex::*;
 use core::registers::TwoRegisterIndex::{HL, PC, SP};
 
-use core::emulator::{Emulator, DEBUG};
+use core::emulator::{DEBUG, Emulator};
 
 use core::ppu::{FRAME_CYCLES, LCD_HEIGHT, LCD_WIDTH, MAP_HEIGHT, MAP_WIDTH};
 

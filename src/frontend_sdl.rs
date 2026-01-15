@@ -15,7 +15,7 @@ use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
 use core::emulator::Emulator;
 use core::memory::Memory;
-use core::ppu::{PixelColor, LCD_HEIGHT, LCD_WIDTH};
+use core::ppu::{LCD_HEIGHT, LCD_WIDTH, PixelColor};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
 
