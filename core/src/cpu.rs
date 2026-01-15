@@ -24,8 +24,7 @@ pub struct Cpu {
     remaining_cycles: u32,
     total_clock_cycles: u32,
     halted: bool,
-    pub current_instruction: &'static Instruction<'static>,
-    current_new_instruction: Option<NewInstructionIterator<'static>>,
+    current_instruction: Option<NewInstructionIterator<'static>>,
     prefixed_mode: bool,
 }
 
@@ -118,9 +117,7 @@ impl Cpu {
             remaining_cycles: 0,
             total_clock_cycles: 0,
             halted: false,
-            // This should get populated when cpu starts running
-            current_instruction: &INSTRUCTIONS[0],
-            current_new_instruction: None,
+            current_instruction: None,
             prefixed_mode: false,
         }
     }
@@ -155,7 +152,7 @@ impl Cpu {
                     Some(instruction) => {
                         if instruction.num_cycles() > 0 {
                             self.remaining_cycles += instruction.num_cycles() as u32;
-                            self.current_new_instruction = Some(instruction.into_iter());
+                            self.current_instruction = Some(instruction.into_iter());
                         } else {
                             // We don't do anything for a NOOP/PREFIXED instruction,
                             // but add one cycle to simulate fetching the PC
@@ -176,20 +173,20 @@ impl Cpu {
                 }
             }
 
-            if self.current_new_instruction.is_some() {
-                match self.current_new_instruction.as_mut().unwrap().next() {
+            if self.current_instruction.is_some() {
+                match self.current_instruction.as_mut().unwrap().next() {
                     Some(micro_instruction) => {
                         let should_proceed = self.execute_micro(memory, &micro_instruction);
 
                         if !should_proceed {
                             // Consumes the iterator
-                            self.current_new_instruction.as_mut().unwrap().last();
+                            self.current_instruction.as_mut().unwrap().last();
                             self.remaining_cycles = 1;
                         }
 
                         // TODO: Clean up!
-                        if self.current_new_instruction.as_mut().unwrap().is_empty() {
-                            self.current_new_instruction = None;
+                        if self.current_instruction.as_mut().unwrap().is_empty() {
+                            self.current_instruction = None;
 
                             if micro_instruction.has_memory_access() {
                                 // Add an extra cycle to simulate fetching the next instruction, as
