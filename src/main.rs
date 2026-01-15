@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::Read;
 use std::path::Path;
@@ -6,11 +7,14 @@ use clap::{App, Arg};
 
 mod frontend_pge;
 mod frontend_sdl;
+mod player;
 
 use core::emulator::Emulator;
 
 use frontend_pge::FrontendPge;
 use frontend_sdl::FrontendSdl;
+
+use crate::player::{AutoplayController, AutoplayInstruction, Button};
 
 fn main() -> std::io::Result<()> {
     let matches = App::new("Gameboy")
@@ -68,7 +72,9 @@ fn main() -> std::io::Result<()> {
 
     match frontend_arg {
         "frontend-sdl" => {
-            FrontendSdl::start(emulator, save_path).expect("Error while running gameboy");
+            let controller = build_controller();
+            FrontendSdl::start(emulator, save_path, Some(controller))
+                .expect("Error while running gameboy");
         }
         "frontend-pge" => {
             let mut frontend = FrontendPge::new(emulator, save_path);
@@ -78,4 +84,23 @@ fn main() -> std::io::Result<()> {
     };
 
     Ok(())
+}
+
+fn build_controller() -> AutoplayController {
+    let mut instructions = VecDeque::new();
+    instructions.push_back(AutoplayInstruction::Repeat(Button::Wait, 700));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::Start, 1));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::Wait, 10));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::A, 1));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::Wait, 10));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::A, 1));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::Wait, 10));
+    instructions.push_back(AutoplayInstruction::Repeat(Button::A, 1));
+    instructions.push_back(AutoplayInstruction::Alternate(
+        Button::Down,
+        Button::Wait,
+        1000,
+    ));
+
+    AutoplayController { instructions }
 }

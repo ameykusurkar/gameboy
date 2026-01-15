@@ -1,5 +1,6 @@
 use crate::bootrom::{BOOTROM, CGB_BOOTROM};
 use crate::cpu::Cpu;
+use crate::joypad::JoypadInput;
 use crate::memory::Memory;
 use crate::ppu::PixelColor;
 
@@ -30,6 +31,10 @@ impl Emulator {
     pub fn clock(&mut self) {
         self.cpu.step(&mut self.memory);
         self.memory.clock();
+    }
+
+    pub fn set_joypad_input(&mut self, joypad_input: &JoypadInput) {
+        self.memory.joypad.set_input(&joypad_input);
     }
 
     pub fn get_screen_buffer(&self) -> Option<&[PixelColor]> {

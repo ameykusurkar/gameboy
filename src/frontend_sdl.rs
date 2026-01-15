@@ -6,7 +6,7 @@ use sdl2;
 
 use sdl2::event::Event;
 use sdl2::gfx::framerate::FPSManager;
-use sdl2::keyboard::Scancode;
+use sdl2::keyboard::{KeyboardState, Scancode};
 use sdl2::pixels::Color;
 use sdl2::pixels::PixelFormatEnum;
 use sdl2::rect::Rect;
@@ -14,10 +14,12 @@ use sdl2::rect::Rect;
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
 use core::emulator::Emulator;
+use core::joypad::JoypadInput;
 use core::memory::Memory;
 use core::ppu::{LCD_HEIGHT, LCD_WIDTH, PixelColor};
 
 use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
+use crate::player::{AutoplayController, Player};
 
 const SCALE: u32 = 3;
 
@@ -37,6 +39,22 @@ struct SdlState {
     emulator: Emulator,
     num_channels: usize,
     sound_on: bool,
+    controller: Option<AutoplayController>,
+}
+
+impl<'a> Player for KeyboardState<'a> {
+    fn play_frame(&mut self, _screen_buffer: Option<&[PixelColor]>) -> JoypadInput {
+        JoypadInput {
+            down: self.is_scancode_pressed(Scancode::J),
+            up: self.is_scancode_pressed(Scancode::K),
+            left: self.is_scancode_pressed(Scancode::H),
+            right: self.is_scancode_pressed(Scancode::L),
+            select: self.is_scancode_pressed(Scancode::V),
+            start: self.is_scancode_pressed(Scancode::N),
+            b: self.is_scancode_pressed(Scancode::D),
+            a: self.is_scancode_pressed(Scancode::F),
+        }
+    }
 }
 
 impl AudioCallback for SdlState {
@@ -72,7 +90,11 @@ impl AudioCallback for SdlState {
 }
 
 impl FrontendSdl {
-    pub fn start(emulator: Emulator, save_path: PathBuf) -> Result<(), String> {
+    pub fn start(
+        emulator: Emulator,
+        save_path: PathBuf,
+        controller: Option<AutoplayController>,
+    ) -> Result<(), String> {
         let sdl_context = sdl2::init()?;
         let video_subsystem = sdl_context.video()?;
         let audio_subsystem = sdl_context.audio()?;
@@ -90,6 +112,7 @@ impl FrontendSdl {
                 emulator,
                 sound_on: true,
                 num_channels: spec.channels as usize,
+                controller: controller,
             }
         })?;
         println!("AUDIO DEVICE CREATED");
@@ -140,29 +163,25 @@ impl FrontendSdl {
                 }
             }
 
-            let keyboard_state = event_pump.keyboard_state();
-
             {
                 let mut device = audio_device.lock();
 
                 if device.emulator.memory.ppu.frame_complete {
+                    let buffer = device
+                        .emulator
+                        .get_screen_buffer()
+                        .map(|buffer| buffer.to_owned());
+
+                    let mut controller = event_pump.keyboard_state();
+                    // let controller = device.controller.as_mut().unwrap();
+
                     // TODO: Trigger joypad interrupt
-                    device.emulator.memory.joypad.down =
-                        keyboard_state.is_scancode_pressed(Scancode::J);
-                    device.emulator.memory.joypad.up =
-                        keyboard_state.is_scancode_pressed(Scancode::K);
-                    device.emulator.memory.joypad.left =
-                        keyboard_state.is_scancode_pressed(Scancode::H);
-                    device.emulator.memory.joypad.right =
-                        keyboard_state.is_scancode_pressed(Scancode::L);
-                    device.emulator.memory.joypad.select =
-                        keyboard_state.is_scancode_pressed(Scancode::V);
-                    device.emulator.memory.joypad.start =
-                        keyboard_state.is_scancode_pressed(Scancode::N);
-                    device.emulator.memory.joypad.b =
-                        keyboard_state.is_scancode_pressed(Scancode::D);
-                    device.emulator.memory.joypad.a =
-                        keyboard_state.is_scancode_pressed(Scancode::F);
+                    let joypad_input = match buffer {
+                        Some(screen_buffer) => controller.play_frame(Some(&screen_buffer)),
+                        None => controller.play_frame(None),
+                    };
+
+                    device.emulator.set_joypad_input(&joypad_input);
 
                     if let Some(screen_buffer) = device.emulator.get_screen_buffer() {
                         let width = LCD_WIDTH as usize;

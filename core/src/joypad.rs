@@ -15,6 +15,18 @@ pub struct Joypad {
     pub a: bool,
 }
 
+#[derive(Default)]
+pub struct JoypadInput {
+    pub down: bool,
+    pub up: bool,
+    pub left: bool,
+    pub right: bool,
+    pub start: bool,
+    pub select: bool,
+    pub b: bool,
+    pub a: bool,
+}
+
 impl Joypad {
     pub fn clear(&mut self) {
         self.down = false;
@@ -25,6 +37,17 @@ impl Joypad {
         self.select = false;
         self.b = false;
         self.a = false;
+    }
+
+    pub fn set_input(&mut self, input: &JoypadInput) {
+        self.down = input.down;
+        self.up = input.up;
+        self.left = input.left;
+        self.right = input.right;
+        self.start = input.start;
+        self.select = input.select;
+        self.b = input.b;
+        self.a = input.a;
     }
 
     fn read_buttons(&self) -> u8 {
