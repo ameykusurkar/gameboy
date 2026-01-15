@@ -521,7 +521,7 @@ impl Ppu {
         PixelData(raw_pixel_colour)
     }
 
-    fn get_sprite_tile(&self, tile_index: u8) -> Tile {
+    fn get_sprite_tile(&self, tile_index: u8) -> Tile<'_> {
         self.vram.get_tile(TileNumber(tile_index, 0), 1)
     }
 
@@ -816,7 +816,7 @@ impl Vram {
         self.get_background_attributes(map_no)[tile_y * 32 + tile_x] as usize & 0b111
     }
 
-    fn get_tile(&self, tile_number: TileNumber, pattern_table: usize) -> Tile {
+    fn get_tile(&self, tile_number: TileNumber, pattern_table: usize) -> Tile<'_> {
         let TileNumber(tile_number, bank_no) = tile_number;
 
         let start_index = match pattern_table {
