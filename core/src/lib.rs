@@ -2,7 +2,7 @@ pub mod bootrom;
 pub mod cartridge;
 pub mod cpu;
 pub mod emulator;
-pub mod instruction;
+pub mod disassembly;
 pub mod joypad;
 pub mod memory;
 pub mod new_instruction;

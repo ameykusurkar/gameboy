@@ -6,8 +6,8 @@ use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
 use crate::registers::{CARRY_FLAG, HALF_CARRY_FLAG, SUBTRACT_FLAG, ZERO_FLAG};
 
-use crate::instruction::{AddressingMode, Instruction};
-use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
+use crate::disassembly::{AddressingMode, DisassemblyInfo};
+use crate::disassembly::{DISASSEMBLY, PREFIXED_DISASSEMBLY};
 use crate::memory::Memory;
 use crate::new_instruction::{
     AddressSource, AluOperation, MemoryOperation, MicroInstruction, NewInstructionIterator,
@@ -332,14 +332,14 @@ impl Cpu {
             .map_or(true, |condition| self.eval_condition(condition))
     }
 
-    fn fetch_instruction(&self, memory: &Memory, addr: u16) -> &'static Instruction<'static> {
+    fn fetch_instruction(&self, memory: &Memory, addr: u16) -> &'static DisassemblyInfo<'static> {
         let opcode = memory.cpu_read(addr);
 
         if opcode == 0xCB {
             let next_byte = memory.cpu_read(addr + 1);
-            &PREFIXED_INSTRUCTIONS[next_byte as usize]
+            &PREFIXED_DISASSEMBLY[next_byte as usize]
         } else {
-            &INSTRUCTIONS[opcode as usize]
+            &DISASSEMBLY[opcode as usize]
         }
     }
 
@@ -401,7 +401,7 @@ impl Cpu {
         &self,
         memory: &Memory,
         addr: u16,
-        instruction: &Instruction,
+        instruction: &DisassemblyInfo,
     ) -> String {
         let (operand, _) = self.fetch_operand(memory, addr, instruction);
         let mut repr = String::from(instruction.repr);
@@ -438,7 +438,7 @@ impl Cpu {
         repr
     }
 
-    fn fetch_operand(&self, memory: &Memory, addr: u16, instruction: &Instruction) -> (u16, u32) {
+    fn fetch_operand(&self, memory: &Memory, addr: u16, instruction: &DisassemblyInfo) -> (u16, u32) {
         // (operand, bytes_read)
         let lsb = memory.cpu_read(addr) as u16;
         match &instruction.addressing_mode {

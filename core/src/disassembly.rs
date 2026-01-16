@@ -1,7 +1,7 @@
 use AddressingMode::*;
 
 #[derive(Debug)]
-pub struct Instruction<'a> {
+pub struct DisassemblyInfo<'a> {
     pub repr: &'a str,
     pub num_bytes: u32,
     pub addressing_mode: AddressingMode,
@@ -19,1538 +19,1538 @@ pub enum AddressingMode {
 }
 
 // TODO: Change `num_bytes` for unimplemented instructions back to 0
-pub static INSTRUCTIONS: [Instruction; 256] = [
-    Instruction {
+pub static DISASSEMBLY: [DisassemblyInfo; 256] = [
+    DisassemblyInfo {
         prefixed: false,
         repr: "NOP",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD BC,d16",
         num_bytes: 3,
         addressing_mode: Imm16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (BC),A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC BC",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RLCA",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (a16),SP",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD HL,BC",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(BC)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC BC",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RRCA",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "STOP 0",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD DE,d16",
         num_bytes: 3,
         addressing_mode: Imm16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (DE),A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC DE",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RLA",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JR r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD HL,DE",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(DE)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC DE",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RRA",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JR NZ,r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD HL,d16",
         num_bytes: 3,
         addressing_mode: Imm16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL+),A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC HL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DAA",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JR Z,r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD HL,HL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(HL+)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC HL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CPL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JR NC,r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD SP,d16",
         num_bytes: 3,
         addressing_mode: Imm16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL-),A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC SP",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SCF",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JR C,r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD HL,SP",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(HL-)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC SP",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "INC A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DEC A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CCF",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD B,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD C,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD D,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD E,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD H,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD L,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "HALT",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (HL),A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP B",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP D",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP E",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP L",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RET NZ",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "POP BC",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JP NZ,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JP a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CALL NZ,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "PUSH BC",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 00H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RET Z",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RET",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JP Z,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "PREFIX CB",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CALL Z,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CALL a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADC d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 08H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RET NC",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "POP DE",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JP NC,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CALL NC,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "PUSH DE",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SUB d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 10H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RET C",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RETI",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JP C,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CALL C,a16",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "SBC d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 18H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LDH (a8),A",
         num_bytes: 2,
         addressing_mode: ZeroPageOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "POP HL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (C),A",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: ZeroPageOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: ZeroPageOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "PUSH HL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "AND d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 20H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "ADD SP,r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "JP (HL)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD (a16),A",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "XOR d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 28H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LDH A,(a8)",
         num_bytes: 2,
         addressing_mode: ZeroPageOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "POP AF",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(C)",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "DI",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "PUSH AF",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "OR d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 30H",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD HL,SP+r8",
         num_bytes: 2,
         addressing_mode: SignedAddrOffset,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD SP,HL",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "LD A,(a16)",
         num_bytes: 3,
         addressing_mode: Addr16,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "EI",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "UNIMPLEMENTED",
         num_bytes: 1,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "CP d8",
         num_bytes: 2,
         addressing_mode: Imm8,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: false,
         repr: "RST 38H",
         num_bytes: 1,
@@ -1558,1538 +1558,1538 @@ pub static INSTRUCTIONS: [Instruction; 256] = [
     },
 ];
 
-pub static PREFIXED_INSTRUCTIONS: [Instruction; 256] = [
-    Instruction {
+pub static PREFIXED_DISASSEMBLY: [DisassemblyInfo; 256] = [
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RLC A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RRC A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RL A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RR A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SLA A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRA A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SWAP A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL (HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SRL A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 0,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 1,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 2,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 3,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 4,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 5,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 6,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "BIT 7,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 0,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 1,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 2,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 3,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 4,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 5,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 6,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "RES 7,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 0,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 1,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 2,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 3,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 4,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 5,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 6,A",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,B",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,C",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,D",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,E",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,H",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,L",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,(HL)",
         num_bytes: 2,
         addressing_mode: Implied,
     },
-    Instruction {
+    DisassemblyInfo {
         prefixed: true,
         repr: "SET 7,A",
         num_bytes: 2,
