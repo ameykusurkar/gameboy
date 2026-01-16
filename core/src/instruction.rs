@@ -14,13 +14,13 @@ lazy_static! {
 }
 
 #[derive(Clone)]
-pub struct NewInstruction {
+pub struct Instruction {
     micro_instructions: Vec<MicroInstruction>,
 }
 
-impl NewInstruction {
-    fn new() -> NewInstruction {
-        NewInstruction {
+impl Instruction {
+    fn new() -> Instruction {
+        Instruction {
             micro_instructions: Vec::new(),
         }
     }
@@ -173,11 +173,11 @@ impl NewInstruction {
     }
 }
 
-pub struct NewInstructionIterator<'a> {
+pub struct InstructionIterator<'a> {
     iterator: Peekable<std::slice::Iter<'a, MicroInstruction>>,
 }
 
-impl<'a> Iterator for NewInstructionIterator<'a> {
+impl<'a> Iterator for InstructionIterator<'a> {
     type Item = &'a MicroInstruction;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -185,18 +185,18 @@ impl<'a> Iterator for NewInstructionIterator<'a> {
     }
 }
 
-impl NewInstructionIterator<'_> {
+impl InstructionIterator<'_> {
     pub fn is_empty(&mut self) -> bool {
         self.iterator.peek().is_none()
     }
 }
 
-impl<'a> IntoIterator for &'a NewInstruction {
+impl<'a> IntoIterator for &'a Instruction {
     type Item = &'a MicroInstruction;
-    type IntoIter = NewInstructionIterator<'a>;
+    type IntoIter = InstructionIterator<'a>;
 
     fn into_iter(self) -> Self::IntoIter {
-        NewInstructionIterator {
+        InstructionIterator {
             iterator: self.micro_instructions.iter().peekable(),
         }
     }
@@ -284,8 +284,8 @@ pub enum AddressSource {
 }
 
 pub struct InstructionRegistry {
-    instructions: Vec<NewInstruction>,
-    prefixed_instructions: Vec<NewInstruction>,
+    instructions: Vec<Instruction>,
+    prefixed_instructions: Vec<Instruction>,
 }
 
 impl InstructionRegistry {
@@ -298,8 +298,8 @@ impl InstructionRegistry {
         }
     }
 
-    fn convert_to_vec(map: HashMap<u8, NewInstruction>) -> Vec<NewInstruction> {
-        let mut vec = vec![NewInstruction::new(); 256];
+    fn convert_to_vec(map: HashMap<u8, Instruction>) -> Vec<Instruction> {
+        let mut vec = vec![Instruction::new(); 256];
 
         for (opcode, instruction) in map {
             vec[opcode as usize] = instruction;
@@ -308,7 +308,7 @@ impl InstructionRegistry {
         vec
     }
 
-    pub fn build_registry() -> (HashMap<u8, NewInstruction>, HashMap<u8, NewInstruction>) {
+    pub fn build_registry() -> (HashMap<u8, Instruction>, HashMap<u8, Instruction>) {
         let mut instruction_map = HashMap::new();
 
         for (opcode, reg16) in [(0x01, BC), (0x11, DE), (0x21, HL), (0x31, SP)].iter() {
@@ -316,12 +316,12 @@ impl InstructionRegistry {
 
             instruction_map.insert(
                 *opcode,
-                NewInstruction::new().load_imm(low_reg).load_imm(high_reg),
+                Instruction::new().load_imm(low_reg).load_imm(high_reg),
             );
         }
 
-        instruction_map.insert(0x00, NewInstruction::new());
-        instruction_map.insert(0xCB, NewInstruction::new());
+        instruction_map.insert(0x00, Instruction::new());
+        instruction_map.insert(0xCB, Instruction::new());
 
         instruction_map.insert(0x03, build_inc16_instruction(BC));
         instruction_map.insert(0x13, build_inc16_instruction(DE));
@@ -420,7 +420,7 @@ impl InstructionRegistry {
         instruction_map.insert(0xD2, build_conditional_jump_instruction(Condition::NC));
         instruction_map.insert(0xDA, build_conditional_jump_instruction(Condition::C));
 
-        instruction_map.insert(0xE9, NewInstruction::new().empty().and_move_reg16(PC, HL));
+        instruction_map.insert(0xE9, Instruction::new().empty().and_move_reg16(PC, HL));
 
         instruction_map.insert(0xC9, build_return_instruction());
         instruction_map.insert(0xC0, build_conditional_return_instruction(Condition::NZ));
@@ -435,8 +435,8 @@ impl InstructionRegistry {
         instruction_map.insert(0xD4, build_conditional_call_instruction(Condition::NC));
         instruction_map.insert(0xDC, build_conditional_call_instruction(Condition::C));
 
-        instruction_map.insert(0xF3, NewInstruction::new().empty().and_disable_interrupts());
-        instruction_map.insert(0xFB, NewInstruction::new().empty().and_enable_interrupts());
+        instruction_map.insert(0xF3, Instruction::new().empty().and_disable_interrupts());
+        instruction_map.insert(0xFB, Instruction::new().empty().and_enable_interrupts());
 
         for opcode in [0xC7, 0xD7, 0xE7, 0xF7, 0xCF, 0xDF, 0xEF, 0xFF].iter() {
             let addr = (opcode - 0xC7) as u16;
@@ -488,7 +488,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0x80..=0x87).collect(), AluOperation::Add);
         instruction_map.insert(
             0xC6,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Add, TempLow),
@@ -498,7 +498,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0x88..=0x8F).collect(), AluOperation::Adc);
         instruction_map.insert(
             0xCE,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Adc, TempLow),
@@ -508,7 +508,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0x90..=0x97).collect(), AluOperation::Sub);
         instruction_map.insert(
             0xD6,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Sub, TempLow),
@@ -518,7 +518,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0x98..=0x9F).collect(), AluOperation::Sbc);
         instruction_map.insert(
             0xDE,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Sbc, TempLow),
@@ -528,7 +528,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0xA0..=0xA7).collect(), AluOperation::And);
         instruction_map.insert(
             0xE6,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::And, TempLow),
@@ -538,7 +538,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0xA8..=0xAF).collect(), AluOperation::Xor);
         instruction_map.insert(
             0xEE,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Xor, TempLow),
@@ -548,7 +548,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0xB0..=0xB7).collect(), AluOperation::Or);
         instruction_map.insert(
             0xF6,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Or, TempLow),
@@ -558,7 +558,7 @@ impl InstructionRegistry {
             build_alu_instructions(instruction_map, (0xB8..=0xBF).collect(), AluOperation::Cp);
         instruction_map.insert(
             0xFE,
-            NewInstruction::new()
+            Instruction::new()
                 .load_imm(TempLow)
                 .empty()
                 .and_alu(AluOperation::Cp, TempLow),
@@ -566,39 +566,39 @@ impl InstructionRegistry {
 
         instruction_map.insert(
             0x07,
-            NewInstruction::new().empty().and_alu(AluOperation::Rlca, A),
+            Instruction::new().empty().and_alu(AluOperation::Rlca, A),
         );
         instruction_map.insert(
             0x0F,
-            NewInstruction::new().empty().and_alu(AluOperation::Rrca, A),
+            Instruction::new().empty().and_alu(AluOperation::Rrca, A),
         );
         instruction_map.insert(
             0x17,
-            NewInstruction::new().empty().and_alu(AluOperation::Rla, A),
+            Instruction::new().empty().and_alu(AluOperation::Rla, A),
         );
         instruction_map.insert(
             0x1F,
-            NewInstruction::new().empty().and_alu(AluOperation::Rra, A),
+            Instruction::new().empty().and_alu(AluOperation::Rra, A),
         );
 
         instruction_map.insert(
             0x27,
-            NewInstruction::new().empty().and_alu(AluOperation::Daa, A),
+            Instruction::new().empty().and_alu(AluOperation::Daa, A),
         );
         instruction_map.insert(
             0x2F,
-            NewInstruction::new().empty().and_alu(AluOperation::Cpl, A),
+            Instruction::new().empty().and_alu(AluOperation::Cpl, A),
         );
         instruction_map.insert(
             0x37,
-            NewInstruction::new().empty().and_alu(AluOperation::Scf, A),
+            Instruction::new().empty().and_alu(AluOperation::Scf, A),
         );
         instruction_map.insert(
             0x3F,
-            NewInstruction::new().empty().and_alu(AluOperation::Ccf, A),
+            Instruction::new().empty().and_alu(AluOperation::Ccf, A),
         );
 
-        instruction_map.insert(0x76, NewInstruction::new().empty().and_halt());
+        instruction_map.insert(0x76, Instruction::new().empty().and_halt());
 
         let mut prefixed_instruction_map = HashMap::new();
 
@@ -677,7 +677,7 @@ impl InstructionRegistry {
         (instruction_map, prefixed_instruction_map)
     }
 
-    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<&NewInstruction> {
+    pub fn fetch(&self, opcode: u8, prefixed_mode: bool) -> Option<&Instruction> {
         if prefixed_mode {
             self.prefixed_instructions.get(opcode as usize)
         } else {
@@ -686,127 +686,127 @@ impl InstructionRegistry {
     }
 }
 
-fn build_load_r_n_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().load_imm(reg)
+fn build_load_r_n_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new().load_imm(reg)
 }
 
-fn build_load_rhl_n_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_load_rhl_n_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .store(AddressSource::Reg(HL), TempLow)
 }
 
-fn build_load_reg16addr_reg_instruction(reg: AddressSource) -> NewInstruction {
-    NewInstruction::new().store(reg, A)
+fn build_load_reg16addr_reg_instruction(reg: AddressSource) -> Instruction {
+    Instruction::new().store(reg, A)
 }
 
-fn build_load_reg_reg16addr_instruction(reg: AddressSource) -> NewInstruction {
-    NewInstruction::new().load(reg, A)
+fn build_load_reg_reg16addr_instruction(reg: AddressSource) -> Instruction {
+    Instruction::new().load(reg, A)
 }
 
-fn build_load_r_r_instruction(dst_reg: RegisterIndex, src_reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().empty().and_move_reg(dst_reg, src_reg)
+fn build_load_r_r_instruction(dst_reg: RegisterIndex, src_reg: RegisterIndex) -> Instruction {
+    Instruction::new().empty().and_move_reg(dst_reg, src_reg)
 }
 
 fn build_load_rr_rr_instruction(
     dst_reg: TwoRegisterIndex,
     src_reg: TwoRegisterIndex,
-) -> NewInstruction {
-    NewInstruction::new().move_reg16(dst_reg, src_reg)
+) -> Instruction {
+    Instruction::new().move_reg16(dst_reg, src_reg)
 }
 
-fn build_load_r_rhl_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().load(AddressSource::Reg(HL), reg)
+fn build_load_r_rhl_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new().load(AddressSource::Reg(HL), reg)
 }
 
-fn build_load_rhl_r_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().store(AddressSource::Reg(HL), reg)
+fn build_load_rhl_r_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new().store(AddressSource::Reg(HL), reg)
 }
 
-fn build_load_rhl_inc_r_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_rhl_inc_r_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .store(AddressSource::Reg(HL), reg)
         .empty()
         .and_inc16(HL)
 }
 
-fn build_load_r_rhl_inc_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_r_rhl_inc_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .load(AddressSource::Reg(HL), reg)
         .empty()
         .and_inc16(HL)
 }
 
-fn build_load_rhl_dec_r_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_rhl_dec_r_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .store(AddressSource::Reg(HL), reg)
         .empty()
         .and_dec16(HL)
 }
 
-fn build_load_r_rhl_dec_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_r_rhl_dec_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .load(AddressSource::Reg(HL), reg)
         .empty()
         .and_dec16(HL)
 }
 
-fn build_load_high_addr_a_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_high_addr_a_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .store(AddressSource::HighPage(TempLow), reg)
 }
 
-fn build_load_a_high_addr_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_a_high_addr_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load(AddressSource::HighPage(TempLow), reg)
 }
 
-fn build_load_high_addr_c_a_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().store(AddressSource::HighPage(C), reg)
+fn build_load_high_addr_c_a_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new().store(AddressSource::HighPage(C), reg)
 }
 
-fn build_load_a_high_addr_c_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new().load(AddressSource::HighPage(C), reg)
+fn build_load_a_high_addr_c_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new().load(AddressSource::HighPage(C), reg)
 }
 
-fn build_load_addr16_a_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_addr16_a_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .store(AddressSource::Reg(Temp16), reg)
 }
 
-fn build_load_a_addr16_instruction(reg: RegisterIndex) -> NewInstruction {
-    NewInstruction::new()
+fn build_load_a_addr16_instruction(reg: RegisterIndex) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .load(AddressSource::Reg(Temp16), reg)
 }
 
-fn build_load_addr16_sp_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_load_addr16_sp_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .store(AddressSource::Reg(Temp16), SPLow)
         .store(AddressSource::RegWithOffset(Temp16, 1), SPHigh)
 }
 
-fn build_pop_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+fn build_pop_instruction(reg16: TwoRegisterIndex) -> Instruction {
     let (high_reg, low_reg) = reg16.split_index();
 
-    NewInstruction::new()
+    Instruction::new()
         .load(AddressSource::Reg(SP), low_reg)
         .and_inc16(SP)
         .load(AddressSource::Reg(SP), high_reg)
         .and_inc16(SP)
 }
 
-fn build_push_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+fn build_push_instruction(reg16: TwoRegisterIndex) -> Instruction {
     let (high_reg, low_reg) = reg16.split_index();
 
-    NewInstruction::new()
+    Instruction::new()
         .noop()
         .and_dec16(SP)
         .store(AddressSource::Reg(SP), high_reg)
@@ -814,38 +814,38 @@ fn build_push_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
         .store(AddressSource::Reg(SP), low_reg)
 }
 
-fn build_jump_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_jump_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .move_reg16(PC, Temp16)
 }
 
-fn build_conditional_jump_instruction(condition: Condition) -> NewInstruction {
-    NewInstruction::new()
+fn build_conditional_jump_instruction(condition: Condition) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .and_proceed_if(condition)
         .move_reg16(PC, Temp16)
 }
 
-fn build_jump_relative_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_jump_relative_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .noop()
         .and_signed_add_reg16(PC, TempLow)
 }
 
-fn build_conditional_jump_relative_instruction(condition: Condition) -> NewInstruction {
-    NewInstruction::new()
+fn build_conditional_jump_relative_instruction(condition: Condition) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .and_proceed_if(condition)
         .noop()
         .and_signed_add_reg16(PC, TempLow)
 }
 
-fn build_return_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_return_instruction() -> Instruction {
+    Instruction::new()
         .load(AddressSource::Reg(SP), PCLow)
         .and_inc16(SP)
         .load(AddressSource::Reg(SP), PCHigh)
@@ -853,8 +853,8 @@ fn build_return_instruction() -> NewInstruction {
         .noop()
 }
 
-fn build_conditional_return_instruction(condition: Condition) -> NewInstruction {
-    NewInstruction::new()
+fn build_conditional_return_instruction(condition: Condition) -> Instruction {
+    Instruction::new()
         .noop()
         .and_proceed_if(condition)
         .load(AddressSource::Reg(SP), PCLow)
@@ -864,8 +864,8 @@ fn build_conditional_return_instruction(condition: Condition) -> NewInstruction 
         .noop()
 }
 
-fn build_call_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_call_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .noop()
@@ -876,8 +876,8 @@ fn build_call_instruction() -> NewInstruction {
         .and_move_reg16(PC, Temp16)
 }
 
-fn build_conditional_call_instruction(condition: Condition) -> NewInstruction {
-    NewInstruction::new()
+fn build_conditional_call_instruction(condition: Condition) -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .load_imm(TempHigh)
         .and_proceed_if(condition)
@@ -889,8 +889,8 @@ fn build_conditional_call_instruction(condition: Condition) -> NewInstruction {
         .and_move_reg16(PC, Temp16)
 }
 
-fn build_reset_instruction(addr: u16) -> NewInstruction {
-    NewInstruction::new()
+fn build_reset_instruction(addr: u16) -> Instruction {
+    Instruction::new()
         .noop()
         .and_dec16(SP)
         .store(AddressSource::Reg(SP), PCHigh)
@@ -899,39 +899,39 @@ fn build_reset_instruction(addr: u16) -> NewInstruction {
         .and_move_rst_addr(addr)
 }
 
-fn build_inc16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
-    NewInstruction::new().noop().and_inc16(reg16)
+fn build_inc16_instruction(reg16: TwoRegisterIndex) -> Instruction {
+    Instruction::new().noop().and_inc16(reg16)
 }
 
-fn build_dec16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
-    NewInstruction::new().noop().and_dec16(reg16)
+fn build_dec16_instruction(reg16: TwoRegisterIndex) -> Instruction {
+    Instruction::new().noop().and_dec16(reg16)
 }
 
-fn build_add16_instruction(reg16: TwoRegisterIndex) -> NewInstruction {
+fn build_add16_instruction(reg16: TwoRegisterIndex) -> Instruction {
     // TODO: Actually split alu instruction instead of using a noop
-    NewInstruction::new().noop().empty().and_add16(reg16)
+    Instruction::new().noop().empty().and_add16(reg16)
 }
 
-fn build_add_sp_n_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_add_sp_n_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .noop()
         .and_add_sp(SP, TempLow)
         .noop()
 }
 
-fn build_add_hl_sp_n_instruction() -> NewInstruction {
-    NewInstruction::new()
+fn build_add_hl_sp_n_instruction() -> Instruction {
+    Instruction::new()
         .load_imm(TempLow)
         .noop()
         .and_add_sp(HL, TempLow)
 }
 
 fn build_alu_instructions(
-    mut instruction_map: HashMap<u8, NewInstruction>,
+    mut instruction_map: HashMap<u8, Instruction>,
     opcode_range: Vec<u8>,
     alu_operation: AluOperation,
-) -> HashMap<u8, NewInstruction> {
+) -> HashMap<u8, Instruction> {
     let order = [
         Some(B),
         Some(C),
@@ -944,7 +944,7 @@ fn build_alu_instructions(
     ];
 
     for (reg_index, opcode) in order.iter().zip(opcode_range.iter()) {
-        let mut instruction = NewInstruction::new();
+        let mut instruction = Instruction::new();
 
         instruction = match reg_index {
             Some(reg) => instruction.empty().and_alu(alu_operation, *reg),

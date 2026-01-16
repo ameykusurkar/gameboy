@@ -9,8 +9,8 @@ use crate::registers::{CARRY_FLAG, HALF_CARRY_FLAG, SUBTRACT_FLAG, ZERO_FLAG};
 use crate::disassembly::{AddressingMode, DisassemblyInfo};
 use crate::disassembly::{DISASSEMBLY, PREFIXED_DISASSEMBLY};
 use crate::memory::Memory;
-use crate::new_instruction::{
-    AddressSource, AluOperation, MemoryOperation, MicroInstruction, NewInstructionIterator,
+use crate::instruction::{
+    AddressSource, AluOperation, InstructionIterator, MemoryOperation, MicroInstruction,
     RegisterOperation, REGISTRY,
 };
 
@@ -24,7 +24,7 @@ pub struct Cpu {
     remaining_cycles: u32,
     total_clock_cycles: u32,
     halted: bool,
-    current_instruction: Option<NewInstructionIterator<'static>>,
+    current_instruction: Option<InstructionIterator<'static>>,
     prefixed_mode: bool,
 }
 

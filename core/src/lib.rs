@@ -5,7 +5,7 @@ pub mod emulator;
 pub mod disassembly;
 pub mod joypad;
 pub mod memory;
-pub mod new_instruction;
+pub mod instruction;
 pub mod ppu;
 pub mod registers;
 pub mod serial_transfer;
