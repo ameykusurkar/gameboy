@@ -6,11 +6,9 @@ use crate::registers::TwoRegisterIndex;
 use crate::registers::TwoRegisterIndex::*;
 use crate::registers::{CARRY_FLAG, HALF_CARRY_FLAG, SUBTRACT_FLAG, ZERO_FLAG};
 
-use crate::instruction::{AddressingMode, Instruction};
-use crate::instruction::{INSTRUCTIONS, PREFIXED_INSTRUCTIONS};
 use crate::memory::Memory;
-use crate::new_instruction::{
-    AddressSource, AluOperation, MemoryOperation, MicroInstruction, NewInstructionIterator,
+use crate::instruction::{
+    AddressSource, AluOperation, InstructionIterator, MemoryOperation, MicroInstruction,
     RegisterOperation, REGISTRY,
 };
 
@@ -24,7 +22,7 @@ pub struct Cpu {
     remaining_cycles: u32,
     total_clock_cycles: u32,
     halted: bool,
-    current_instruction: Option<NewInstructionIterator<'static>>,
+    current_instruction: Option<InstructionIterator<'static>>,
     prefixed_mode: bool,
 }
 
@@ -332,17 +330,6 @@ impl Cpu {
             .map_or(true, |condition| self.eval_condition(condition))
     }
 
-    fn fetch_instruction(&self, memory: &Memory, addr: u16) -> &'static Instruction<'static> {
-        let opcode = memory.cpu_read(addr);
-
-        if opcode == 0xCB {
-            let next_byte = memory.cpu_read(addr + 1);
-            &PREFIXED_INSTRUCTIONS[next_byte as usize]
-        } else {
-            &INSTRUCTIONS[opcode as usize]
-        }
-    }
-
     fn update_timers(&mut self, memory: &mut Memory) {
         memory.div_cycle();
 
@@ -362,98 +349,6 @@ impl Cpu {
                 } else {
                     memory.io_registers.increment_timer();
                 }
-            }
-        }
-    }
-
-    pub fn disassemble(
-        &self,
-        memory: &Memory,
-        start_addr: u16,
-        end_addr: u16,
-    ) -> Vec<(u16, String)> {
-        let mut current_addr = start_addr;
-        let mut instruction_reprs = Vec::new();
-
-        loop {
-            if current_addr > end_addr {
-                break;
-            };
-
-            let instruction = self.fetch_instruction(memory, current_addr);
-            let num_bytes = instruction.num_bytes as u32;
-
-            if current_addr as u32 + num_bytes > end_addr as u32 {
-                break;
-            };
-
-            let operand_start_addr = current_addr + 1 + (instruction.prefixed as u16);
-            let repr = self.build_instruction_repr(memory, operand_start_addr, instruction);
-            instruction_reprs.push((current_addr, repr));
-            current_addr += num_bytes as u16;
-        }
-
-        instruction_reprs
-    }
-
-    // Depends on `instruction.repr` being in the correct format
-    fn build_instruction_repr(
-        &self,
-        memory: &Memory,
-        addr: u16,
-        instruction: &Instruction,
-    ) -> String {
-        let (operand, _) = self.fetch_operand(memory, addr, instruction);
-        let mut repr = String::from(instruction.repr);
-
-        match &instruction.addressing_mode {
-            AddressingMode::Implied => (),
-            AddressingMode::Imm8 => {
-                repr.find("d").map(|index| {
-                    repr.replace_range(index..index + 2, &format!("{:02x}", operand));
-                });
-            }
-            AddressingMode::Imm16 => {
-                repr.find("d").map(|index| {
-                    repr.replace_range(index..index + 3, &format!("{:04x}", operand));
-                });
-            }
-            AddressingMode::Addr16 => {
-                repr.find("a").map(|index| {
-                    repr.replace_range(index..index + 3, &format!("{:04x}", operand));
-                });
-            }
-            AddressingMode::ZeroPageOffset => {
-                repr.find("a").map(|index| {
-                    repr.replace_range(index..index + 2, &format!("{:04x}", operand));
-                });
-            }
-            AddressingMode::SignedAddrOffset => {
-                repr.find("r").map(|index| {
-                    repr.replace_range(index..index + 2, &format!("{:04x}", operand));
-                });
-            }
-        };
-
-        repr
-    }
-
-    fn fetch_operand(&self, memory: &Memory, addr: u16, instruction: &Instruction) -> (u16, u32) {
-        // (operand, bytes_read)
-        let lsb = memory.cpu_read(addr) as u16;
-        match &instruction.addressing_mode {
-            AddressingMode::Implied => (0, 0),
-            AddressingMode::Imm8 => (lsb, 0),
-            AddressingMode::Imm16 | AddressingMode::Addr16 => {
-                let msb = memory.cpu_read(addr + 1) as u16;
-                (msb << 8 | lsb, 2)
-            }
-            AddressingMode::ZeroPageOffset => (0xFF00 | lsb, 1),
-            AddressingMode::SignedAddrOffset => {
-                let lsb = lsb as i8;
-                // The offset assumes that the PC has already been incremented
-                let target_addr = ((addr + 1) as i32) + (lsb as i32);
-                (target_addr as u16, 1)
             }
         }
     }
