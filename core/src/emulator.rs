@@ -5,6 +5,8 @@ use crate::ppu::PixelColor;
 
 pub const DEBUG: bool = false;
 
+pub const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
+
 pub struct Emulator {
     pub cpu: Cpu,
     pub memory: Memory,

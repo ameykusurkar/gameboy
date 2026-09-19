@@ -6,13 +6,12 @@ use core::registers::RegisterIndex::*;
 use core::registers::TwoRegisterIndex::{HL, PC, SP};
 
 use core::disassembly;
-use core::emulator::{DEBUG, Emulator};
+use core::emulator::{DEBUG, Emulator, MACHINE_CYCLES_PER_SECOND};
 
 use core::ppu::{FRAME_CYCLES, LCD_HEIGHT, LCD_WIDTH, MAP_HEIGHT, MAP_WIDTH};
 
 const NORMAL_SPEED: bool = true;
 
-pub const MACHINE_CYCLES_PER_SECOND: u32 = 1_048_576;
 const FRAME_INTERVAL: std::time::Duration = std::time::Duration::from_nanos(
     (FRAME_CYCLES as f32 / MACHINE_CYCLES_PER_SECOND as f32 * 1e9) as u64,
 );
