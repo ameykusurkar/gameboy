@@ -11,6 +11,7 @@ minifb = "0.15.3"
 clap = { version = "4", features = ["derive"] }
 pge = { git = "https://github.com/mattbettcher/rustyPixelGameEngine", branch = "v1" }
 gameboy-core = { path = "core" }
+crossterm = "0.29.0"
 
 [dependencies.sdl2]
 version = "0.38.0"

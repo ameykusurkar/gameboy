@@ -6,11 +6,13 @@ use clap::{Parser, ValueEnum};
 
 mod frontend_pge;
 mod frontend_sdl;
+mod frontend_tui;
 
 use core::emulator::Emulator;
 
 use frontend_pge::FrontendPge;
 use frontend_sdl::FrontendSdl;
+use frontend_tui::FrontendTui;
 
 #[derive(Debug, Clone, ValueEnum)]
 enum Frontend {
@@ -18,6 +20,8 @@ enum Frontend {
     Sdl,
     #[value(name = "pge")]
     Pge,
+    #[value(name = "tui")]
+    Tui,
 }
 
 #[derive(Parser)]
@@ -67,6 +71,9 @@ fn main() -> std::io::Result<()> {
         Frontend::Pge => {
             let mut frontend = FrontendPge::new(emulator, save_path);
             frontend.start().expect("Error while running gameboy");
+        }
+        Frontend::Tui => {
+            FrontendTui::start(emulator, save_path)?;
         }
     };
 

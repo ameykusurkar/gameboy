@@ -13,11 +13,9 @@ use sdl2::rect::Rect;
 
 use sdl2::audio::{AudioCallback, AudioSpecDesired};
 
-use core::emulator::Emulator;
+use core::emulator::{Emulator, MACHINE_CYCLES_PER_SECOND};
 use core::memory::Memory;
 use core::ppu::{LCD_HEIGHT, LCD_WIDTH, PixelColor};
-
-use crate::frontend_pge::MACHINE_CYCLES_PER_SECOND;
 
 const SCALE: u32 = 3;
 
