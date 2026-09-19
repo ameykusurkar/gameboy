@@ -21,6 +21,12 @@ You can then load a ROM and play by running:
 cargo run --release path/to/rom/file.gb
 ```
 
+To play in the terminal instead (no sound), use `--frontend tui`. This needs a truecolor terminal of at least 160x72 cells. Terminals that support the [kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/) (kitty, Ghostty, WezTerm, recent iTerm2) give the most responsive controls. Press `q` to quit.
+
+```shell
+cargo run --release -- --frontend tui path/to/rom/file.gb
+```
+
 If the game supports save files, the emulator will read from and write save data to the same filename as the rom, but with the extension `.sav` instead of `.gb`.
 
 ## Feature Support
